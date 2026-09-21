@@ -48,7 +48,7 @@ local RETURN_SPEED = 300
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 70
+local FLY_OFFSET = 50
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
 
@@ -61,7 +61,7 @@ local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
 
 -- ✅ OFFSET POSITION (Go Up After Collect)
-local OFFSET_UP = 25  -- ឡើងប៉ុន្មាន studs
+local OFFSET_UP = 50  -- ឡើងប៉ុន្មាន studs
 
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
