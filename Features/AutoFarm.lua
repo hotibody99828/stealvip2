@@ -195,16 +195,10 @@ local function SelectEgg(EggData)
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
 
     -- ✅ Just save EggData — no teleport yet
-    if _G.YOKUDO_TeleportFly then
-        _G.YOKUDO_TeleportFly.SetTargetId(EggData.Id)
-    end
-    if _G.YOKUDO_InstantTeleport then
-        _G.YOKUDO_InstantTeleport.SetTargetId(EggData.Id)
-    end
 end
 
 --==================================================
--- START TELEPORT (Only called on Start button)
+-- START TELEPORT (Called on Start button)
 --==================================================
 local function StartTeleport()
     if not SelectedEgg then
@@ -216,7 +210,7 @@ local function StartTeleport()
     local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
     local Speed = _G.YOKUDO_TeleportSpeed or 300
 
-    print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed))
+    print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed) .. " | Target: " .. SelectedEgg.Id)
 
     if Method == "TeleportFly" and _G.YOKUDO_TeleportFly then
         _G.YOKUDO_TeleportFly.SetSpeed(Speed)
@@ -230,7 +224,7 @@ local function StartTeleport()
 end
 
 --==================================================
--- STOP TELEPORT (Only called on Stop button)
+-- STOP TELEPORT (Called on Stop button)
 --==================================================
 local function StopTeleport()
     if _G.YOKUDO_TeleportFly then
