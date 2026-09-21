@@ -1,14 +1,7 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
--- Option 1: TeleportFly (Normal FlyTP)
--- Option 2: InstantTeleport (Instant TP - Target Egg Only)
--- Mode 1: Target in Container (spawn)
--- Mode 2: Target in Workspace (distance change)
--- First Egg: FlyTP (Normal)
--- Target Egg: FlyTP or Instant
--- Safe Zone: FlyTP (Normal)
--- Ragdoll Bypass ON
--- ForestStrike (No Guard Fly)
+-- Teleport Speed: 50 - 1100
+-- ForestStrike: Fire only when First Egg collected
 --==================================================
 
 local Players = game:GetService("Players")
@@ -50,16 +43,11 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local FLY_SPEED = 300
 local RETURN_SPEED = 300
 
--- ✅ Method: "TeleportFly" or "InstantTeleport"
 local CurrentMethod = "TeleportFly"
 
--- FlyTP Config (Normal)
 local FLY_OFFSET = 25
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
-
--- InstantTP Config
-local INSTANT_FLY_OFFSET = 3
 
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
@@ -385,7 +373,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP (OPTION 1 - NORMAL)
+-- FLY TP
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -490,7 +478,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 --==================================================
--- INSTANT FLY TP (OPTION 2 - INSTANT)
+-- INSTANT FLY TP (FOR TARGET EGG ONLY)
 --==================================================
 
 local function InstantFlyTP(Destination, Callback)
@@ -517,11 +505,9 @@ end
 
 local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
-        -- ✅ Instant ទៅ Target Egg តែប៉ុណ្ណោះ
         print("[YOKUDO] Instant TP to Target")
         InstantFlyTP(TargetPos, Callback)
     else
-        -- ✅ TeleportFly ធម្មតា
         print("[YOKUDO] FlyTP to Target")
         FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
     end
@@ -553,10 +539,11 @@ local function RemoteCollectTarget()
 end
 
 --==================================================
--- FIRE FOREST STRIKE
+-- FIRE FOREST STRIKE (ONLY WHEN FIRST EGG COLLECTED)
 --==================================================
 
 local function FireForestStrike()
+    -- ✅ Check if already fired
     if RemotesFired then return end
     RemotesFired = true
 
@@ -577,7 +564,7 @@ local function FireForestStrike()
         end
     end)
 
-    print("[YOKUDO] ForestStrike Fired")
+    print("[YOKUDO] ForestStrike Fired (Only Once per First Egg)")
 end
 
 --==================================================
@@ -661,7 +648,7 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE (ALWAYS NORMAL - BOTH OPTIONS)
+-- FLY TO SAFE (ALWAYS NORMAL)
 --==================================================
 
 local function FlyToSafeZone()
@@ -695,6 +682,7 @@ function StartActiveHeartbeat()
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
+                -- ✅ Fire ONLY when First Egg is collected
                 FireForestStrike()
                 CurrentStep = "wait_spawn_back"
                 return
@@ -709,6 +697,7 @@ function StartActiveHeartbeat()
                 else
                     if IsFirstEggInWorkspace() then
                         CollectDone = true
+                        -- ✅ Fire ONLY when First Egg is collected
                         FireForestStrike()
                         CurrentStep = "wait_spawn_back"
                     end
@@ -838,7 +827,6 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    -- ✅ Fly to First Egg (ALWAYS NORMAL FlyTP)
     print("[YOKUDO] FlyTP to First Egg")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         CurrentStep = "collect_first"
@@ -900,7 +888,8 @@ local function SetTargetId(Id)
 end
 
 local function SetSpeed(Value)
-    Value = math.clamp(Value, 100, 1200)
+    -- ✅ Range: 50 - 1100
+    Value = math.clamp(Value, 50, 1100)
     FLY_SPEED = Value
     RETURN_SPEED = Value
     print("[YOKUDO] TeleportSystem Speed: " .. tostring(Value))
