@@ -368,7 +368,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- INSTANT FLY TP
+-- INSTANT FLY TP (OLD LOGIC)
 --==================================================
 
 local function InstantFlyTP(Destination, Callback)
@@ -536,7 +536,7 @@ local function FlyToSafeZone()
 end
 
 --==================================================
--- HEARTBEAT
+-- HEARTBEAT (OLD LOGIC)
 --==================================================
 
 function StartActiveHeartbeat()
@@ -623,7 +623,7 @@ function StopActiveHeartbeat()
 end
 
 --==================================================
--- MAIN PROCESS
+-- MAIN PROCESS (OLD LOGIC)
 --==================================================
 
 local function StartProcess()
@@ -731,7 +731,7 @@ local function FullReset()
 end
 
 --==================================================
--- ENABLE / DISABLE / SET SPEED
+-- ENABLE / DISABLE / SET TARGET / SET SPEED
 --==================================================
 
 local function Enable()
