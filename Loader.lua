@@ -200,10 +200,6 @@ loadstring(GetScript("Features/AttackDrone.lua"))()
 Loading.Update(59)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ ConfigSystem (Load After Features, Before Tabs)
-Loading.Update(60)
-loadstring(GetScript("Features/ConfigSystem.lua"))()
-
 --==================================================
 -- LOAD TABS
 --==================================================
@@ -225,18 +221,38 @@ loadstring(GetScript("Tabs/Event.lua"))()
 Loading.Update(85)
 loadstring(GetScript("Tabs/HopServer.lua"))()
 
-Loading.Update(90)
+Loading.Update(88)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
 --==================================================
 -- SELECT DEFAULT TAB
 --==================================================
-Loading.Update(92)
+Loading.Update(90)
 if _G.YOKUDO_TabsManager then
     _G.YOKUDO_TabsManager:SelectTabByName("Info")
 end
 
-Loading.Update(95)
+Loading.Update(92)
+
+--==================================================
+-- ✅ LOAD CONFIG (AFTER UI + TABS + FEATURES)
+--==================================================
+Loading.Update(94)
+loadstring(GetScript("Features/ConfigSystem.lua"))()
+
+-- ✅ Apply Config to UI
+Loading.Update(96)
+if _G.YOKUDO_ConfigSystem then
+    _G.YOKUDO_ConfigSystem.Load()
+    
+    task.wait(0.2)
+    
+    if _G.YOKUDO_ConfigSystem.SyncUI then
+        _G.YOKUDO_ConfigSystem.SyncUI()
+    end
+end
+
+Loading.Update(97)
 
 --==================================================
 -- LOAD ANTI CHEAT
