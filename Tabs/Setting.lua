@@ -181,7 +181,7 @@ local SpeedTitle = Instance.new("TextLabel")
 SpeedTitle.Size = UDim2.new(1, -120, 0, 18)
 SpeedTitle.Position = UDim2.new(0, 0, 0, 24)
 SpeedTitle.BackgroundTransparency = 1
-SpeedTitle.Text = "Range: 100 - 1200 (Default: 300)"
+SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"   -- ✅ Range: 50-1100
 SpeedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 SpeedTitle.TextSize = 10
 SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -216,16 +216,14 @@ SpeedTextBox.FocusLost:Connect(function()
     local Value = tonumber(SpeedTextBox.Text)
 
     if Value then
-        Value = math.clamp(Value, 100, 1200)
+        -- ✅ Range: 50 - 1100
+        Value = math.clamp(Value, 50, 1100)
         SpeedTextBox.Text = tostring(Value)
 
         _G.YOKUDO_TeleportSpeed = Value
 
-        if _G.YOKUDO_TeleportFly then
-            _G.YOKUDO_TeleportFly.SetSpeed(Value)
-        end
-        if _G.YOKUDO_InstantTeleport then
-            _G.YOKUDO_InstantTeleport.SetSpeed(Value)
+        if _G.YOKUDO_TeleportSystem then
+            _G.YOKUDO_TeleportSystem.SetSpeed(Value)
         end
 
         print("[YOKUDO] Teleport Speed: " .. tostring(Value))
@@ -234,11 +232,8 @@ SpeedTextBox.FocusLost:Connect(function()
 
         _G.YOKUDO_TeleportSpeed = 300
 
-        if _G.YOKUDO_TeleportFly then
-            _G.YOKUDO_TeleportFly.SetSpeed(300)
-        end
-        if _G.YOKUDO_InstantTeleport then
-            _G.YOKUDO_InstantTeleport.SetSpeed(300)
+        if _G.YOKUDO_TeleportSystem then
+            _G.YOKUDO_TeleportSystem.SetSpeed(300)
         end
     end
 end)
