@@ -1,5 +1,8 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
+-- First Egg: FlyTP (Shot TP)
+-- Target Egg: FlyTP (Shot TP) / Instant
+-- Safe Zone: FlyTP (No Shot TP)
 -- Teleport Speed: 50 - 1100
 -- ForestStrike: Fire only when First Egg collected
 --==================================================
@@ -51,6 +54,7 @@ local LOCK_ABOVE = 2
 
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
+local TIMEOUT_SECONDS = 30  -- ✅ Timeout យូរជាង
 
 local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
@@ -430,16 +434,20 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        if IsSafeZone and HorizDist <= SAFE_LOCK_DISTANCE then
-            CleanupMovers()
-            Root2.CFrame = LockCFrame
-            Root2.AssemblyLinearVelocity = Vector3.zero
-            Root2.AssemblyAngularVelocity = Vector3.zero
-            StartLock(Destination)
-            if Callback then Callback() end
-            return
+        -- ✅ Safe Zone: No Shot TP
+        if IsSafeZone then
+            if HorizDist <= SAFE_LOCK_DISTANCE then
+                CleanupMovers()
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+                StartLock(Destination)
+                if Callback then Callback() end
+                return
+            end
         end
 
+        -- ✅ Target Egg: Shot TP
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
@@ -451,6 +459,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
+        -- Arrived fallback
         if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
             CleanupMovers()
             Root2.CFrame = LockCFrame
@@ -461,7 +470,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        if tick() - StartTime > 15 then
+        -- ✅ Timeout យូរជាង
+        if tick() - StartTime > TIMEOUT_SECONDS then
             CleanupMovers()
             if Callback then Callback() end
             return
@@ -508,7 +518,7 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantFlyTP(TargetPos, Callback)
     else
-        print("[YOKUDO] FlyTP to Target")
+        print("[YOKUDO] FlyTP to Target (Shot TP)")
         FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
     end
 end
@@ -543,7 +553,6 @@ end
 --==================================================
 
 local function FireForestStrike()
-    -- ✅ Check if already fired
     if RemotesFired then return end
     RemotesFired = true
 
@@ -648,14 +657,15 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE (ALWAYS NORMAL)
+-- FLY TO SAFE (NO SHOT TP)
 --==================================================
 
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] FlyTP to Safe Zone")
+    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
 
+    -- ✅ UseShotTP = false for Safe Zone
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
     end)
@@ -678,11 +688,9 @@ function StartActiveHeartbeat()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
-        -- Round 1: Collect First
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
-                -- ✅ Fire ONLY when First Egg is collected
                 FireForestStrike()
                 CurrentStep = "wait_spawn_back"
                 return
@@ -697,7 +705,6 @@ function StartActiveHeartbeat()
                 else
                     if IsFirstEggInWorkspace() then
                         CollectDone = true
-                        -- ✅ Fire ONLY when First Egg is collected
                         FireForestStrike()
                         CurrentStep = "wait_spawn_back"
                     end
@@ -705,14 +712,12 @@ function StartActiveHeartbeat()
             end
         end
 
-        -- Wait Egg Back -> Fly Target
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
-        -- Round 2: Collect Target
         if CurrentStep == "collect_target" and not TargetCollected then
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
@@ -827,7 +832,8 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    print("[YOKUDO] FlyTP to First Egg")
+    -- ✅ First Egg: Shot TP = true
+    print("[YOKUDO] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         CurrentStep = "collect_first"
     end)
@@ -888,7 +894,6 @@ local function SetTargetId(Id)
 end
 
 local function SetSpeed(Value)
-    -- ✅ Range: 50 - 1100
     Value = math.clamp(Value, 50, 1100)
     FLY_SPEED = Value
     RETURN_SPEED = Value
