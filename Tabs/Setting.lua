@@ -664,4 +664,58 @@ FastClickButton.MouseLeave:Connect(function()
 end)
 
 FastClickButton.MouseButton1Down:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
+        Size = UDim2.new(0, 62, 0, 23),
+        BackgroundColor3 = Color3.fromRGB(85, 70, 170)
+    }):Play()
+end)
+
+FastClickButton.MouseButton1Up:Connect(function()
+    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
+        Size = UDim2.new(0, 70, 0, 26),
+        BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+    }):Play()
+end)
+
+FastClickButton.MouseButton1Click:Connect(function()
+    if not _G.YOKUDO_ManualFastClick then
+        warn("[YOKUDO] ManualFastClick feature not loaded")
+        ShowNotification("Manual Fast Click Not Loaded")
+        return
+    end
+
+    if _G.YOKUDO_ManualFastClick.IsEnabled() then
+        _G.YOKUDO_ManualFastClick.Disable()
+        ShowNotification("Manual Fast Click Stop")
+    else
+        _G.YOKUDO_ManualFastClick.Enable()
+        ShowNotification("Manual Fast Click Start")
+    end
+end)
+
+task.spawn(function()
+    task.wait(0.5)
+    if _G.YOKUDO_ManualFastClick then
+        if _G.YOKUDO_ManualFastClick.IsEnabled() then
+            FastClickButton.Text = "Stop"
+        else
+            FastClickButton.Text = "Click"
+        end
+    end
+end)
+
+--==================================================
+-- ✅ SYNC DROPDOWN + TEXTBOX FROM CONFIG
+--==================================================
+task.spawn(function()
+    task.wait(0.5)
+    if _G.YOKUDO_SelectedMethod then
+        SelectedMethod = _G.YOKUDO_SelectedMethod
+        DropdownBtn.Text = SelectedMethod .. " ▼"
+    end
+    if _G.YOKUDO_TeleportSpeed then
+        SpeedTextBox.Text = tostring(_G.YOKUDO_TeleportSpeed)
+    end
+end)
+
+print("✅ Setting Tab Loaded")
