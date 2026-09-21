@@ -174,7 +174,7 @@ Loading.Update(25)
 loadstring(GetScript("Tabs/Init.lua"))()
 
 --==================================================
--- LOAD FEATURES (មុន Tabs ដែលត្រូវការ _G)
+-- LOAD FEATURES
 --==================================================
 Loading.Update(30)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
@@ -185,13 +185,9 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(40)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportFly (ជំនួស TeleportSystem ចាស់)
+-- ✅ TeleportSystem (1 File - Dual Mode)
 Loading.Update(45)
-loadstring(GetScript("Features/TeleportFly.lua"))()
-
--- ✅ InstantTeleport (ថ្មី)
-Loading.Update(48)
-loadstring(GetScript("Features/InstantTeleport.lua"))()
+loadstring(GetScript("Features/TeleportSystem.lua"))()
 
 Loading.Update(50)
 loadstring(GetScript("Features/AutoFarm.lua"))()
@@ -240,7 +236,7 @@ end
 Loading.Update(95)
 
 --==================================================
--- LOAD ANTI CHEAT (ក្រោយគេបង្អស់)
+-- LOAD ANTI CHEAT
 --==================================================
 Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
