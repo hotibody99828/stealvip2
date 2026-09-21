@@ -122,7 +122,7 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ ហៅ StartTeleport ជំនួស SelectEgg
+        -- ✅ Only Start on user click
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
@@ -131,7 +131,7 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0.85
         GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
 
-        -- ✅ ហៅ StopTeleport
+        -- ✅ Only Stop on user click
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StopTeleport()
         end
