@@ -188,28 +188,60 @@ local function DisableAutoFarm()
 end
 
 --==================================================
--- SELECT EGG
+-- SELECT EGG (FIXED - NO AUTO ENABLE)
 --==================================================
 local function SelectEgg(EggData)
     SelectedEgg = EggData
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
     
-    -- ✅ អាន Method និង Speed ពី _G
+    -- ✅ គ្រាន់តែ Set Target ID + Speed (មិន Enable)
     local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
     local Speed = _G.YOKUDO_TeleportSpeed or 300
 
     print("[YOKUDO] Method: " .. Method .. " | Speed: " .. tostring(Speed))
 
-    -- ✅ ប្រើ Method ដែល User បានជ្រើសរើស
-    if Method == "TeleportFly" and _G.YOKUDO_TeleportFly then
+    if _G.YOKUDO_TeleportFly then
         _G.YOKUDO_TeleportFly.SetSpeed(Speed)
         _G.YOKUDO_TeleportFly.SetTargetId(EggData.Id)
-        _G.YOKUDO_TeleportFly.Enable()
-    elseif Method == "InstantTeleport" and _G.YOKUDO_InstantTeleport then
+    end
+    if _G.YOKUDO_InstantTeleport then
         _G.YOKUDO_InstantTeleport.SetSpeed(Speed)
         _G.YOKUDO_InstantTeleport.SetTargetId(EggData.Id)
+    end
+end
+
+--==================================================
+-- START TELEPORT (ហៅពេល User ចុច Start)
+--==================================================
+local function StartTeleport()
+    if not SelectedEgg then
+        warn("[YOKUDO] No Egg Selected")
+        return
+    end
+
+    local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
+    local Speed = _G.YOKUDO_TeleportSpeed or 300
+
+    print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed))
+
+    if Method == "TeleportFly" and _G.YOKUDO_TeleportFly then
+        _G.YOKUDO_TeleportFly.Enable()
+    elseif Method == "InstantTeleport" and _G.YOKUDO_InstantTeleport then
         _G.YOKUDO_InstantTeleport.Enable()
     end
+end
+
+--==================================================
+-- STOP TELEPORT (ហៅពេល User ចុច Stop)
+--==================================================
+local function StopTeleport()
+    if _G.YOKUDO_TeleportFly then
+        _G.YOKUDO_TeleportFly.Disable()
+    end
+    if _G.YOKUDO_InstantTeleport then
+        _G.YOKUDO_InstantTeleport.Disable()
+    end
+    print("[YOKUDO] Stop Teleport")
 end
 
 --==================================================
@@ -222,6 +254,8 @@ _G.YOKUDO_AutoFarm = {
     ScanEggs = ScanEggs,
     GetEggList = function() return EggList end,
     SelectEgg = SelectEgg,
+    StartTeleport = StartTeleport,
+    StopTeleport = StopTeleport,
     GetSelectedEgg = function() return SelectedEgg end,
     FormatMoney = FormatMoney
 }
