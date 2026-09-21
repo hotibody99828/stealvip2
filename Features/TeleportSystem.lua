@@ -1,10 +1,10 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
 -- FlyTP Offset: 3 (First Egg + Target Egg)
--- Safe Offset: 50 (After Collect Target)
+-- Safe Offset: 50 (FlyTP to Safe - NOT CFrame)
 -- First Egg: FlyTP (Shot TP) - Offset 3
 -- Target Egg: FlyTP (Shot TP) / Instant - Offset 3
--- After Target Collect: Go Up Offset 50 -> FlyTP Safe (No Shot TP) - Offset 50
+-- Safe Zone: FlyTP (No Shot TP) - Offset 50
 --==================================================
 
 local Players = game:GetService("Players")
@@ -121,22 +121,6 @@ local function GetHumanoid()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     local Root = Char:FindFirstChild("HumanoidRootPart")
     return Hum, Root
-end
-
---==================================================
--- GO TO OFFSET (INSTANT UP)
---==================================================
-
-local function GoToOffset(Height)
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then return end
-
-    local OffsetPos = Root.Position + Vector3.new(0, Height, 0)
-    Root.CFrame = CFrame.new(OffsetPos)
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-
-    print("[YOKUDO] Go to Offset: " .. tostring(Height))
 end
 
 --==================================================
@@ -678,22 +662,15 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE (UP OFFSET 50 THEN FLYTP OFFSET 50)
+-- FLY TO SAFE (FlyTP WITH OFFSET 50 - NOT CFrame)
 --==================================================
 
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] Step 1: Go Up to Offset 50")
+    print("[YOKUDO] FlyTP to Safe Zone (Offset 50, No Shot TP)")
 
-    -- ✅ Step 1: ឡើង Offset 50 ភ្លាមៗ
-    GoToOffset(SAFE_FLY_OFFSET)
-
-    task.wait(0.2)
-
-    print("[YOKUDO] Step 2: FlyTP to Safe Zone (Offset 50, No Shot TP)")
-
-    -- ✅ Step 2: FlyTP ទៅ Safe Zone (Offset 50, No Shot TP)
+    -- ✅ FlyTP ធម្មតា ជាមួយ Offset 50 (ឡើងទៅដោយ FlyTP មិនមែន CFrame)
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
     end, SAFE_FLY_OFFSET)  -- ✅ CustomOffset = 50
@@ -752,11 +729,6 @@ function StartActiveHeartbeat()
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
                     TargetCollected = true
-
-                    -- ✅ ឡើង Offset 50 ភ្លាមៗ មុន FlyTP ទៅ Safe
-                    GoToOffset(SAFE_FLY_OFFSET)
-
-                    task.wait(0.1)
                     task.spawn(function() FlyToSafeZone() end)
                     return
                 end
@@ -769,11 +741,6 @@ function StartActiveHeartbeat()
                             local Dist = (CurrentPos - SavedTargetPosition).Magnitude
                             if Dist >= POSITION_THRESHOLD then
                                 TargetCollected = true
-
-                                -- ✅ ឡើង Offset 50 ភ្លាមៗ មុន FlyTP ទៅ Safe
-                                GoToOffset(SAFE_FLY_OFFSET)
-
-                                task.wait(0.1)
                                 task.spawn(function() FlyToSafeZone() end)
                                 return
                             end
