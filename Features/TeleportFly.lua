@@ -1,7 +1,7 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT FLY
--- Normal FlyTP for First Egg + Target Egg + Safe Zone
--- No Instant TP
+-- OLD LOGIC - Normal FlyTP
+-- First Egg + Target Egg + Safe Zone
 -- Ragdoll Bypass ON
 -- ForestStrike (No Guard Fly)
 --==================================================
@@ -374,7 +374,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP (NORMAL)
+-- FLY TP (OLD LOGIC)
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -504,7 +504,7 @@ local function RemoteCollectTarget()
 end
 
 --==================================================
--- FIRE FOREST STRIKE (INSTEAD OF GUARD)
+-- FIRE FOREST STRIKE
 --==================================================
 
 local function FireForestStrike()
@@ -569,11 +569,11 @@ local function AutoStop()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] Auto Stop")
+    print("[YOKUDO] TeleportFly: Auto Stop")
 end
 
 --==================================================
--- FLY TO TARGET
+-- FLY TO TARGET (OLD LOGIC)
 --==================================================
 
 function StartFlyToTarget()
@@ -612,7 +612,7 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE
+-- FLY TO SAFE (OLD LOGIC)
 --==================================================
 
 local function FlyToSafeZone()
@@ -624,7 +624,7 @@ local function FlyToSafeZone()
 end
 
 --==================================================
--- HEARTBEAT
+-- HEARTBEAT (OLD LOGIC)
 --==================================================
 
 function StartActiveHeartbeat()
@@ -640,6 +640,7 @@ function StartActiveHeartbeat()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
+        -- Round 1: Collect First
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
@@ -664,12 +665,14 @@ function StartActiveHeartbeat()
             end
         end
 
+        -- Wait Egg Back in Spawn -> Fly Target
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
+        -- Round 2: Collect Target
         if CurrentStep == "collect_target" and not TargetCollected then
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
@@ -711,7 +714,7 @@ function StopActiveHeartbeat()
 end
 
 --==================================================
--- MAIN PROCESS
+-- MAIN PROCESS (OLD LOGIC)
 --==================================================
 
 local function StartProcess()
@@ -730,6 +733,7 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
+    -- Check Target Mode
     if IsTargetInContainer() then
         CurrentMode = "spawn"
     elseif IsTargetInWorkspace() then
@@ -760,6 +764,7 @@ local function StartProcess()
         end
     end
 
+    -- Round 1: Search First
     SearchFirstEggs()
 
     if #FirstEggList == 0 then
@@ -815,7 +820,7 @@ local function FullReset()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] Full Reset")
+    print("[YOKUDO] TeleportFly: Full Reset")
 end
 
 --==================================================
