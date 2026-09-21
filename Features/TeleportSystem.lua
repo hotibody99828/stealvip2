@@ -48,7 +48,7 @@ local RETURN_SPEED = 300
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 25
+local FLY_OFFSET = 50
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
 
