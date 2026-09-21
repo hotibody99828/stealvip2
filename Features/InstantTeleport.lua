@@ -1,6 +1,7 @@
 --==================================================
 -- YOKUDO HUB - INSTANT TELEPORT
--- Instant FlyTP for First Egg + Target Egg + Safe Zone
+-- OLD LOGIC - Instant FlyTP
+-- First Egg + Target Egg + Safe Zone
 -- Ragdoll Bypass ON
 -- ForestStrike (No Guard Fly)
 --==================================================
@@ -50,7 +51,6 @@ local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
 
 local COLLECT_INTERVAL = 0.2
-local TARGET_COLLECT_INTERVAL = 0.01
 local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
 
@@ -82,7 +82,6 @@ local BodyVelocity = nil
 local BodyGyro = nil
 local ActiveHeartbeat = nil
 local LockConnection = nil
-local TargetCollectConnection = nil
 
 local FirstEggList = {}
 local FirstEggUid = nil
@@ -90,7 +89,6 @@ local FirstEggSlotKey = nil
 
 local CollectAttempts = 0
 local CollectTime = 0
-local TargetCollectAttempts = 0
 
 local FlyTargetStarted = false
 local CollectDone = false
@@ -230,13 +228,6 @@ end
 -- CLEANUP
 --==================================================
 
-local function StopTargetCollect()
-    if TargetCollectConnection then
-        TargetCollectConnection:Disconnect()
-        TargetCollectConnection = nil
-    end
-end
-
 local function CleanupMovers()
     if FlyConnection then
         FlyConnection:Disconnect()
@@ -246,9 +237,6 @@ local function CleanupMovers()
         LockConnection:Disconnect()
         LockConnection = nil
     end
-
-    StopTargetCollect()
-
     if BodyVelocity then
         pcall(function()
             BodyVelocity.Velocity = Vector3.zero
@@ -362,7 +350,9 @@ local function FindClosestEgg()
     if not Root then return nil end
 
     local Closest = nil
-    local ClosestDistance = 9999    for _, Egg in ipairs(FirstEggList) do
+    local ClosestDistance = 9999
+
+    for _, Egg in ipairs(FirstEggList) do
         local Pos = GetPosition(Egg.Slot)
         if Pos then
             local Dist = (Pos - Root.Position).Magnitude
@@ -382,14 +372,15 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- INSTANT FLY TP (FOR ALL)
+-- INSTANT FLY TP (OLD LOGIC)
 --==================================================
 
-local function InstantFlyTP(Destination, IsSafeZone, Callback)
+local function InstantFlyTP(Destination, Callback)
+    CleanupMovers()
+
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
-
-    CleanupMovers()
+    if Hum.Health <= 0 then return end
 
     local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
 
@@ -428,7 +419,7 @@ local function RemoteCollectTarget()
 end
 
 --==================================================
--- FIRE FOREST STRIKE (INSTEAD OF GUARD)
+-- FIRE FOREST STRIKE
 --==================================================
 
 local function FireForestStrike()
@@ -489,16 +480,15 @@ local function AutoStop()
     CurrentStep = "done"
 
     CleanupMovers()
-    StopTargetCollect()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] Auto Stop")
+    print("[YOKUDO] InstantTeleport: Auto Stop")
 end
 
 --==================================================
--- FLY TO TARGET
+-- FLY TO TARGET (INSTANT)
 --==================================================
 
 function StartFlyToTarget()
@@ -531,58 +521,26 @@ function StartFlyToTarget()
         return
     end
 
-    InstantFlyTP(TargetPos, false, function()
+    InstantFlyTP(TargetPos, function()
         CurrentStep = "collect_target"
     end)
 end
 
 --==================================================
--- FLY TO SAFE
+-- FLY TO SAFE (INSTANT)
 --==================================================
 
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    InstantFlyTP(SAFE_ZONE, true, function()
+    InstantFlyTP(SAFE_ZONE, function()
         task.wait(0.5)
         AutoStop()
     end)
 end
 
 --==================================================
--- TARGET COLLECT (SEPARATE HEARTBEAT)
---==================================================
-
-local function StartTargetCollect()
-    StopTargetCollect()
-
-    TargetCollectConnection = RunService.Heartbeat:Connect(function()
-        if not Running then
-            StopTargetCollect()
-            return
-        end
-        if CurrentStep ~= "collect_target" or TargetCollected then return end
-
-        local Hum, Root = GetHumanoid()
-        if not Hum or not Root then return end
-        if Hum.Health <= 0 then return end
-
-        if IsTargetInWorkspace() then
-            TargetCollected = true
-            StopTargetCollect()
-            CleanupMovers()
-            task.wait(0.05)
-            FlyToSafeZone()
-            return
-        end
-
-        RemoteCollectTarget()
-        TargetCollectAttempts = TargetCollectAttempts + 1
-    end)
-end
-
---==================================================
--- HEARTBEAT
+-- HEARTBEAT (OLD LOGIC)
 --==================================================
 
 function StartActiveHeartbeat()
@@ -598,6 +556,7 @@ function StartActiveHeartbeat()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
+        -- Round 1: Collect First
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
@@ -622,14 +581,43 @@ function StartActiveHeartbeat()
             end
         end
 
+        -- Wait Egg Back in Spawn -> Instant Fly Target
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
+        -- Round 2: Collect Target
         if CurrentStep == "collect_target" and not TargetCollected then
-            StartTargetCollect()
+            if CurrentMode == "spawn" then
+                if workspace:FindFirstChild(TARGET_UID) then
+                    TargetCollected = true
+                    task.spawn(function() FlyToSafeZone() end)
+                    return
+                end
+            elseif CurrentMode == "workspace" then
+                if SavedTargetPosition then
+                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
+                    if WSEgg then
+                        local CurrentPos = GetPosition(WSEgg)
+                        if CurrentPos then
+                            local Dist = (CurrentPos - SavedTargetPosition).Magnitude
+                            if Dist >= POSITION_THRESHOLD then
+                                TargetCollected = true
+                                task.spawn(function() FlyToSafeZone() end)
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+
+            if tick() - CollectTime > COLLECT_INTERVAL then
+                CollectTime = tick()
+                RemoteCollectTarget()
+                CollectAttempts = CollectAttempts + 1
+            end
         end
     end)
 end
@@ -642,7 +630,7 @@ function StopActiveHeartbeat()
 end
 
 --==================================================
--- MAIN PROCESS
+-- MAIN PROCESS (OLD LOGIC)
 --==================================================
 
 local function StartProcess()
@@ -651,7 +639,6 @@ local function StartProcess()
 
     CollectAttempts = 0
     CollectTime = 0
-    TargetCollectAttempts = 0
     FlyTargetStarted = false
     CollectDone = false
     TargetCollected = false
@@ -662,6 +649,7 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
+    -- Check Target Mode
     if IsTargetInContainer() then
         CurrentMode = "spawn"
     elseif IsTargetInWorkspace() then
@@ -692,6 +680,7 @@ local function StartProcess()
         end
     end
 
+    -- Round 1: Search First
     SearchFirstEggs()
 
     if #FirstEggList == 0 then
@@ -716,7 +705,7 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    InstantFlyTP(EggPos, false, function()
+    InstantFlyTP(EggPos, function()
         CurrentStep = "collect_first"
     end)
 end
@@ -735,7 +724,6 @@ local function FullReset()
     FirstEggSlotKey = nil
     CollectAttempts = 0
     CollectTime = 0
-    TargetCollectAttempts = 0
     FlyTargetStarted = false
     CollectDone = false
     TargetCollected = false
@@ -744,12 +732,11 @@ local function FullReset()
     TargetLockedCFrame = nil
 
     CleanupMovers()
-    StopTargetCollect()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] Full Reset")
+    print("[YOKUDO] InstantTeleport: Full Reset")
 end
 
 --==================================================
