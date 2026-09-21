@@ -370,7 +370,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP
+-- FLY TP (OLD LOGIC)
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -815,7 +815,7 @@ local function FullReset()
 end
 
 --==================================================
--- ENABLE / DISABLE / SET SPEED
+-- ENABLE / DISABLE / SET TARGET / SET SPEED
 --==================================================
 
 local function Enable()
