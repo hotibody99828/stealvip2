@@ -206,20 +206,18 @@ local function StartTeleport()
         return
     end
 
-    -- ✅ Read method from Setting dropdown
+    -- ✅ Read Method and Speed from Setting dropdown
     local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
     local Speed = _G.YOKUDO_TeleportSpeed or 300
 
     print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed) .. " | Target: " .. SelectedEgg.Id)
 
-    if Method == "TeleportFly" and _G.YOKUDO_TeleportFly then
-        _G.YOKUDO_TeleportFly.SetSpeed(Speed)
-        _G.YOKUDO_TeleportFly.SetTargetId(SelectedEgg.Id)
-        _G.YOKUDO_TeleportFly.Enable()
-    elseif Method == "InstantTeleport" and _G.YOKUDO_InstantTeleport then
-        _G.YOKUDO_InstantTeleport.SetSpeed(Speed)
-        _G.YOKUDO_InstantTeleport.SetTargetId(SelectedEgg.Id)
-        _G.YOKUDO_InstantTeleport.Enable()
+    -- ✅ Call TeleportSystem (single file with 2 options)
+    if _G.YOKUDO_TeleportSystem then
+        _G.YOKUDO_TeleportSystem.SetMethod(Method)
+        _G.YOKUDO_TeleportSystem.SetSpeed(Speed)
+        _G.YOKUDO_TeleportSystem.SetTargetId(SelectedEgg.Id)
+        _G.YOKUDO_TeleportSystem.Enable()
     end
 end
 
@@ -227,11 +225,8 @@ end
 -- STOP TELEPORT (Called on Stop button)
 --==================================================
 local function StopTeleport()
-    if _G.YOKUDO_TeleportFly then
-        _G.YOKUDO_TeleportFly.Disable()
-    end
-    if _G.YOKUDO_InstantTeleport then
-        _G.YOKUDO_InstantTeleport.Disable()
+    if _G.YOKUDO_TeleportSystem then
+        _G.YOKUDO_TeleportSystem.Disable()
     end
     print("[YOKUDO] Stop Teleport")
 end
