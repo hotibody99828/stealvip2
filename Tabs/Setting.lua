@@ -47,12 +47,15 @@ MethodTitle.Font = Enum.Font.Gotham
 MethodTitle.ZIndex = 101
 MethodTitle.Parent = MethodHolder
 
+-- ✅ Read from _G (loaded from Config)
+local SelectedMethod = _G.YOKUDO_SelectedMethod or "TeleportFly"
+
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 110, 0, 28)
 DropdownBtn.Position = UDim2.new(1, -110, 0.5, -14)
 DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 DropdownBtn.BorderSizePixel = 0
-DropdownBtn.Text = "TeleportFly ▼"
+DropdownBtn.Text = SelectedMethod .. " ▼"  -- ✅ Read from Config
 DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 DropdownBtn.TextSize = 11
 DropdownBtn.Font = Enum.Font.GothamBold
@@ -100,8 +103,6 @@ ListPadding.PaddingBottom = UDim.new(0, 4)
 ListPadding.PaddingLeft = UDim.new(0, 4)
 ListPadding.PaddingRight = UDim.new(0, 4)
 ListPadding.Parent = DropdownList
-
-local SelectedMethod = "TeleportFly"
 
 local function CreateOption(Name, Order)
     local Option = Instance.new("TextButton")
@@ -156,7 +157,10 @@ DropdownBtn.MouseButton1Click:Connect(function()
     DropdownList.Visible = not DropdownList.Visible
 end)
 
-_G.YOKUDO_SelectedMethod = "TeleportFly"
+-- ✅ Only set default if not already loaded from Config
+if _G.YOKUDO_SelectedMethod == nil then
+    _G.YOKUDO_SelectedMethod = "TeleportFly"
+end
 
 --==================================================
 -- FEATURE 2: TELEPORT SPEED (TEXTBOX)
@@ -193,12 +197,15 @@ SpeedTitle.Font = Enum.Font.Gotham
 SpeedTitle.ZIndex = 2
 SpeedTitle.Parent = SpeedHolder
 
+-- ✅ Read from _G (loaded from Config)
+local InitialSpeed = _G.YOKUDO_TeleportSpeed or 300
+
 local SpeedTextBox = Instance.new("TextBox")
 SpeedTextBox.Size = UDim2.new(0, 80, 0, 28)
 SpeedTextBox.Position = UDim2.new(1, -80, 0.5, -14)
 SpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 SpeedTextBox.BorderSizePixel = 0
-SpeedTextBox.Text = "300"
+SpeedTextBox.Text = tostring(InitialSpeed)  -- ✅ Read from Config
 SpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedTextBox.TextSize = 12
 SpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
@@ -251,7 +258,10 @@ SpeedTextBox.FocusLost:Connect(function()
     end
 end)
 
-_G.YOKUDO_TeleportSpeed = 300
+-- ✅ Only set default if not already loaded from Config
+if _G.YOKUDO_TeleportSpeed == nil then
+    _G.YOKUDO_TeleportSpeed = 300
+end
 
 --==================================================
 -- FEATURE 3: WALK SPEED
