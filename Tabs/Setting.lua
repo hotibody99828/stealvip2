@@ -126,8 +126,12 @@ local function CreateOption(Name, Order)
         DropdownBtn.Text = Name .. " ▼"
         DropdownList.Visible = false
 
-        -- ✅ ONLY SAVE METHOD — DO NOT ENABLE / DISABLE
         _G.YOKUDO_SelectedMethod = Name
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
+        end
 
         print("[YOKUDO] Method Teleport Selected: " .. Name)
     end)
@@ -181,7 +185,7 @@ local SpeedTitle = Instance.new("TextLabel")
 SpeedTitle.Size = UDim2.new(1, -120, 0, 18)
 SpeedTitle.Position = UDim2.new(0, 0, 0, 24)
 SpeedTitle.BackgroundTransparency = 1
-SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"   -- ✅ Range: 50-1100
+SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"
 SpeedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
 SpeedTitle.TextSize = 10
 SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -216,7 +220,6 @@ SpeedTextBox.FocusLost:Connect(function()
     local Value = tonumber(SpeedTextBox.Text)
 
     if Value then
-        -- ✅ Range: 50 - 1100
         Value = math.clamp(Value, 50, 1100)
         SpeedTextBox.Text = tostring(Value)
 
@@ -224,6 +227,11 @@ SpeedTextBox.FocusLost:Connect(function()
 
         if _G.YOKUDO_TeleportSystem then
             _G.YOKUDO_TeleportSystem.SetSpeed(Value)
+        end
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
         end
 
         print("[YOKUDO] Teleport Speed: " .. tostring(Value))
@@ -234,6 +242,11 @@ SpeedTextBox.FocusLost:Connect(function()
 
         if _G.YOKUDO_TeleportSystem then
             _G.YOKUDO_TeleportSystem.SetSpeed(300)
+        end
+
+        -- ✅ Save Config
+        if _G.YOKUDO_ConfigSystem then
+            _G.YOKUDO_ConfigSystem.Save()
         end
     end
 end)
@@ -651,44 +664,4 @@ FastClickButton.MouseLeave:Connect(function()
 end)
 
 FastClickButton.MouseButton1Down:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
-        Size = UDim2.new(0, 62, 0, 23),
-        BackgroundColor3 = Color3.fromRGB(85, 70, 170)
-    }):Play()
-end)
-
-FastClickButton.MouseButton1Up:Connect(function()
-    TweenService:Create(FastClickButton, TweenInfo.new(0.08), {
-        Size = UDim2.new(0, 70, 0, 26),
-        BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-    }):Play()
-end)
-
-FastClickButton.MouseButton1Click:Connect(function()
-    if not _G.YOKUDO_ManualFastClick then
-        warn("[YOKUDO] ManualFastClick feature not loaded")
-        ShowNotification("Manual Fast Click Not Loaded")
-        return
-    end
-
-    if _G.YOKUDO_ManualFastClick.IsEnabled() then
-        _G.YOKUDO_ManualFastClick.Disable()
-        ShowNotification("Manual Fast Click Stop")
-    else
-        _G.YOKUDO_ManualFastClick.Enable()
-        ShowNotification("Manual Fast Click Start")
-    end
-end)
-
-task.spawn(function()
-    task.wait(0.5)
-    if _G.YOKUDO_ManualFastClick then
-        if _G.YOKUDO_ManualFastClick.IsEnabled() then
-            FastClickButton.Text = "Stop"
-        else
-            FastClickButton.Text = "Click"
-        end
-    end
-end)
-
-print("✅ Setting Tab Loaded")
+    TweenService:Create(FastClickButton, TweenInfo
