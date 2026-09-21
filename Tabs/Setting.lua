@@ -126,19 +126,10 @@ local function CreateOption(Name, Order)
         DropdownBtn.Text = Name .. " ▼"
         DropdownList.Visible = false
 
+        -- ✅ ONLY SAVE METHOD — DO NOT ENABLE / DISABLE
         _G.YOKUDO_SelectedMethod = Name
 
-        if _G.YOKUDO_TeleportFly and _G.YOKUDO_InstantTeleport then
-            if Name == "TeleportFly" then
-                _G.YOKUDO_TeleportFly.Enable()
-                _G.YOKUDO_InstantTeleport.Disable()
-            elseif Name == "InstantTeleport" then
-                _G.YOKUDO_InstantTeleport.Enable()
-                _G.YOKUDO_TeleportFly.Disable()
-            end
-        end
-
-        print("[YOKUDO] Method Teleport: " .. Name)
+        print("[YOKUDO] Method Teleport Selected: " .. Name)
     end)
 
     Option.MouseEnter:Connect(function()
