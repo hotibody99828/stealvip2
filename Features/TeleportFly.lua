@@ -1,9 +1,6 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT FLY
 -- OLD LOGIC - Normal FlyTP
--- First Egg + Target Egg + Safe Zone
--- Ragdoll Bypass ON
--- ForestStrike (No Guard Fly)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -56,7 +53,6 @@ local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
 
--- LOCK POSITION (For ForestStrike)
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
     70.57420349121094,
@@ -374,7 +370,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP (OLD LOGIC)
+-- FLY TP
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -573,7 +569,7 @@ local function AutoStop()
 end
 
 --==================================================
--- FLY TO TARGET (OLD LOGIC)
+-- FLY TO TARGET
 --==================================================
 
 function StartFlyToTarget()
@@ -612,7 +608,7 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE (OLD LOGIC)
+-- FLY TO SAFE
 --==================================================
 
 local function FlyToSafeZone()
@@ -624,7 +620,7 @@ local function FlyToSafeZone()
 end
 
 --==================================================
--- HEARTBEAT (OLD LOGIC)
+-- HEARTBEAT
 --==================================================
 
 function StartActiveHeartbeat()
@@ -640,7 +636,6 @@ function StartActiveHeartbeat()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
-        -- Round 1: Collect First
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
@@ -665,14 +660,12 @@ function StartActiveHeartbeat()
             end
         end
 
-        -- Wait Egg Back in Spawn -> Fly Target
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
-        -- Round 2: Collect Target
         if CurrentStep == "collect_target" and not TargetCollected then
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
@@ -714,7 +707,7 @@ function StopActiveHeartbeat()
 end
 
 --==================================================
--- MAIN PROCESS (OLD LOGIC)
+-- MAIN PROCESS
 --==================================================
 
 local function StartProcess()
@@ -733,7 +726,6 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
-    -- Check Target Mode
     if IsTargetInContainer() then
         CurrentMode = "spawn"
     elseif IsTargetInWorkspace() then
@@ -764,7 +756,6 @@ local function StartProcess()
         end
     end
 
-    -- Round 1: Search First
     SearchFirstEggs()
 
     if #FirstEggList == 0 then
