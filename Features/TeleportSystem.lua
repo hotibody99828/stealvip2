@@ -1,10 +1,10 @@
 --==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
--- First Egg: FlyTP Offset 3 (Shot TP)
--- Target Egg: FlyTP Offset 3 (Shot TP) / Instant
--- Collect Target: Up Offset 50 -> FlyTP Offset 50 to Safe Zone
--- Teleport Speed: 50 - 1100
--- ForestStrike: Fire only when First Egg collected
+-- FlyTP Offset: 3 (First Egg + Target Egg)
+-- Safe Offset: 50 (After Collect Target)
+-- First Egg: FlyTP (Shot TP) - Offset 3
+-- Target Egg: FlyTP (Shot TP) / Instant - Offset 3
+-- After Target Collect: Go Up Offset 50 -> FlyTP Safe (No Shot TP) - Offset 50
 --==================================================
 
 local Players = game:GetService("Players")
@@ -48,10 +48,9 @@ local RETURN_SPEED = 300
 
 local CurrentMethod = "TeleportFly"
 
--- ✅ Offsets
-local FLY_OFFSET = 3           -- Offset for First Egg + Target Egg
-local SAFE_FLY_OFFSET = 50     -- Offset for Safe Zone
-local COLLECT_OFFSET = 50      -- Offset for Collect Target (Up)
+-- ✅ Offset Settings
+local FLY_OFFSET = 3           -- Offset ពេល FlyTP ទៅ Egg
+local SAFE_FLY_OFFSET = 50     -- Offset ពេល FlyTP ទៅ Safe
 
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
@@ -122,6 +121,22 @@ local function GetHumanoid()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     local Root = Char:FindFirstChild("HumanoidRootPart")
     return Hum, Root
+end
+
+--==================================================
+-- GO TO OFFSET (INSTANT UP)
+--==================================================
+
+local function GoToOffset(Height)
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then return end
+
+    local OffsetPos = Root.Position + Vector3.new(0, Height, 0)
+    Root.CFrame = CFrame.new(OffsetPos)
+    Root.AssemblyLinearVelocity = Vector3.zero
+    Root.AssemblyAngularVelocity = Vector3.zero
+
+    print("[YOKUDO] Go to Offset: " .. tostring(Height))
 end
 
 --==================================================
@@ -381,18 +396,18 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP (WITH OPTIONAL SAFE OFFSET)
+-- FLY TP (WITH CUSTOM OFFSET)
 --==================================================
 
-local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback, UseSafeOffset)
+local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback, CustomOffset)
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    -- ✅ Choose Offset: Safe (50) or Normal (3)
-    local CurrentOffset = UseSafeOffset and SAFE_FLY_OFFSET or FLY_OFFSET
+    -- ✅ ប្រើ CustomOffset បើមាន បើអត់ → FLY_OFFSET
+    local CurrentOffset = CustomOffset or FLY_OFFSET
     local FlyPos = Vector3.new(Destination.X, Destination.Y + CurrentOffset, Destination.Z)
     local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
 
@@ -524,8 +539,8 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantFlyTP(TargetPos, Callback)
     else
-        print("[YOKUDO] FlyTP to Target (Offset 3 + Shot TP)")
-        FlyTP(TargetPos, FLY_SPEED, true, false, Callback, false)  -- ✅ Normal Offset 3
+        print("[YOKUDO] FlyTP to Target (Shot TP, Offset 3)")
+        FlyTP(TargetPos, FLY_SPEED, true, false, Callback)  -- Offset 3
     end
 end
 
@@ -555,7 +570,7 @@ local function RemoteCollectTarget()
 end
 
 --==================================================
--- FIRE FOREST STRIKE (ONLY WHEN FIRST EGG COLLECTED)
+-- FIRE FOREST STRIKE
 --==================================================
 
 local function FireForestStrike()
@@ -663,34 +678,25 @@ function StartFlyToTarget()
 end
 
 --==================================================
--- FLY TO SAFE (OFFSET 50)
+-- FLY TO SAFE (UP OFFSET 50 THEN FLYTP OFFSET 50)
 --==================================================
 
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] FlyTP to Safe Zone (Offset 50 - No Shot TP)")
+    print("[YOKUDO] Step 1: Go Up to Offset 50")
 
-    -- ✅ UseSafeOffset = true (Offset 50)
+    -- ✅ Step 1: ឡើង Offset 50 ភ្លាមៗ
+    GoToOffset(SAFE_FLY_OFFSET)
+
+    task.wait(0.2)
+
+    print("[YOKUDO] Step 2: FlyTP to Safe Zone (Offset 50, No Shot TP)")
+
+    -- ✅ Step 2: FlyTP ទៅ Safe Zone (Offset 50, No Shot TP)
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
-    end, true)
-end
-
---==================================================
--- UP TO OFFSET 50 (FOR COLLECT TARGET)
---==================================================
-
-local function GoUpToOffset50()
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then return end
-
-    local OffsetPos = Root.Position + Vector3.new(0, COLLECT_OFFSET, 0)
-    Root.CFrame = CFrame.new(OffsetPos)
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-
-    print("[YOKUDO] Go Up to Offset 50")
+    end, SAFE_FLY_OFFSET)  -- ✅ CustomOffset = 50
 end
 
 --==================================================
@@ -710,6 +716,7 @@ function StartActiveHeartbeat()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
+        -- Round 1: Collect First
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
@@ -740,13 +747,15 @@ function StartActiveHeartbeat()
             end
         end
 
+        -- Round 2: Collect Target
         if CurrentStep == "collect_target" and not TargetCollected then
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
                     TargetCollected = true
-                    
-                    -- ✅ Up to Offset 50 -> Fly Safe
-                    GoUpToOffset50()
+
+                    -- ✅ ឡើង Offset 50 ភ្លាមៗ មុន FlyTP ទៅ Safe
+                    GoToOffset(SAFE_FLY_OFFSET)
+
                     task.wait(0.1)
                     task.spawn(function() FlyToSafeZone() end)
                     return
@@ -760,9 +769,10 @@ function StartActiveHeartbeat()
                             local Dist = (CurrentPos - SavedTargetPosition).Magnitude
                             if Dist >= POSITION_THRESHOLD then
                                 TargetCollected = true
-                                
-                                -- ✅ Up to Offset 50 -> Fly Safe
-                                GoUpToOffset50()
+
+                                -- ✅ ឡើង Offset 50 ភ្លាមៗ មុន FlyTP ទៅ Safe
+                                GoToOffset(SAFE_FLY_OFFSET)
+
                                 task.wait(0.1)
                                 task.spawn(function() FlyToSafeZone() end)
                                 return
@@ -862,11 +872,11 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    -- ✅ First Egg: FlyTP with Offset 3 + Shot TP
-    print("[YOKUDO] FlyTP to First Egg (Offset 3 + Shot TP)")
+    -- ✅ First Egg: Shot TP = true, Offset = 3
+    print("[YOKUDO] FlyTP to First Egg (Shot TP, Offset 3)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         CurrentStep = "collect_first"
-    end, false)  -- ✅ Normal Offset 3
+    end, FLY_OFFSET)  -- ✅ Offset = 3
 end
 
 --==================================================
@@ -963,4 +973,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + Offset 3/50)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option)")
