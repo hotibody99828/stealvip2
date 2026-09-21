@@ -47,15 +47,14 @@ MethodTitle.Font = Enum.Font.Gotham
 MethodTitle.ZIndex = 101
 MethodTitle.Parent = MethodHolder
 
--- ✅ Read from _G
-local SelectedMethod = _G.YOKUDO_SelectedMethod or "TeleportFly"
+local SelectedMethod = "TeleportFly"
 
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 110, 0, 28)
 DropdownBtn.Position = UDim2.new(1, -110, 0.5, -14)
 DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 DropdownBtn.BorderSizePixel = 0
-DropdownBtn.Text = SelectedMethod .. " ▼"  -- ✅ Read from _G
+DropdownBtn.Text = SelectedMethod .. " ▼"
 DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 DropdownBtn.TextSize = 11
 DropdownBtn.Font = Enum.Font.GothamBold
@@ -194,15 +193,12 @@ SpeedTitle.Font = Enum.Font.Gotham
 SpeedTitle.ZIndex = 2
 SpeedTitle.Parent = SpeedHolder
 
--- ✅ Read from _G
-local InitialSpeed = _G.YOKUDO_TeleportSpeed or 300
-
 local SpeedTextBox = Instance.new("TextBox")
 SpeedTextBox.Size = UDim2.new(0, 80, 0, 28)
 SpeedTextBox.Position = UDim2.new(1, -80, 0.5, -14)
 SpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 SpeedTextBox.BorderSizePixel = 0
-SpeedTextBox.Text = tostring(InitialSpeed)  -- ✅ Read from _G
+SpeedTextBox.Text = "300"
 SpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedTextBox.TextSize = 12
 SpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
