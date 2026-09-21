@@ -122,18 +122,19 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ ហៅ SelectEgg ដែលនឹងអាន Method និង Speed ពី _G
-        if SelectedEggData and _G.YOKUDO_AutoFarm then
-            _G.YOKUDO_AutoFarm.SelectEgg(SelectedEggData)
+        -- ✅ ហៅ StartTeleport ជំនួស SelectEgg
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.StartTeleport()
         end
     else
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         GetEggCheckButton.BackgroundTransparency = 0.85
         GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
 
-        -- ✅ Disable ទាំង 2 Method
-        if _G.YOKUDO_TeleportFly then _G.YOKUDO_TeleportFly.Disable() end
-        if _G.YOKUDO_InstantTeleport then _G.YOKUDO_InstantTeleport.Disable() end
+        -- ✅ ហៅ StopTeleport
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.StopTeleport()
+        end
     end
 end
 
@@ -301,6 +302,7 @@ local function CreateEggEntry(EggData)
         -- ✅ Save EggData ទាំងមូល
         SelectedEggData = EggData
 
+        -- ✅ គ្រាន់តែ Save មិន Enable
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.SelectEgg(EggData)
         end
