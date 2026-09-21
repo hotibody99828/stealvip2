@@ -1,7 +1,12 @@
 --==================================================
--- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE)
+-- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
 -- Option 1: TeleportFly (Normal FlyTP)
--- Option 2: InstantTeleport (Instant FlyTP)
+-- Option 2: InstantTeleport (Instant TP - Target Egg Only)
+-- Mode 1: Target in Container (spawn)
+-- Mode 2: Target in Workspace (distance change)
+-- First Egg: FlyTP (Normal)
+-- Target Egg: FlyTP or Instant
+-- Safe Zone: FlyTP (Normal)
 -- Ragdoll Bypass ON
 -- ForestStrike (No Guard Fly)
 --==================================================
@@ -48,12 +53,12 @@ local RETURN_SPEED = 300
 -- ✅ Method: "TeleportFly" or "InstantTeleport"
 local CurrentMethod = "TeleportFly"
 
--- TeleportFly Config
+-- FlyTP Config (Normal)
 local FLY_OFFSET = 25
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
 
--- InstantTeleport Config
+-- InstantTP Config
 local INSTANT_FLY_OFFSET = 3
 
 local ARRIVE_DISTANCE = 2
@@ -507,14 +512,18 @@ local function InstantFlyTP(Destination, Callback)
 end
 
 --==================================================
--- TELEPORT METHOD DISPATCHER
+-- TELEPORT TO TARGET (Option Specific)
 --==================================================
 
-local function TeleportTo(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
-        InstantFlyTP(Destination, Callback)
+        -- ✅ Instant ទៅ Target Egg តែប៉ុណ្ណោះ
+        print("[YOKUDO] Instant TP to Target")
+        InstantFlyTP(TargetPos, Callback)
     else
-        FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+        -- ✅ TeleportFly ធម្មតា
+        print("[YOKUDO] FlyTP to Target")
+        FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
     end
 end
 
@@ -646,19 +655,21 @@ function StartFlyToTarget()
         return
     end
 
-    TeleportTo(TargetPos, FLY_SPEED, true, false, function()
+    TeleportToTarget(TargetPos, function()
         CurrentStep = "collect_target"
     end)
 end
 
 --==================================================
--- FLY TO SAFE
+-- FLY TO SAFE (ALWAYS NORMAL - BOTH OPTIONS)
 --==================================================
 
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    TeleportTo(SAFE_ZONE, RETURN_SPEED, false, true, function()
+    print("[YOKUDO] FlyTP to Safe Zone")
+
+    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
     end)
 end
@@ -827,7 +838,9 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    TeleportTo(EggPos, FLY_SPEED, true, false, function()
+    -- ✅ Fly to First Egg (ALWAYS NORMAL FlyTP)
+    print("[YOKUDO] FlyTP to First Egg")
+    FlyTP(EggPos, FLY_SPEED, true, false, function()
         CurrentStep = "collect_first"
     end)
 end
@@ -926,4 +939,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option)")
