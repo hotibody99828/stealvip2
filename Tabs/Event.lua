@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Event
--- Feature: Attack Drone (Checkbox)
+-- Feature: Manager Drone (Event + AFK + Attack)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -9,96 +9,89 @@ local TweenService = game:GetService("TweenService")
 local EventTab, EventPage = TabsManager:RegisterTab("Event", 5, "EVENT")
 
 -- ==================================================
--- EVENT CONTENT
+-- CONTENT
 -- ==================================================
 CreateSectionTitle(EventPage, "Event", 1)
 
 -- ==================================================
--- FEATURE: ATTACK DRONE (Checkbox)
+-- FEATURE: MANAGER DRONE (Checkbox)
 -- ==================================================
-local AttackDroneHolder = Instance.new("Frame")
-AttackDroneHolder.Size = UDim2.new(1, 0, 0, 52)
-AttackDroneHolder.BackgroundTransparency = 1
-AttackDroneHolder.LayoutOrder = 2
-AttackDroneHolder.Parent = EventPage
+local ManagerDroneHolder = Instance.new("Frame")
+ManagerDroneHolder.Size = UDim2.new(1, 0, 0, 52)
+ManagerDroneHolder.BackgroundTransparency = 1
+ManagerDroneHolder.LayoutOrder = 2
+ManagerDroneHolder.Parent = EventPage
 
-local AttackDroneLabel = Instance.new("TextLabel")
-AttackDroneLabel.Size = UDim2.new(1, -50, 0, 20)
-AttackDroneLabel.Position = UDim2.new(0, 0, 0, 2)
-AttackDroneLabel.BackgroundTransparency = 1
-AttackDroneLabel.Text = "Attack Drone"
-AttackDroneLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-AttackDroneLabel.TextSize = 13
-AttackDroneLabel.TextXAlignment = Enum.TextXAlignment.Left
-AttackDroneLabel.TextYAlignment = Enum.TextYAlignment.Center
-AttackDroneLabel.Font = Enum.Font.GothamBold
-AttackDroneLabel.Parent = AttackDroneHolder
+local ManagerDroneLabel = Instance.new("TextLabel")
+ManagerDroneLabel.Size = UDim2.new(1, -50, 0, 20)
+ManagerDroneLabel.Position = UDim2.new(0, 0, 0, 2)
+ManagerDroneLabel.BackgroundTransparency = 1
+ManagerDroneLabel.Text = "Manager Drone"
+ManagerDroneLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+ManagerDroneLabel.TextSize = 13
+ManagerDroneLabel.TextXAlignment = Enum.TextXAlignment.Left
+ManagerDroneLabel.TextYAlignment = Enum.TextYAlignment.Center
+ManagerDroneLabel.Font = Enum.Font.GothamBold
+ManagerDroneLabel.Parent = ManagerDroneHolder
 
-local AttackDroneSub = Instance.new("TextLabel")
-AttackDroneSub.Size = UDim2.new(1, -50, 0, 18)
-AttackDroneSub.Position = UDim2.new(0, 0, 0, 24)
-AttackDroneSub.BackgroundTransparency = 1
-AttackDroneSub.Text = "click-when-mob-spawn"
-AttackDroneSub.TextColor3 = Color3.fromRGB(150, 150, 170)
-AttackDroneSub.TextSize = 10
-AttackDroneSub.TextXAlignment = Enum.TextXAlignment.Left
-AttackDroneSub.Font = Enum.Font.Gotham
-AttackDroneSub.Parent = AttackDroneHolder
+local ManagerDroneSub = Instance.new("TextLabel")
+ManagerDroneSub.Size = UDim2.new(1, -50, 0, 18)
+ManagerDroneSub.Position = UDim2.new(0, 0, 0, 24)
+ManagerDroneSub.BackgroundTransparency = 1
+ManagerDroneSub.Text = "Event Auto → Attack / AFK Treadmill"
+ManagerDroneSub.TextColor3 = Color3.fromRGB(150, 150, 170)
+ManagerDroneSub.TextSize = 10
+ManagerDroneSub.TextXAlignment = Enum.TextXAlignment.Left
+ManagerDroneSub.Font = Enum.Font.Gotham
+ManagerDroneSub.Parent = ManagerDroneHolder
 
-local AttackDroneCheckButton = Instance.new("TextButton")
-AttackDroneCheckButton.Size = UDim2.new(0, 26, 0, 26)
-AttackDroneCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
-AttackDroneCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-AttackDroneCheckButton.BorderSizePixel = 0
-AttackDroneCheckButton.Text = ""
-AttackDroneCheckButton.AutoButtonColor = false
-AttackDroneCheckButton.Parent = AttackDroneHolder
+local ManagerDroneCheckButton = Instance.new("TextButton")
+ManagerDroneCheckButton.Size = UDim2.new(0, 26, 0, 26)
+ManagerDroneCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
+ManagerDroneCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+ManagerDroneCheckButton.BorderSizePixel = 0
+ManagerDroneCheckButton.Text = ""
+ManagerDroneCheckButton.AutoButtonColor = false
+ManagerDroneCheckButton.Parent = ManagerDroneHolder
 
-local AttackDroneCorner = Instance.new("UICorner")
-AttackDroneCorner.CornerRadius = UDim.new(0, 6)
-AttackDroneCorner.Parent = AttackDroneCheckButton
+local ManagerDroneCorner = Instance.new("UICorner")
+ManagerDroneCorner.CornerRadius = UDim.new(0, 6)
+ManagerDroneCorner.Parent = ManagerDroneCheckButton
 
-local AttackDroneStroke = Instance.new("UIStroke")
-AttackDroneStroke.Color = Color3.fromRGB(200, 200, 220)
-AttackDroneStroke.Thickness = 1.5
-AttackDroneStroke.Parent = AttackDroneCheckButton
+local ManagerDroneStroke = Instance.new("UIStroke")
+ManagerDroneStroke.Color = Color3.fromRGB(200, 200, 220)
+ManagerDroneStroke.Thickness = 1.5
+ManagerDroneStroke.Parent = ManagerDroneCheckButton
 
-local AttackDroneCheck = Instance.new("TextLabel")
-AttackDroneCheck.Size = UDim2.new(1, 0, 1, 0)
-AttackDroneCheck.BackgroundTransparency = 1
-AttackDroneCheck.Text = "✓"
-AttackDroneCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-AttackDroneCheck.TextSize = 18
-AttackDroneCheck.Font = Enum.Font.GothamBold
-AttackDroneCheck.Visible = false
-AttackDroneCheck.Parent = AttackDroneCheckButton
+local ManagerDroneCheck = Instance.new("TextLabel")
+ManagerDroneCheck.Size = UDim2.new(1, 0, 1, 0)
+ManagerDroneCheck.BackgroundTransparency = 1
+ManagerDroneCheck.Text = "✓"
+ManagerDroneCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+ManagerDroneCheck.TextSize = 18
+ManagerDroneCheck.Font = Enum.Font.GothamBold
+ManagerDroneCheck.Visible = false
+ManagerDroneCheck.Parent = ManagerDroneCheckButton
 
 -- ==================================================
 -- TOGGLE LOGIC
 -- ==================================================
-local function UpdateAttackDroneUI(state)
-    AttackDroneCheck.Visible = state
-    if state then
-        AttackDroneCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        AttackDroneStroke.Color = Color3.fromRGB(135, 120, 225)
-    else
-        AttackDroneCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        AttackDroneStroke.Color = Color3.fromRGB(200, 200, 220)
+ManagerDroneCheckButton.MouseButton1Click:Connect(function()
+    if not _G.YOKUDO_ManagerDrone then
+        warn("[YOKUDO] ManagerDrone not loaded!")
+        return
     end
-end
 
-AttackDroneCheckButton.MouseButton1Click:Connect(function()
-    local newState = not (_G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled())
-    UpdateAttackDroneUI(newState)
-
-    if _G.YOKUDO_AttackDrone then
-        if newState then
-            _G.YOKUDO_AttackDrone.Enable()
-        else
-            _G.YOKUDO_AttackDrone.Disable()
-        end
+    local NewState = not _G.YOKUDO_ManagerDrone.IsEnabled()
+    ManagerDroneCheck.Visible = NewState
+    if NewState then
+        ManagerDroneCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        ManagerDroneStroke.Color = Color3.fromRGB(135, 120, 225)
+        _G.YOKUDO_ManagerDrone.Enable()
     else
-        warn("[YOKUDO] AttackDrone feature not loaded")
+        ManagerDroneCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        ManagerDroneStroke.Color = Color3.fromRGB(200, 200, 220)
+        _G.YOKUDO_ManagerDrone.Disable()
     end
 end)
 
@@ -107,8 +100,13 @@ end)
 -- ==================================================
 task.spawn(function()
     task.wait(0.5)
-    if _G.YOKUDO_AttackDrone then
-        UpdateAttackDroneUI(_G.YOKUDO_AttackDrone.IsEnabled())
+    if _G.YOKUDO_ManagerDrone then
+        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
+        ManagerDroneCheck.Visible = State
+        if State then
+            ManagerDroneCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            ManagerDroneStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
     end
 end)
 
