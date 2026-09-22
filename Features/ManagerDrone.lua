@@ -2,6 +2,8 @@
 -- YOKUDO HUB | FEATURE | Manager Drone
 -- គ្រប់គ្រង Event → ហៅ Attack ឬ AFK
 -- ✅ ប្រើ ExperimentTimer.Value.Text
+-- ✅ Stop ពេល Disable
+-- ✅ Event Threshold = 4s
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -12,13 +14,14 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local EVENT_CHECK_INTERVAL = 1
-local EVENT_SKIP_THRESHOLD = 7
+local EVENT_SKIP_THRESHOLD = 4  -- ✅ ប្តូរពី 7 ទៅ 4
 
 -- ==================================================
 -- STATE
 -- ==================================================
 local ManagerEnabled = false
 local LastEventSec = 0
+local ManagerThread = nil
 
 -- ==================================================
 -- GET EVENT TIME (Seconds)
@@ -30,7 +33,6 @@ local function GetEventSeconds()
             .HUD.GameHUD.BottomRight.ExperimentTimer.Value.Text
     end)
     if not Success or not Value then
-        print("[ManagerDrone] Timer Value.Text not found")
         return 0
     end
 
@@ -39,9 +41,24 @@ local function GetEventSeconds()
     local S = tonumber(string.match(Text, "(%d+)s")) or 0
     local TotalSec = M * 60 + S
 
-    print("[ManagerDrone] Timer Text:", Text, "→ M:", M, "S:", S, "Total:", TotalSec)
-
     return TotalSec
+end
+
+-- ==================================================
+-- FORCE STOP ALL FEATURES (✅ ថ្មី)
+-- ==================================================
+local function ForceStopAll()
+    print("[ManagerDrone] Force Stop All Features")
+
+    -- Stop Attack Drone
+    if _G.YOKUDO_AttackDrone then
+        pcall(function() _G.YOKUDO_AttackDrone.Stop() end)
+    end
+
+    -- Disable AFK System
+    if _G.YOKUDO_AFKSystem then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+    end
 end
 
 -- ==================================================
@@ -50,17 +67,32 @@ end
 local function MainLoop()
     while ManagerEnabled do
         local EventSec = GetEventSeconds()
-        local EventActive = EventSec > 0
-        local EventEndingSoon = EventActive and EventSec <= EVENT_SKIP_THRESHOLD
 
-        print("[ManagerDrone] Event:", EventSec, "| Active:", EventActive, "| EndingSoon:", EventEndingSoon)
+        -- ✅ Logic:
+        -- EventSec = 0 → Event មិនទាន់ចេញ
+        -- EventSec = 1-4 → Event ជិតចប់
+        -- EventSec > 4 → Event កំពុងដំណើរការ
+
+        local EventNotActive = EventSec <= 0
+        local EventEndingSoon = EventSec > 0 and EventSec <= EVENT_SKIP_THRESHOLD
+        local EventActive = EventSec > EVENT_SKIP_THRESHOLD
+
+        print("[ManagerDrone] Event:", EventSec, "| NotActive:", EventNotActive, "| EndingSoon:", EventEndingSoon, "| Active:", EventActive)
 
         -- ==================================================
-        -- Event ជិតចប់ (<= 7s) → Stop Attack → AFK System
+        -- Event មិនទាន់ចេញ (EventSec = 0) → AFK System
         -- ==================================================
-        if EventEndingSoon then
+        if EventNotActive then
+            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                print("[ManagerDrone] Event Not Active → AFK System")
+                _G.YOKUDO_AFKSystem.Enable()
+            end
+        -- ==================================================
+        -- Event ជិតចប់ (1s <= EventSec <= 4s) → Stop Attack → AFK System
+        -- ==================================================
+        elseif EventEndingSoon then
             if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] Event Ending Soon → Stop Attack → AFK System")
+                print("[ManagerDrone] Event Ending Soon (<= 4s) → Stop Attack → AFK System")
                 _G.YOKUDO_AttackDrone.Stop()
             end
 
@@ -68,7 +100,7 @@ local function MainLoop()
                 _G.YOKUDO_AFKSystem.Enable()
             end
         -- ==================================================
-        -- Event ចេញ (ថ្មី) → Stop AFK → Attack Drone
+        -- Event កំពុងដំណើរការ (EventSec > 4s) → Attack Drone
         -- ==================================================
         elseif EventActive then
             if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -85,19 +117,16 @@ local function MainLoop()
                 print("[ManagerDrone] Event Active → Attack Drone")
                 _G.YOKUDO_AttackDrone.Start()
             end
-        -- ==================================================
-        -- Event មិនទាន់ចេញ (Event = 0) → AFK System
-        -- ==================================================
-        else
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[ManagerDrone] Event Not Active → AFK System")
-                _G.YOKUDO_AFKSystem.Enable()
-            end
         end
 
         LastEventSec = EventSec
         task.wait(EVENT_CHECK_INTERVAL)
     end
+
+    -- ✅ ពេល Loop ចេញ → Stop Features ទាំងអស់
+    ForceStopAll()
+
+    print("[ManagerDrone] MainLoop Stopped")
 end
 
 -- ==================================================
@@ -106,14 +135,40 @@ end
 local function EnableManager()
     if ManagerEnabled then return end
     ManagerEnabled = true
-    task.spawn(function() MainLoop() end)
+
+    -- Stop Thread ចាស់ (បើមាន)
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
+    end
+
+    ManagerThread = task.spawn(function() MainLoop() end)
+
     print("[ManagerDrone] Manager Drone: ON")
 end
 
 local function DisableManager()
     if not ManagerEnabled then return end
     ManagerEnabled = false
+
+    -- Stop Thread
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
+    end
+
+    -- ✅ Force Stop Features ទាំងអស់
+    ForceStopAll()
+
     print("[ManagerDrone] Manager Drone: OFF")
+end
+
+local function ToggleManager()
+    if ManagerEnabled then
+        DisableManager()
+    else
+        EnableManager()
+    end
 end
 
 -- ==================================================
@@ -122,11 +177,10 @@ end
 _G.YOKUDO_ManagerDrone = {
     Enable = EnableManager,
     Disable = DisableManager,
-    Toggle = function()
-        if ManagerEnabled then DisableManager() else EnableManager() end
-    end,
+    Toggle = ToggleManager,
     IsEnabled = function() return ManagerEnabled end,
     GetEventSeconds = GetEventSeconds,
+    ForceStopAll = ForceStopAll,
 }
 
-print("✅ ManagerDrone Feature Loaded (Value.Text)")
+print("✅ ManagerDrone Feature Loaded (Stop at 4s + Force Stop)")
