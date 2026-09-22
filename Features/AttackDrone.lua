@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
 -- Event Detection + Treadmill AFK + Jump Out + Dual Spawn Loop
+-- Auto Equip ON តែពេល Mob Spawn
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
 -- FOLLOW_SPEED = 1000
 -- ==================================================
@@ -27,8 +28,8 @@ local SAFE_WAIT_TIME = 1
 local SPAWN_WAIT_TIME = 2
 local ARRIVE_TIMEOUT = 15
 local EVENT_CHECK_INTERVAL = 0.5
-local EVENT_ATTACK_THRESHOLD = 4     -- បើ Event > 4s → Attack
-local JUMP_DISTANCE_THRESHOLD = 5    -- បើចេញពី Treadmill > 5 studs → Stop Jump
+local EVENT_ATTACK_THRESHOLD = 4
+local JUMP_DISTANCE_THRESHOLD = 5
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
@@ -58,11 +59,11 @@ local LockCFrame = nil
 local Phase = "idle"
 local CurrentSpawnIndex = 1
 local IsFlying = false
+local IsAtTreadmill = false
 local IsAttacking = false
 local MyPlot = nil
 local MyTreadmill = nil
 local MyTreadmillPos = nil
-local MainLoopThread = nil
 
 -- Live Saved Stats
 local SavedStats = {
@@ -78,7 +79,6 @@ local SavedStats = {
 -- ==================================================
 local StartFollow
 local FlyTPToPosition
-local StartAttackLoop
 local SpawnLoop
 local FindMyPlotAndTreadmill
 local JumpOutTreadmill
@@ -183,14 +183,12 @@ function JumpOutTreadmill(TreadmillPos, Callback)
             local CurrentPos = Root2.Position
             local DistToTreadmill = math.floor((CurrentPos - TreadmillPos).Magnitude)
 
-            -- បើចេញពី Treadmill (Distance > 5) → Stop Jump
             if DistToTreadmill > JUMP_DISTANCE_THRESHOLD then
                 print("[YOKUDO] Jumped out! Distance:", DistToTreadmill)
                 if Callback then Callback() end
                 return
             end
 
-            -- Jump
             pcall(function()
                 Hum2.Jump = true
             end)
@@ -205,7 +203,7 @@ function JumpOutTreadmill(TreadmillPos, Callback)
 end
 
 -- ==================================================
--- SAVE LIVE STATS
+-- SAVE / RESTORE LIVE STATS
 -- ==================================================
 local function SaveLiveStats()
     local Hum = GetHumanoid()
@@ -218,9 +216,6 @@ local function SaveLiveStats()
     SavedStats.UseJumpPower = Hum.UseJumpPower
 end
 
--- ==================================================
--- RESTORE LIVE STATS
--- ==================================================
 local function RestoreLiveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -239,9 +234,6 @@ local function RestoreLiveStats()
     end
 end
 
--- ==================================================
--- RE-SAVE STATS IF HUMANOID REPLACED
--- ==================================================
 local function EnsureStatsAlive()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -311,7 +303,7 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- GET POSITION
+-- GET POSITION / LOOK VECTOR
 -- ==================================================
 local function GetPosition(Object)
     if not Object then return nil end
@@ -328,9 +320,6 @@ local function GetPosition(Object)
     return nil
 end
 
--- ==================================================
--- GET LOOK VECTOR
--- ==================================================
 local function GetLookVector(Object)
     if not Object then return Vector3.new(0, 0, -1) end
     local Part = nil
@@ -373,7 +362,7 @@ local function FindAllDrones()
 end
 
 -- ==================================================
--- GET DRONE TIER
+-- GET DRONE TIER / PRIORITY
 -- ==================================================
 local function GetDroneTier(Drone)
     if not Drone then return nil end
@@ -384,9 +373,6 @@ local function GetDroneTier(Drone)
     return Tier
 end
 
--- ==================================================
--- GET DRONE PRIORITY
--- ==================================================
 local function GetDronePriority(Drone)
     local Tier = GetDroneTier(Drone)
     if not Tier then return nil end
@@ -394,7 +380,7 @@ local function GetDronePriority(Drone)
 end
 
 -- ==================================================
--- FIND BEST DRONE (ONLY Top 1, 2, 3)
+-- FIND BEST DRONE
 -- ==================================================
 local function FindBestDrone()
     local Drones = FindAllDrones()
@@ -408,7 +394,6 @@ local function FindBestDrone()
 
     for _, Drone in ipairs(Drones) do
         local Priority = GetDronePriority(Drone)
-
         if Priority and Priority <= MAX_ALLOWED_PRIORITY then
             local Pos = GetPosition(Drone)
             if Pos then
@@ -630,7 +615,7 @@ function FlyTPToPosition(Destination, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            Phase = "locked_spawn"
+            Phase = "locked"
             StartLock(Destination)
 
             if Callback then Callback() end
@@ -650,7 +635,7 @@ function FlyTPToPosition(Destination, Callback)
 end
 
 -- ==================================================
--- ATTACK MOBS (Find + Follow + Fire)
+-- ATTACK MOBS
 -- ==================================================
 function AttackMobs()
     if not AttackDroneEnabled then return end
@@ -672,7 +657,6 @@ function AttackMobs()
         return
     end
 
-    -- Dynamic Priority Check
     local CurrentPriority = GetDronePriority(CurrentTarget)
     local BestDrone, BestPriority = FindBestDrone()
 
@@ -685,7 +669,6 @@ function AttackMobs()
         return
     end
 
-    -- Fire
     local now = tick()
     if now - LastFire >= ATTACK_INTERVAL then
         LastFire = now
@@ -707,7 +690,7 @@ function AttackMobs()
 end
 
 -- ==================================================
--- STOP ATTACK (Cleanup)
+-- STOP ATTACK
 -- ==================================================
 function StopAttack()
     CleanupMovers()
@@ -779,22 +762,45 @@ function MainLoop()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
         print("[YOKUDO] Treadmill found:", MyTreadmill:GetFullName())
-        print("[YOKUDO] Treadmill Pos:", MyTreadmillPos)
     else
         warn("[YOKUDO] Treadmill not found!")
+        return
     end
-
-    local WasAttacking = false
 
     while AttackDroneEnabled do
         local EventSec = GetEventSeconds()
+        local HasMob = #FindAllDrones() > 0
 
-        if EventSec > EVENT_ATTACK_THRESHOLD then
-            -- ✅ Event កំពុងដំណើរការ → Attack
-            if not WasAttacking then
-                print("[YOKUDO] Event Active (" .. EventSec .. "s) → Jump Out → Safe → Spawn Loop")
+        -- ==================================================
+        -- Event មិនទាន់ Spawn ឬ គ្មាន Mob → Treadmill (AFK)
+        -- ==================================================
+        if EventSec > EVENT_ATTACK_THRESHOLD or not HasMob then
+            if not IsAtTreadmill then
+                print("[YOKUDO] Event > 4s or No Mob → Fly to Treadmill")
+                IsAtTreadmill = true
+                IsAttacking = false
 
-                -- Jump ចេញពី Treadmill រហូតដល់ចេញ
+                -- Auto Equip OFF
+                if _G.YOKUDO_AutoAttack then
+                    _G.YOKUDO_AutoAttack.DisableAutoEquip()
+                end
+
+                FlyTPToPosition(MyTreadmillPos)
+            end
+        -- ==================================================
+        -- Event Spawn + មាន Mob → Attack
+        -- ==================================================
+        elseif EventSec <= EVENT_ATTACK_THRESHOLD and HasMob then
+            if IsAtTreadmill then
+                print("[YOKUDO] Event Active + Has Mob → Jump Out → Safe → Attack")
+                IsAtTreadmill = false
+                IsAttacking = true
+
+                -- Auto Equip ON
+                if _G.YOKUDO_AutoAttack then
+                    _G.YOKUDO_AutoAttack.EnableAutoEquip()
+                end
+
                 JumpOutTreadmill(MyTreadmillPos, function()
                     FlyTPToPosition(SAFE_ZONE, function()
                         task.wait(SAFE_WAIT_TIME)
@@ -803,58 +809,15 @@ function MainLoop()
                         end)
                     end)
                 end)
-
-                WasAttacking = true
             end
 
-            -- Attack ធម្មតា
-            if WasAttacking and not IsFlying then
+            if not IsFlying and IsAttacking then
                 AttackMobs()
             end
-        else
-            -- ✅ Event ជិតបញ្ចប់ (<= 4s) → Stop → Jump → Safe → Treadmill
-            if WasAttacking then
-                print("[YOKUDO] Event Ending (" .. EventSec .. "s) → Stop Attack → Jump Out → Safe → Treadmill")
-
-                StopAttack()
-
-                JumpOutTreadmill(MyTreadmillPos, function()
-                    FlyTPToPosition(SAFE_ZONE, function()
-                        task.wait(SAFE_WAIT_TIME)
-                        -- រក Treadmill ថ្មី
-                        MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
-                        if MyTreadmill then
-                            MyTreadmillPos = MyTreadmill.Position
-                            FlyTPToPosition(MyTreadmillPos)
-                        end
-                    end)
-                end)
-
-                WasAttacking = false
-            end
-
-            -- រង់ចាំ Event ថ្មី
-            task.wait(EVENT_CHECK_INTERVAL)
         end
+
+        task.wait(EVENT_CHECK_INTERVAL)
     end
-end
-
--- ==================================================
--- START ATTACK LOOP (Heartbeat)
--- ==================================================
-function StartAttackLoop()
-    if AttackConnection then
-        AttackConnection:Disconnect()
-        AttackConnection = nil
-    end
-
-    AttackConnection = RunService.Heartbeat:Connect(function()
-        if not AttackDroneEnabled then return end
-        if IsFlying then return end
-        if not WasAttacking then return end
-
-        AttackMobs()
-    end)
 end
 
 -- ==================================================
@@ -865,10 +828,6 @@ local function EnableAttackDrone()
     AttackDroneEnabled = true
 
     SaveLiveStats()
-
-    if _G.YOKUDO_AutoAttack then
-        _G.YOKUDO_AutoAttack.EnableAutoEquip()
-    end
 
     task.spawn(function()
         MainLoop()
@@ -881,17 +840,13 @@ local function DisableAttackDrone()
     if not AttackDroneEnabled then return end
     AttackDroneEnabled = false
 
-    if AttackConnection then
-        AttackConnection:Disconnect()
-        AttackConnection = nil
-    end
-
     CleanupMovers()
     CurrentTarget = nil
     CurrentTargetPriority = nil
     Phase = "idle"
     CurrentSpawnIndex = 1
     IsFlying = false
+    IsAtTreadmill = false
     IsAttacking = false
 
     RestoreLiveStats()
@@ -918,9 +873,6 @@ Player.CharacterAdded:Connect(function()
     if AttackDroneEnabled then
         task.wait(1)
         SaveLiveStats()
-        if _G.YOKUDO_AutoAttack then
-            _G.YOKUDO_AutoAttack.EnableAutoEquip()
-        end
     end
 end)
 
