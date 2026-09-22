@@ -1,98 +1,71 @@
 --==================================================
--- FEATURE 7: ANTI AFK
+-- YOKUDO HUB | FEATURE | Anti AFK
+-- Prevent AFK Kick/Hop using Mouse Move
 --==================================================
-local AntiAFKHolder = Instance.new("Frame")
-AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
-AntiAFKHolder.BackgroundTransparency = 1
-AntiAFKHolder.LayoutOrder = 8
-AntiAFKHolder.Parent = SettingPage
 
-local AntiAFKLabel = Instance.new("TextLabel")
-AntiAFKLabel.Size = UDim2.new(1, -50, 0, 20)
-AntiAFKLabel.Position = UDim2.new(0, 0, 0, 2)
-AntiAFKLabel.BackgroundTransparency = 1
-AntiAFKLabel.Text = "Anti AFK"
-AntiAFKLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-AntiAFKLabel.TextSize = 13
-AntiAFKLabel.TextXAlignment = Enum.TextXAlignment.Left
-AntiAFKLabel.TextYAlignment = Enum.TextYAlignment.Center
-AntiAFKLabel.Font = Enum.Font.GothamBold
-AntiAFKLabel.Parent = AntiAFKHolder
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local AntiAFKTitle = Instance.new("TextLabel")
-AntiAFKTitle.Size = UDim2.new(1, -50, 0, 18)
-AntiAFKTitle.Position = UDim2.new(0, 0, 0, 24)
-AntiAFKTitle.BackgroundTransparency = 1
-AntiAFKTitle.Text = "Click when AFK"  -- ✅ ប្រាប់ Click when AFK
-AntiAFKTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
-AntiAFKTitle.TextSize = 10
-AntiAFKTitle.TextXAlignment = Enum.TextXAlignment.Left
-AntiAFKTitle.Font = Enum.Font.Gotham
-AntiAFKTitle.Parent = AntiAFKHolder
+local Player = Players.LocalPlayer
 
-local AntiAFKCheckButton = Instance.new("TextButton")
-AntiAFKCheckButton.Size = UDim2.new(0, 26, 0, 26)
-AntiAFKCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
-AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-AntiAFKCheckButton.BorderSizePixel = 0
-AntiAFKCheckButton.Text = ""
-AntiAFKCheckButton.AutoButtonColor = false
-AntiAFKCheckButton.Parent = AntiAFKHolder
-
-local AntiAFKCorner = Instance.new("UICorner")
-AntiAFKCorner.CornerRadius = UDim.new(0, 6)
-AntiAFKCorner.Parent = AntiAFKCheckButton
-
-local AntiAFKStroke = Instance.new("UIStroke")
-AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
-AntiAFKStroke.Thickness = 1.5
-AntiAFKStroke.Parent = AntiAFKCheckButton
-
-local AntiAFKCheck = Instance.new("TextLabel")
-AntiAFKCheck.Size = UDim2.new(1, 0, 1, 0)
-AntiAFKCheck.BackgroundTransparency = 1
-AntiAFKCheck.Text = "✓"
-AntiAFKCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-AntiAFKCheck.TextSize = 18
-AntiAFKCheck.Font = Enum.Font.GothamBold
-AntiAFKCheck.Visible = false
-AntiAFKCheck.Parent = AntiAFKCheckButton
+--==================================================
+-- STATE
+--==================================================
 
 local AntiAFKEnabled = false
+local AntiAFKConnection = nil
+
+--==================================================
+-- ENABLE / DISABLE
+--==================================================
+
+local function EnableAntiAFK()
+    if AntiAFKEnabled then return end
+    AntiAFKEnabled = true
+
+    AntiAFKConnection = task.spawn(function()
+        while AntiAFKEnabled do
+            task.wait(math.random(30, 90))
+
+            if not AntiAFKEnabled then break end
+
+            -- ✅ Mouse Move Method
+            local Mouse = Player:GetMouse()
+            if Mouse then
+                pcall(function()
+                    mousemoverel(math.random(-10, 10), math.random(-10, 10))
+                end)
+            end
+        end
+    end)
+
+    print("[YOKUDO] Anti AFK: ON")
+end
+
+local function DisableAntiAFK()
+    if not AntiAFKEnabled then return end
+    AntiAFKEnabled = false
+
+    print("[YOKUDO] Anti AFK: OFF")
+end
 
 local function ToggleAntiAFK()
-    AntiAFKEnabled = not AntiAFKEnabled
-    AntiAFKCheck.Visible = AntiAFKEnabled
     if AntiAFKEnabled then
-        AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_AntiAFK then
-            _G.YOKUDO_AntiAFK.Enable()
-        end
+        DisableAntiAFK()
     else
-        AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_AntiAFK then
-            _G.YOKUDO_AntiAFK.Disable()
-        end
+        EnableAntiAFK()
     end
 end
 
-AntiAFKCheckButton.MouseButton1Click:Connect(function()
-    ToggleAntiAFK()
-end)
+--==================================================
+-- EXPORT
+--==================================================
 
---==================================================
--- ✅ SYNC STATE ON LOAD
---==================================================
-task.spawn(function()
-    task.wait(0.5)
-    if _G.YOKUDO_AntiAFK then
-        if _G.YOKUDO_AntiAFK.IsEnabled() then
-            AntiAFKCheck.Visible = true
-            AntiAFKEnabled = true
-            AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-        end
-    end
-end)
+_G.YOKUDO_AntiAFK = {
+    Enable = EnableAntiAFK,
+    Disable = DisableAntiAFK,
+    Toggle = ToggleAntiAFK,
+    IsEnabled = function() return AntiAFKEnabled end
+}
+
+print("✅ AntiAFK Feature Loaded (Mouse Move)")
