@@ -1,163 +1,98 @@
--- ==================================================
--- YOKUDO HUB | FEATURE | Anti AFK
--- Bypass Game Anti-AFK ដោយប្រើ VirtualInputManager
--- បញ្ជូន Input រាល់ 10 នាទី (600 វិនាទី)
--- ==================================================
+--==================================================
+-- FEATURE 7: ANTI AFK
+--==================================================
+local AntiAFKHolder = Instance.new("Frame")
+AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
+AntiAFKHolder.BackgroundTransparency = 1
+AntiAFKHolder.LayoutOrder = 8
+AntiAFKHolder.Parent = SettingPage
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
+local AntiAFKLabel = Instance.new("TextLabel")
+AntiAFKLabel.Size = UDim2.new(1, -50, 0, 20)
+AntiAFKLabel.Position = UDim2.new(0, 0, 0, 2)
+AntiAFKLabel.BackgroundTransparency = 1
+AntiAFKLabel.Text = "Anti AFK"
+AntiAFKLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiAFKLabel.TextSize = 13
+AntiAFKLabel.TextXAlignment = Enum.TextXAlignment.Left
+AntiAFKLabel.TextYAlignment = Enum.TextYAlignment.Center
+AntiAFKLabel.Font = Enum.Font.GothamBold
+AntiAFKLabel.Parent = AntiAFKHolder
 
-local Player = Players.LocalPlayer
+local AntiAFKTitle = Instance.new("TextLabel")
+AntiAFKTitle.Size = UDim2.new(1, -50, 0, 18)
+AntiAFKTitle.Position = UDim2.new(0, 0, 0, 24)
+AntiAFKTitle.BackgroundTransparency = 1
+AntiAFKTitle.Text = "Click when AFK"  -- ✅ ប្រាប់ Click when AFK
+AntiAFKTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+AntiAFKTitle.TextSize = 10
+AntiAFKTitle.TextXAlignment = Enum.TextXAlignment.Left
+AntiAFKTitle.Font = Enum.Font.Gotham
+AntiAFKTitle.Parent = AntiAFKHolder
 
--- ==================================================
--- SETTINGS
--- ==================================================
-local INPUT_INTERVAL = 600         -- ✅ រាល់ 10 នាទី (600 វិនាទី)
-local INPUT_VARIATION = 60         -- Random បន្ថែម 0-60s
-local USE_MOUSE_MOVE = true
-local USE_MOUSE_CLICK = true
-local USE_KEYBOARD = true
+local AntiAFKCheckButton = Instance.new("TextButton")
+AntiAFKCheckButton.Size = UDim2.new(0, 26, 0, 26)
+AntiAFKCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
+AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+AntiAFKCheckButton.BorderSizePixel = 0
+AntiAFKCheckButton.Text = ""
+AntiAFKCheckButton.AutoButtonColor = false
+AntiAFKCheckButton.Parent = AntiAFKHolder
 
--- ==================================================
--- STATE
--- ==================================================
-local AntiAFKEnabled = true
-local InputThread = nil
-local LastInputTime = tick()
+local AntiAFKCorner = Instance.new("UICorner")
+AntiAFKCorner.CornerRadius = UDim.new(0, 6)
+AntiAFKCorner.Parent = AntiAFKCheckButton
 
--- ==================================================
--- SEND MOUSE MOVE
--- ==================================================
-local function SendMouseMove()
-    pcall(function()
-        local ViewportSize = workspace.CurrentCamera.ViewportSize
-        local RandomX = math.random(1, math.floor(ViewportSize.X))
-        local RandomY = math.random(1, math.floor(ViewportSize.Y))
+local AntiAFKStroke = Instance.new("UIStroke")
+AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
+AntiAFKStroke.Thickness = 1.5
+AntiAFKStroke.Parent = AntiAFKCheckButton
 
-        VirtualInputManager:SendMouseMoveEvent(RandomX, RandomY, game)
-    end)
-end
+local AntiAFKCheck = Instance.new("TextLabel")
+AntiAFKCheck.Size = UDim2.new(1, 0, 1, 0)
+AntiAFKCheck.BackgroundTransparency = 1
+AntiAFKCheck.Text = "✓"
+AntiAFKCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiAFKCheck.TextSize = 18
+AntiAFKCheck.Font = Enum.Font.GothamBold
+AntiAFKCheck.Visible = false
+AntiAFKCheck.Parent = AntiAFKCheckButton
 
--- ==================================================
--- SEND MOUSE CLICK
--- ==================================================
-local function SendMouseClick()
-    pcall(function()
-        local ViewportSize = workspace.CurrentCamera.ViewportSize
-        local RandomX = math.random(1, math.floor(ViewportSize.X))
-        local RandomY = math.random(1, math.floor(ViewportSize.Y))
+local AntiAFKEnabled = false
 
-        VirtualInputManager:SendMouseButtonEvent(RandomX, RandomY, 0, true, game, 1)
-        task.wait(0.05)
-        VirtualInputManager:SendMouseButtonEvent(RandomX, RandomY, 0, false, game, 1)
-    end)
-end
-
--- ==================================================
--- SEND KEYBOARD PRESS
--- ==================================================
-local function SendKeyboardPress()
-    pcall(function()
-        local KeyCode = Enum.KeyCode.Space
-        VirtualInputManager:SendKeyEvent(true, KeyCode, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, KeyCode, false, game)
-    end)
-end
-
--- ==================================================
--- MAIN INPUT LOOP
--- ==================================================
-local function StartInputLoop()
-    if InputThread then
-        pcall(function() task.cancel(InputThread) end)
-        InputThread = nil
-    end
-
-    InputThread = task.spawn(function()
-        while AntiAFKEnabled do
-            local WaitTime = INPUT_INTERVAL + math.random(0, INPUT_VARIATION)
-            print("[AntiAFK] Next Input in", WaitTime, "seconds")
-            task.wait(WaitTime)
-
-            if not AntiAFKEnabled then break end
-
-            print("[AntiAFK] Sending Real Input...")
-
-            if USE_MOUSE_MOVE then
-                SendMouseMove()
-                task.wait(0.1)
-            end
-
-            if USE_MOUSE_CLICK then
-                SendMouseClick()
-                task.wait(0.1)
-            end
-
-            if USE_KEYBOARD then
-                SendKeyboardPress()
-            end
-
-            LastInputTime = tick()
+local function ToggleAntiAFK()
+    AntiAFKEnabled = not AntiAFKEnabled
+    AntiAFKCheck.Visible = AntiAFKEnabled
+    if AntiAFKEnabled then
+        AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+        if _G.YOKUDO_AntiAFK then
+            _G.YOKUDO_AntiAFK.Enable()
         end
-    end)
+    else
+        AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
+        if _G.YOKUDO_AntiAFK then
+            _G.YOKUDO_AntiAFK.Disable()
+        end
+    end
 end
 
--- ==================================================
--- PLAYER IDLED EVENT (Backup)
--- ==================================================
-local IdleConnection = Player.Idled:Connect(function()
-    if not AntiAFKEnabled then return end
-
-    print("[AntiAFK] Player Idled! Sending Input...")
-
-    SendMouseMove()
-    task.wait(0.1)
-    SendMouseClick()
-    task.wait(0.1)
-    SendKeyboardPress()
-
-    LastInputTime = tick()
+AntiAFKCheckButton.MouseButton1Click:Connect(function()
+    ToggleAntiAFK()
 end)
 
--- ==================================================
--- ENABLE / DISABLE
--- ==================================================
-local function EnableAntiAFK()
-    AntiAFKEnabled = true
-    StartInputLoop()
-    print("[AntiAFK] Anti AFK: ON (Every 10 minutes)")
-end
-
-local function DisableAntiAFK()
-    AntiAFKEnabled = false
-
-    if InputThread then
-        pcall(function() task.cancel(InputThread) end)
-        InputThread = nil
+--==================================================
+-- ✅ SYNC STATE ON LOAD
+--==================================================
+task.spawn(function()
+    task.wait(0.5)
+    if _G.YOKUDO_AntiAFK then
+        if _G.YOKUDO_AntiAFK.IsEnabled() then
+            AntiAFKCheck.Visible = true
+            AntiAFKEnabled = true
+            AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
     end
-
-    print("[AntiAFK] Anti AFK: OFF")
-end
-
--- ==================================================
--- AUTO-START ON LOAD
--- ==================================================
-EnableAntiAFK()
-
--- ==================================================
--- EXPORT
--- ==================================================
-_G.YOKUDO_AntiAFK = {
-    Enable = EnableAntiAFK,
-    Disable = DisableAntiAFK,
-    IsEnabled = function() return AntiAFKEnabled end,
-    GetLastInputTime = function() return LastInputTime end,
-    SendMouseMove = SendMouseMove,
-    SendMouseClick = SendMouseClick,
-    SendKeyboardPress = SendKeyboardPress,
-}
-
-print("✅ AntiAFK Feature Loaded (Every 10 minutes)")
+end)
