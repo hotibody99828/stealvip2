@@ -73,7 +73,9 @@ ManagerCheck.Font = Enum.Font.GothamBold
 ManagerCheck.Visible = false
 ManagerCheck.Parent = ManagerButton
 
--- ✅ Update UI function
+--==================================================
+-- ✅ UPDATE UI FUNCTION
+--==================================================
 local function UpdateManagerUI(State)
     ManagerCheck.Visible = State
     if State then
@@ -111,10 +113,10 @@ ManagerButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- ✅ SYNC STATE ON LOAD (FROM CONFIG)
+-- ✅ SYNC STATE ON LOAD
 --==================================================
 task.spawn(function()
-    task.wait(0.5)
+    task.wait(1)
     if _G.YOKUDO_ManagerDrone then
         local State = _G.YOKUDO_ManagerDrone.IsEnabled()
         UpdateManagerUI(State)
@@ -122,15 +124,29 @@ task.spawn(function()
 end)
 
 --==================================================
--- ✅ AUTO ENABLE FROM CONFIG
+-- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
+--==================================================
+_G.YOKUDO_RefreshEventUI = function()
+    if _G.YOKUDO_ManagerDrone then
+        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
+        UpdateManagerUI(State)
+        print("[YOKUDO] Event Tab UI Refreshed | State: " .. tostring(State))
+    end
+end
+
+--==================================================
+-- ✅ PERIODIC SYNC (រាល់ 1 វិនាទី)
 --==================================================
 task.spawn(function()
-    task.wait(1)
-    if _G.YOKUDO_AttackDroneEnabled == true then
+    while task.wait(1) do
         if _G.YOKUDO_ManagerDrone then
-            print("[YOKUDO] Auto Enable Attack Drone from Config")
-            UpdateManagerUI(true)
-            _G.YOKUDO_ManagerDrone.Enable()
+            local CurrentState = _G.YOKUDO_ManagerDrone.IsEnabled()
+            local UIState = ManagerCheck.Visible
+
+            if CurrentState ~= UIState then
+                UpdateManagerUI(CurrentState)
+                print("[YOKUDO] Event UI Sync | State: " .. tostring(CurrentState))
+            end
         end
     end
 end)
