@@ -116,17 +116,37 @@ end
 
 -- ==================================================
 -- GET EVENT TIME (Seconds) — ✅ កែរួច
+-- អានបានទាំង TextLabel, StringValue, IntValue
 -- អានបានទាំង "Event ends in 3m 26s" និង "in 9m 50s"
 -- ==================================================
 function GetEventSeconds()
-    local Success, Value = pcall(function()
-        return Player.PlayerGui.HUD.GameHUD.BottomRight.ExperimentTimer.Value
+    local Success, Timer = pcall(function()
+        return Player.PlayerGui.HUD.GameHUD.BottomRight.ExperimentTimer
     end)
-    if not Success or not Value then
-        return 0
+    if not Success or not Timer then return 0 end
+
+    local RawValue = nil
+
+    -- ✅ ពិនិត្យ ClassName
+    if Timer:IsA("TextLabel") then
+        RawValue = Timer.Text
+    elseif Timer:IsA("StringValue") then
+        RawValue = Timer.Value
+    elseif Timer:IsA("IntValue") then
+        return Timer.Value  -- បើជា IntValue → ត្រឡប់តម្លៃផ្ទាល់
+    elseif Timer:IsA("NumberValue") then
+        return Timer.Value
+    else
+        -- Fallback: សាកល្បង `.Value` មុន បន្ទាប់មក `.Text`
+        pcall(function() RawValue = Timer.Value end)
+        if not RawValue then
+            pcall(function() RawValue = Timer.Text end)
+        end
     end
 
-    local Text = tostring(Value)  -- "Event ends in 3m 26s" ឬ "in 9m 50s"
+    if not RawValue then return 0 end
+
+    local Text = tostring(RawValue)  -- "Event ends in 3m 26s" ឬ "in 9m 50s"
     local M = tonumber(string.match(Text, "(%d+)m")) or 0
     local S = tonumber(string.match(Text, "(%d+)s")) or 0
     return M * 60 + S
@@ -667,7 +687,7 @@ function SpawnLoop()
 end
 
 -- ==================================================
--- MAIN LOOP
+-- MAIN LOOP — ✅ កែរួច
 -- ==================================================
 local function MainLoop()
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
@@ -685,12 +705,16 @@ local function MainLoop()
         local EventSec = GetEventSeconds()
         local HasMob = #FindAllDrones() > 0
 
-        print("[YOKUDO] Event:", EventSec, "| HasMob:", HasMob, "| AtTreadmill:", IsAtTreadmill, "| Attacking:", IsAttacking)
+        -- ✅ បើ Event = 0 → Event មិនទាន់ចេញ → AFK Treadmill
+        local EventActive = EventSec > 0
+        local EventEndingSoon = EventActive and EventSec <= EVENT_SKIP_THRESHOLD
+
+        print("[YOKUDO] Event:", EventSec, "| Active:", EventActive, "| HasMob:", HasMob, "| AtTreadmill:", IsAtTreadmill, "| Attacking:", IsAttacking)
 
         -- ==================================================
-        -- Event <= 7s → Stop Attack + Jump + Safe + Treadmill
+        -- Event ជិតចប់ (<= 7s) → Stop Attack + Jump + Safe + Treadmill
         -- ==================================================
-        if EventSec <= EVENT_SKIP_THRESHOLD then
+        if EventEndingSoon then
             if IsAttacking then
                 print("[YOKUDO] Event <= 7s → Stop Attack → Jump → Safe → Treadmill")
                 StopAttack()
@@ -711,7 +735,7 @@ local function MainLoop()
         -- ==================================================
         -- Event ចេញ (ថ្មី) + HasMob → Stop AFK + Jump + Safe + Attack
         -- ==================================================
-        elseif EventSec > EVENT_SKIP_THRESHOLD and HasMob then
+        elseif EventActive and HasMob then
             if IsAtTreadmill then
                 print("[YOKUDO] Event Detected + Has Mob → Stop AFK → Jump → Safe → Attack")
                 StopAFK()
@@ -729,7 +753,7 @@ local function MainLoop()
                 AttackMobs()
             end
         -- ==================================================
-        -- Event > 7s + គ្មាន Mob → AFK Treadmill
+        -- Event មិនទាន់ចេញ (Event = 0) ឬ គ្មាន Mob → AFK Treadmill
         -- ==================================================
         else
             -- Check Distance រាល់ 4s
@@ -748,7 +772,7 @@ local function MainLoop()
             end
 
             if not IsAtTreadmill then
-                print("[YOKUDO] Event > 7s → Fly to Treadmill (AFK)")
+                print("[YOKUDO] Event Not Active → Fly to Treadmill (AFK)")
                 IsAtTreadmill = true
                 MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
                 if MyTreadmill then
