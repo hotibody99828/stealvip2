@@ -1,7 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Event
 -- Feature: Auto Attack Drone
--- Section: AFK Farm
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -15,19 +14,15 @@ local EventTab, EventPage = TabsManager:RegisterTab("Event", 5, "EVENT")
 CreateSectionTitle(EventPage, "Event", 1)
 
 -- ==================================================
--- SECTION: AFK FARM (ក្រោម Feature)
--- ==================================================
-CreateSectionTitle(EventPage, "AFK Farm", 2)
-
--- ==================================================
 -- FEATURE: AUTO ATTACK DRONE (Checkbox)
 -- ==================================================
 local ManagerHolder = Instance.new("Frame")
 ManagerHolder.Size = UDim2.new(1, 0, 0, 52)
 ManagerHolder.BackgroundTransparency = 1
-ManagerHolder.LayoutOrder = 3
+ManagerHolder.LayoutOrder = 2
 ManagerHolder.Parent = EventPage
 
+-- ✅ Title ថ្មី
 local ManagerLabel = Instance.new("TextLabel")
 ManagerLabel.Size = UDim2.new(1, -50, 0, 20)
 ManagerLabel.Position = UDim2.new(0, 0, 0, 2)
@@ -40,11 +35,12 @@ ManagerLabel.TextYAlignment = Enum.TextYAlignment.Center
 ManagerLabel.Font = Enum.Font.GothamBold
 ManagerLabel.Parent = ManagerHolder
 
+-- ✅ Subtitle ថ្មី
 local ManagerSub = Instance.new("TextLabel")
 ManagerSub.Size = UDim2.new(1, -50, 0, 18)
 ManagerSub.Position = UDim2.new(0, 0, 0, 24)
 ManagerSub.BackgroundTransparency = 1
-ManagerSub.Text = "Event Auto → Attack / AFK Treadmill"
+ManagerSub.Text = "AFK Farm"
 ManagerSub.TextColor3 = Color3.fromRGB(150, 150, 170)
 ManagerSub.TextSize = 10
 ManagerSub.TextXAlignment = Enum.TextXAlignment.Left
