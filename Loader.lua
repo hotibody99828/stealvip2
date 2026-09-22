@@ -176,6 +176,10 @@ loadstring(GetScript("Tabs/Init.lua"))()
 --==================================================
 -- LOAD FEATURES
 --==================================================
+-- ✅ AntiAFK (ដំណើរការភ្លាម មិនត្រូវការ UI)
+Loading.Update(28)
+loadstring(GetScript("Features/AntiAFK.lua"))()
+
 Loading.Update(30)
 loadstring(GetScript("Features/WalkSpeed.lua"))()
 
@@ -209,10 +213,14 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
+-- ✅ ConfigSystem (Load After Features, Before Tabs)
+Loading.Update(59)
+loadstring(GetScript("Features/ConfigSystem.lua"))()
+
 --==================================================
 -- LOAD TABS
 --==================================================
-Loading.Update(60)
+Loading.Update(62)
 loadstring(GetScript("Tabs/Info.lua"))()
 
 Loading.Update(65)
