@@ -4,6 +4,7 @@
 -- Auto Equip ON តែពេល Mob Spawn
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
 -- FOLLOW_SPEED = 1000
+-- Fix: Fly TP មិន Lock ជាប់
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -424,7 +425,7 @@ local function GetBehindPosition(Target)
 end
 
 -- ==================================================
--- START LOCK
+-- START LOCK (តែពេល Follow Mob)
 -- ==================================================
 local function StartLock(Position, LookAt)
     LockCFrame = CFrame.new(Position, LookAt or (Position + Vector3.new(0, 0, -1)))
@@ -463,7 +464,7 @@ local function StartLock(Position, LookAt)
 end
 
 -- ==================================================
--- FOLLOW BEHIND
+-- FOLLOW BEHIND (មាន Lock ពេលជិត)
 -- ==================================================
 function StartFollow()
     CleanupMovers()
@@ -545,7 +546,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION
+-- FLY TP TO POSITION (✅ មិន Lock ជាប់)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -615,8 +616,8 @@ function FlyTPToPosition(Destination, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            Phase = "locked"
-            StartLock(Destination)
+            -- ✅ មិន StartLock ទេ — គ្រាន់តែ Stop នៅទីនោះ
+            Phase = "arrived"
 
             if Callback then Callback() end
             return
@@ -717,7 +718,7 @@ function SpawnLoop()
 
         FlyTPToPosition(CurrentSpawn, function()
             Arrived = true
-            Phase = "locked_spawn_" .. CurrentSpawnIndex
+            Phase = "arrived_spawn_" .. CurrentSpawnIndex
         end)
 
         local WaitTime = 0
@@ -785,7 +786,12 @@ function MainLoop()
                     _G.YOKUDO_AutoAttack.DisableAutoEquip()
                 end
 
-                FlyTPToPosition(MyTreadmillPos)
+                -- រក Treadmill ថ្មី (បើ Plot ផ្លាស់ប្តូរ)
+                MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
+                if MyTreadmill then
+                    MyTreadmillPos = MyTreadmill.Position
+                    FlyTPToPosition(MyTreadmillPos)
+                end
             end
         -- ==================================================
         -- Event Spawn + មាន Mob → Attack
