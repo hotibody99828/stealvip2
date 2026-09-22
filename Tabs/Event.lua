@@ -22,7 +22,7 @@ ManagerHolder.BackgroundTransparency = 1
 ManagerHolder.LayoutOrder = 2
 ManagerHolder.Parent = EventPage
 
--- ✅ Title ថ្មី
+-- ✅ Feature Name: Auto Attack Drone
 local ManagerLabel = Instance.new("TextLabel")
 ManagerLabel.Size = UDim2.new(1, -50, 0, 20)
 ManagerLabel.Position = UDim2.new(0, 0, 0, 2)
@@ -35,12 +35,12 @@ ManagerLabel.TextYAlignment = Enum.TextYAlignment.Center
 ManagerLabel.Font = Enum.Font.GothamBold
 ManagerLabel.Parent = ManagerHolder
 
--- ✅ Subtitle ថ្មី
+-- ✅ Subtitle: AFK Farm Drone
 local ManagerSub = Instance.new("TextLabel")
 ManagerSub.Size = UDim2.new(1, -50, 0, 18)
 ManagerSub.Position = UDim2.new(0, 0, 0, 24)
 ManagerSub.BackgroundTransparency = 1
-ManagerSub.Text = "AFK Farm"
+ManagerSub.Text = "AFK Farm Drone"
 ManagerSub.TextColor3 = Color3.fromRGB(150, 150, 170)
 ManagerSub.TextSize = 10
 ManagerSub.TextXAlignment = Enum.TextXAlignment.Left
