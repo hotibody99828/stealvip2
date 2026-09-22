@@ -176,7 +176,6 @@ loadstring(GetScript("Tabs/Init.lua"))()
 --==================================================
 -- LOAD FEATURES
 --==================================================
--- ✅ AntiAFK (ដំណើរការភ្លាម មិនត្រូវការ UI)
 Loading.Update(28)
 loadstring(GetScript("Features/AntiAFK.lua"))()
 
@@ -198,15 +197,12 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
--- ✅ AFKSystem (Load មុន AttackDrone + ManagerDrone)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ AttackDrone (កែរួច — ដក InitialFlyAndStartLoop ចេញ)
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
 
--- ✅ ManagerDrone (Load ក្រោយ AFK + Attack)
 Loading.Update(54)
 loadstring(GetScript("Features/ManagerDrone.lua"))()
 
@@ -256,6 +252,17 @@ Loading.Update(95)
 --==================================================
 Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
+
+--==================================================
+-- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
+--==================================================
+print("⏳ Waiting 2s before applying config...")
+task.wait(2)
+
+if _G.YOKUDO_ConfigSystem then
+    print("🔧 Applying Config...")
+    _G.YOKUDO_ConfigSystem.Load()
+end
 
 Loading.Update(100)
 
