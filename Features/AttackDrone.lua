@@ -4,7 +4,7 @@
 -- Auto Equip ON តែពេល Mob Spawn
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
 -- FOLLOW_SPEED = 1000
--- Fix: Fly TP មិន Lock ជាប់
+-- Fix: Distance Check រាល់ 5s + Skip ពេល Event ចេញ
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -31,6 +31,8 @@ local ARRIVE_TIMEOUT = 15
 local EVENT_CHECK_INTERVAL = 0.5
 local EVENT_ATTACK_THRESHOLD = 4
 local JUMP_DISTANCE_THRESHOLD = 5
+local DIST_CHECK_INTERVAL = 5        -- ពិនិត្យ Distance រាល់ 5s
+local DIST_TREADMILL_THRESHOLD = 10  -- បើ Dist > 10 → Fly ត្រឡប់ទៅ Treadmill
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
@@ -546,7 +548,7 @@ function StartFollow()
 end
 
 -- ==================================================
--- FLY TP TO POSITION (✅ មិន Lock ជាប់)
+-- FLY TP TO POSITION (មិន Lock ជាប់)
 -- ==================================================
 function FlyTPToPosition(Destination, Callback)
     CleanupMovers()
@@ -616,7 +618,6 @@ function FlyTPToPosition(Destination, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            -- ✅ មិន StartLock ទេ — គ្រាន់តែ Stop នៅទីនោះ
             Phase = "arrived"
 
             if Callback then Callback() end
@@ -756,6 +757,8 @@ end
 
 -- ==================================================
 -- MAIN LOOP (Event Detection + Treadmill AFK + Attack)
+-- ✅ ពិនិត្យ Distance រាល់ 5s
+-- ✅ Skip ការពិនិត្យ Distance ពេល Event ចេញ
 -- ==================================================
 function MainLoop()
     -- រក Plot + Treadmill
@@ -768,14 +771,36 @@ function MainLoop()
         return
     end
 
+    local LastDistCheck = 0  -- ✅ Timer សម្រាប់ពិនិត្យ Distance រាល់ 5s
+
     while AttackDroneEnabled do
         local EventSec = GetEventSeconds()
         local HasMob = #FindAllDrones() > 0
+        local Now = tick()
+
+        -- ✅ ពេល Event ចេញ (<= 4s) → Skip ការពិនិត្យ Distance
+        if EventSec > EVENT_ATTACK_THRESHOLD then
+            -- ✅ ពិនិត្យ Distance រាល់ 5s ម្តង
+            if Now - LastDistCheck >= DIST_CHECK_INTERVAL then
+                LastDistCheck = Now
+                local Hum, Root = GetHumanoid()
+                if Root and MyTreadmillPos then
+                    local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
+                    if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
+                        if IsAtTreadmill then
+                            print("[YOKUDO] Player jumped out of Treadmill! Dist:", DistToTreadmill)
+                            IsAtTreadmill = false
+                        end
+                    end
+                end
+            end
+        end
 
         -- ==================================================
         -- Event មិនទាន់ Spawn ឬ គ្មាន Mob → Treadmill (AFK)
         -- ==================================================
         if EventSec > EVENT_ATTACK_THRESHOLD or not HasMob then
+            -- ✅ បើ Player មិននៅ Treadmill → Fly ត្រឡប់ទៅ Treadmill
             if not IsAtTreadmill then
                 print("[YOKUDO] Event > 4s or No Mob → Fly to Treadmill")
                 IsAtTreadmill = true
