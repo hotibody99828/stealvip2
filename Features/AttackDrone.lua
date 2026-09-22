@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Event Detection (Check 1s) + Treadmill AFK + Stop/Skip
+-- Event Detection (Check 1s) + Treadmill AFK + Stop
 -- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
 -- FOLLOW_SPEED = 1000
 -- ==================================================
@@ -26,11 +26,11 @@ local POINT_1 = Vector3.new(559, 70, -370)
 local SAFE_WAIT_TIME = 1
 local SPAWN_WAIT_TIME = 2
 local ARRIVE_TIMEOUT = 15
-local EVENT_CHECK_INTERVAL = 1          -- Check Event រាល់ 1s
-local EVENT_SKIP_THRESHOLD = 7          -- ពេល Event <= 7s → Stop + Jump
-local DIST_CHECK_INTERVAL = 4           -- Check Distance រាល់ 4s
-local DIST_TREADMILL_THRESHOLD = 5      -- បើ Dist > 5 → Fly ត្រឡប់ទៅ Treadmill
-local JUMP_DISTANCE_THRESHOLD = 5       -- បើ Dist > 5 → Stop Jump
+local EVENT_CHECK_INTERVAL = 1
+local EVENT_SKIP_THRESHOLD = 7
+local DIST_CHECK_INTERVAL = 4
+local DIST_TREADMILL_THRESHOLD = 5
+local JUMP_DISTANCE_THRESHOLD = 5
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
@@ -66,7 +66,6 @@ local IsSkipping = false
 local MyPlot = nil
 local MyTreadmill = nil
 local MyTreadmillPos = nil
-local LastEventSec = 0
 local LastDistCheck = 0
 
 -- Live Saved Stats
@@ -116,15 +115,18 @@ local function GetBatSwingRemote()
 end
 
 -- ==================================================
--- GET EVENT TIME (Seconds)
+-- GET EVENT TIME (Seconds) — ✅ កែរួច
+-- អានបានទាំង "Event ends in 3m 26s" និង "in 9m 50s"
 -- ==================================================
 function GetEventSeconds()
     local Success, Value = pcall(function()
         return Player.PlayerGui.HUD.GameHUD.BottomRight.ExperimentTimer.Value
     end)
-    if not Success or not Value then return 0 end
+    if not Success or not Value then
+        return 0
+    end
 
-    local Text = tostring(Value)  -- "Event ends in 4m 48s"
+    local Text = tostring(Value)  -- "Event ends in 3m 26s" ឬ "in 9m 50s"
     local M = tonumber(string.match(Text, "(%d+)m")) or 0
     local S = tonumber(string.match(Text, "(%d+)s")) or 0
     return M * 60 + S
@@ -707,7 +709,7 @@ local function MainLoop()
                 end)
             end
         -- ==================================================
-        -- Event ចេញ (ថ្មី) → Stop AFK + Jump + Safe + Attack
+        -- Event ចេញ (ថ្មី) + HasMob → Stop AFK + Jump + Safe + Attack
         -- ==================================================
         elseif EventSec > EVENT_SKIP_THRESHOLD and HasMob then
             if IsAtTreadmill then
