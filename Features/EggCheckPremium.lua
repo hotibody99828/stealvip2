@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Egg Check Premium
--- ជ្រើសរើស Egg តាម Rarity (Divine > Eternal > Secret) និង $/s
 -- ✅ Logic ចាស់ទាំងស្រុង
+-- ✅ Check Name Pet + $/s + Type
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ local MeshIdMapBuilt = false
 
 local function BuildMeshIdMap()
     if MeshIdMapBuilt then return end
-    
+
     local Assets = ReplicatedStorage:FindFirstChild("Data")
     if not Assets then return end
     Assets = Assets:FindFirstChild("Assets")
@@ -50,7 +50,7 @@ local function BuildMeshIdMap()
             end
         end
     end
-    
+
     MeshIdMapBuilt = true
     print("[EggCheckPremium] MeshId Map Built: " .. tostring(#Configs:GetChildren()) .. " Configs")
 end
@@ -75,7 +75,8 @@ local function GetPetData(AssetCategory)
     return {
         Rarity = Module.Rarity and (Module.Rarity._id or Module.Rarity.RarityId) or nil,
         EarningRate = Module.EarningRate or 0,
-        DisplayName = Module.DisplayName or AssetCategory
+        DisplayName = Module.DisplayName or AssetCategory,
+        Icon = Module.Icon
     }
 end
 
@@ -84,7 +85,7 @@ end
 -- ==================================================
 local function FindAssetCategory(EggModel)
     if not MeshIdMapBuilt then BuildMeshIdMap() end
-    
+
     for _, Desc in ipairs(EggModel:GetDescendants()) do
         if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
             local Cat = MeshIdMap[Desc.MeshId]
@@ -99,7 +100,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGG (Divine > Eternal > Secret > $/s)
+-- SORT EGG (Logic ចាស់ — RARITY_PRIORITY)
 -- ==================================================
 local RARITY_PRIORITY = {
     Divine = 1,
@@ -117,7 +118,7 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- FIND BEST EGG
+-- FIND BEST EGG (Logic ចាស់)
 -- ==================================================
 local function FindBestEgg()
     local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -136,7 +137,8 @@ local function FindBestEgg()
                         Uid = Slot.Name,
                         Rarity = Data.Rarity,
                         EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName
+                        DisplayName = Data.DisplayName,
+                        Icon = Data.Icon
                     })
                 end
             end
@@ -149,7 +151,7 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- FIND ALL EGGS
+-- FIND ALL EGGS (Logic ចាស់)
 -- ==================================================
 local function FindAllEggs()
     local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -168,7 +170,8 @@ local function FindAllEggs()
                         Uid = Slot.Name,
                         Rarity = Data.Rarity,
                         EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName
+                        DisplayName = Data.DisplayName,
+                        Icon = Data.Icon
                     })
                 end
             end
@@ -180,23 +183,23 @@ local function FindAllEggs()
 end
 
 -- ==================================================
--- CHECK EGG BY RARITY
+-- GET EGGS BY RARITY (Logic ចាស់)
 -- ==================================================
 local function GetEggsByRarity(Rarity)
     local AllEggs = FindAllEggs()
     local Filtered = {}
-    
+
     for _, Egg in ipairs(AllEggs) do
         if Egg.Rarity == Rarity then
             table.insert(Filtered, Egg)
         end
     end
-    
+
     return Filtered
 end
 
 -- ==================================================
--- SET RARITIES
+-- SET RARITIES (Logic ចាស់)
 -- ==================================================
 local function SetRarities(List)
     SelectedRarities = {}
@@ -223,7 +226,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- EXPORT
+-- EXPORT (Logic ចាស់)
 -- ==================================================
 _G.YOKUDO_EggCheckPremium = {
     SetRarities = SetRarities,
