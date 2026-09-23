@@ -121,7 +121,7 @@ DlPadding.PaddingRight = UDim.new(0, 4)
 DlPadding.Parent = DropdownList
 
 -- ==================================================
--- CREATE DROPDOWN OPTION (កែ Color Logic)
+-- CREATE DROPDOWN OPTION
 -- ==================================================
 local OptionButtons = {}
 
@@ -130,11 +130,9 @@ local function UpdateOptionVisual(Name)
     if not Option then return end
 
     if SelectedRarities[Name] then
-        -- ✅ Select → មាន Color ស្វាយ
         Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         Option.Text = "✓ " .. Name
     else
-        -- ✅ ដក Select → Color ធម្មតា
         Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
         Option.Text = Name
     end
@@ -162,10 +160,7 @@ local function CreateDropdownOption(Name, Order)
 
     Option.MouseButton1Click:Connect(function()
         SelectedRarities[Name] = not SelectedRarities[Name]
-
-        -- ✅ Update Visual ភ្លាមៗ
         UpdateOptionVisual(Name)
-
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
         if _G.YOKUDO_FarmingManager then
@@ -188,11 +183,9 @@ local function CreateDropdownOption(Name, Order)
     end)
 
     Option.MouseLeave:Connect(function()
-        -- ✅ Reset Color តាម Select State
         UpdateOptionVisual(Name)
     end)
 
-    -- ✅ Set Initial Visual
     UpdateOptionVisual(Name)
 end
 
@@ -317,29 +310,29 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- ✅ SHOW TIME SERVER IN CONSOLE (Debug)
+-- ✅ DEBUG LOOP (បង្ហាញតែពេល Enabled)
 -- ==================================================
 task.spawn(function()
     while task.wait(1) do
-        local Success, Text = pcall(function()
-            return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
-        end)
+        if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
+            local Success, Text = pcall(function()
+                return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+            end)
 
-        if Success and Text then
-            local M = tonumber(string.match(Text, "(%d+)m")) or 0
-            local S = tonumber(string.match(Text, "(%d+)s")) or 0
-            local TotalSec = M * 60 + S
+            if Success and Text then
+                local M = tonumber(string.match(Text, "(%d+)m")) or 0
+                local S = tonumber(string.match(Text, "(%d+)s")) or 0
+                local TotalSec = M * 60 + S
 
-            local State = "IDLE"
-            if _G.YOKUDO_FarmingManager then
-                State = _G.YOKUDO_FarmingManager.GetState() or "IDLE"
+                local State = "IDLE"
+                if _G.YOKUDO_FarmingManager then
+                    State = _G.YOKUDO_FarmingManager.GetState() or "IDLE"
+                end
+
+                print("[FarmingDebug] NightTimer: " .. Text .. " | Sec: " .. TotalSec .. " | State: " .. State)
             end
-
-            print("[FarmingDebug] NightTimer: " .. Text .. " | Sec: " .. TotalSec .. " | State: " .. State)
-        else
-            print("[FarmingDebug] NightTimer: Not Found")
         end
     end
 end)
 
-print("✅ Farming Tab Loaded (Dropdown + Debug)")
+print("✅ Farming Tab Loaded")
