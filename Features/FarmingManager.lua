@@ -1,6 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ប្រើ TeleportSystem (ដើម) ជាមួយ InstantTeleport
+-- ✅ Night and Day Logic ច្បាស់
+-- Day: Sec > 10 → Check Egg + Teleport
+-- Night: Sec <= 10 → AFK
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -19,6 +21,7 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 -- ==================================================
 local FarmingEnabled = false
 local CurrentState = "IDLE"
+local CurrentPhase = "UNKNOWN"  -- ✅ "Day" ឬ "Night"
 local SelectedRarities = {}
 local FarmingThread = nil
 
@@ -51,6 +54,22 @@ local function ParseNightTimer(Text)
     local M = tonumber(string.match(Text, "(%d+)m")) or 0
     local S = tonumber(string.match(Text, "(%d+)s")) or 0
     return M * 60 + S, true
+end
+
+-- ==================================================
+-- ✅ GET PHASE (Day or Night)
+-- ==================================================
+local function GetPhase(Text)
+    local Sec, IsValid = ParseNightTimer(Text)
+    if not IsValid then return "UNKNOWN", 0 end
+
+    -- ✅ Day: Sec > 10
+    -- ✅ Night: Sec <= 10
+    if Sec > 10 then
+        return "Day", Sec
+    else
+        return "Night", Sec
+    end
 end
 
 -- ==================================================
@@ -215,32 +234,50 @@ local function MainLoop()
 
     while FarmingEnabled do
         local Text = GetNightTimerText()
-        local Sec, IsValid = ParseNightTimer(Text)
-        local BestEgg = FindBestEgg()
+        local Phase, Sec = GetPhase(Text)
+        CurrentPhase = Phase
 
-        print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Egg: " .. (BestEgg and BestEgg.DisplayName or "None"))
+        print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Phase: " .. Phase)
 
-        if IsValid and Sec > 10 and BestEgg then
-            print("[FarmingManager] ✅ Day + Egg → TeleportSystem (Instant)")
+        -- ==========================================
+        -- DAY: Sec > 10 → Check Egg + Teleport
+        -- ==========================================
+        if Phase == "Day" then
+            local BestEgg = FindBestEgg()
 
-            StopAFKAndGoSafe()
-            task.wait(1)
+            if BestEgg then
+                print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem (Instant)")
 
-            -- ✅ ប្រើ TeleportSystem ដើម + InstantTeleport
-            if _G.YOKUDO_TeleportSystem then
-                _G.YOKUDO_TeleportSystem.SetMethod("InstantTeleport")
-                _G.YOKUDO_TeleportSystem.SetTargetId(BestEgg.Uid)
-                _G.YOKUDO_TeleportSystem.Enable()
+                StopAFKAndGoSafe()
+                task.wait(1)
+
+                if _G.YOKUDO_TeleportSystem then
+                    _G.YOKUDO_TeleportSystem.SetMethod("InstantTeleport")
+                    _G.YOKUDO_TeleportSystem.SetTargetId(BestEgg.Uid)
+                    _G.YOKUDO_TeleportSystem.Enable()
+                end
+
+                while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
+                    task.wait(0.5)
+                    if not FarmingEnabled then break end
+                end
+
+                print("[FarmingManager] TeleportSystem Done → Loop Again")
+            else
+                print("[FarmingManager] Day but No Egg → AFKSystem")
+
+                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                    _G.YOKUDO_AFKSystem.Enable()
+                end
+
+                task.wait(CHECK_INTERVAL)
             end
 
-            while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
-                task.wait(0.5)
-                if not FarmingEnabled then break end
-            end
-
-            print("[FarmingManager] TeleportSystem Done → Loop Again")
+        -- ==========================================
+        -- NIGHT: Sec <= 10 → AFK
+        -- ==========================================
         else
-            print("[FarmingManager] Night or No Egg → AFKSystem")
+            print("[FarmingManager] Night (Sec: " .. tostring(Sec) .. ") → AFKSystem")
 
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                 _G.YOKUDO_AFKSystem.Enable()
@@ -288,6 +325,7 @@ local function Disable()
     end
 
     CurrentState = "IDLE"
+    CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
 end
 
@@ -312,7 +350,8 @@ _G.YOKUDO_FarmingManager = {
     Toggle = Toggle,
     IsEnabled = function() return FarmingEnabled end,
     SetRarities = SetRarities,
-    GetState = function() return CurrentState end
+    GetState = function() return CurrentState end,
+    GetPhase = function() return CurrentPhase end  -- ✅ បង្ហាញ Phase
 }
 
-print("✅ FarmingManager Feature Loaded (ប្រើ TeleportSystem ដើម)")
+print("✅ FarmingManager Feature Loaded (Night and Day Logic)")
