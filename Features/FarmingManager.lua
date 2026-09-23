@@ -194,7 +194,7 @@ local function MainLoop()
                 end
                 CurrentState = "WAIT_TELEPORT"
             else
-                print("[FarmingManager] CHECK_EGG | No Egg Found → AFK")
+                print("[FarmingManager] CHECK_EGG | No Egg → AFK")
                 CurrentState = "AFK"
             end
         end
@@ -214,9 +214,14 @@ local function MainLoop()
         -- STATE: AFK
         -- ==========================================
         if CurrentState == "AFK" then
-            if _G.YOKUDO_AFKSystem2 and not _G.YOKUDO_AFKSystem2.IsEnabled() then
-                print("[FarmingManager] AFK | Starting AFKSystem2")
-                _G.YOKUDO_AFKSystem2.Enable()
+            -- ✅ Enable AFKSystem2 ភ្លាម
+            if _G.YOKUDO_AFKSystem2 then
+                if not _G.YOKUDO_AFKSystem2.IsEnabled() then
+                    print("[FarmingManager] AFK | Starting AFKSystem2")
+                    _G.YOKUDO_AFKSystem2.Enable()
+                end
+            else
+                warn("[FarmingManager] AFKSystem2 not loaded!")
             end
             CurrentState = "WAIT_AFK"
         end
@@ -234,7 +239,16 @@ local function MainLoop()
                 end
                 CurrentState = "CHECK_EGG"
             else
-                task.wait(1)
+                -- ✅ Check Egg រាល់ 2s បើមាន → Stop AFK → Teleport
+                task.wait(2)
+                local BestEgg = FindBestEgg()
+                if BestEgg then
+                    print("[FarmingManager] WAIT_AFK | Egg Found → Stop AFK → CHECK_EGG")
+                    if _G.YOKUDO_AFKSystem2 then
+                        _G.YOKUDO_AFKSystem2.Disable()
+                    end
+                    CurrentState = "CHECK_EGG"
+                end
             end
         end
 
