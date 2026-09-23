@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ប្រើ AFKSystem (ដូច AFKSystem1)
+-- Logic: Check Time + Check Egg → AFK ឬ TeleportAFK
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -12,6 +12,7 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local CHECK_INTERVAL = 1
+local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 -- ==================================================
 -- STATE
@@ -43,7 +44,7 @@ local function ParseNightTimer(Text)
 end
 
 -- ==================================================
--- CHECK EGG BY RARITY (Secret, Eternal, Divine)
+-- CHECK EGG BY RARITY
 -- ==================================================
 local function GetPetData(AssetCategory)
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -164,16 +165,56 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- STOP AFK (Jump Out ដូច AFKSystem1)
+-- ✅ STOP AFK (Jump Out + Fly to Safe Zone)
 -- ==================================================
-local function StopAFKWithJump()
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-        print("[FarmingManager] Stop AFK → Jump Out")
-        -- ✅ ហៅ JumpOutAndGoSafe ដូច AFKSystem1
-        _G.YOKUDO_AFKSystem.JumpOutAndGoSafe()
-        task.wait(0.5)
-        _G.YOKUDO_AFKSystem.Disable()
+local function StopAFKAndGoSafe()
+    if not _G.YOKUDO_AFKSystem then return end
+    if not _G.YOKUDO_AFKSystem.IsEnabled() then return end
+
+    print("[FarmingManager] Stop AFK → Jump Out → Safe Zone")
+
+    -- 1. រក TreadmillPos
+    local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+    if not TreadmillPos then
+        local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+        if Treadmill then
+            TreadmillPos = Treadmill.Position
+        end
     end
+
+    if not TreadmillPos then
+        print("[FarmingManager] No Treadmill → Just Disable AFK")
+        _G.YOKUDO_AFKSystem.Disable()
+        return
+    end
+
+    -- 2. Jump ចេញពី Treadmill
+    _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+        print("[FarmingManager] ✅ Jumped out!")
+
+        -- 3. Stop AFK
+        _G.YOKUDO_AFKSystem.Disable()
+
+        -- 4. Fly TP ទៅ Safe Zone
+        local Hum, Root = GetHumanoid()
+        if Root then
+            print("[FarmingManager] Fly to Safe Zone...")
+            _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
+                print("[FarmingManager] ✅ At Safe Zone")
+            end)
+        end
+    end)
+end
+
+-- ==================================================
+-- GET HUMANOID
+-- ==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    local Root = Char:FindFirstChild("HumanoidRootPart")
+    return Hum, Root
 end
 
 -- ==================================================
@@ -182,89 +223,49 @@ end
 local function MainLoop()
     while FarmingEnabled and not StopRequested do
         -- ==========================================
-        -- STATE: CHECK_TIME
+        -- CHECK TIME + CHECK EGG
         -- ==========================================
-        if CurrentState == "CHECK_TIME" then
-            local Text = GetNightTimerText()
-            local Sec, IsValid = ParseNightTimer(Text)
-            print("[FarmingManager] CHECK_TIME | Text: " .. tostring(Text) .. " | Sec: " .. tostring(Sec))
-            if IsValid and Sec > 10 then
-                CurrentState = "CHECK_EGG"
-            else
-                CurrentState = "AFK"
-            end
-        end
+        local Text = GetNightTimerText()
+        local Sec, IsValid = ParseNightTimer(Text)
+        local BestEgg = FindBestEgg()
+
+        print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Egg: " .. (BestEgg and BestEgg.DisplayName or "None"))
 
         -- ==========================================
-        -- STATE: CHECK_EGG (Check រាល់ 1s)
+        -- បើថ្ងៃ (Sec > 10) និង មាន Egg
         -- ==========================================
-        if CurrentState == "CHECK_EGG" then
-            local BestEgg = FindBestEgg()
-            if BestEgg then
-                print("[FarmingManager] CHECK_EGG | Found: " .. BestEgg.DisplayName .. " | Uid: " .. BestEgg.Uid)
-                -- ✅ Stop AFK ជាមួយ Jump
-                StopAFKWithJump()
-                -- ✅ ហៅ TeleportAFKSystem
-                if _G.YOKUDO_TeleportAFKSystem then
-                    _G.YOKUDO_TeleportAFKSystem.SetTargetId(BestEgg.Uid)
-                    _G.YOKUDO_TeleportAFKSystem.Enable()
-                end
-                CurrentState = "WAIT_TELEPORT"
-            else
-                print("[FarmingManager] CHECK_EGG | No Egg → AFK")
-                CurrentState = "AFK"
-            end
-            task.wait(CHECK_INTERVAL)
-        end
+        if IsValid and Sec > 10 and BestEgg then
+            print("[FarmingManager] ✅ Day + Egg Found → TeleportAFKSystem")
 
-        -- ==========================================
-        -- STATE: WAIT_TELEPORT
-        -- ==========================================
-        if CurrentState == "WAIT_TELEPORT" then
-            local TeleportRunning = _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled()
-            if not TeleportRunning then
-                print("[FarmingManager] WAIT_TELEPORT | Done → CHECK_EGG")
-                CurrentState = "CHECK_EGG"
-            end
-        end
+            -- 1. Stop AFK (Jump + Safe Zone)
+            StopAFKAndGoSafe()
+            task.wait(1)
 
-        -- ==========================================
-        -- STATE: AFK (ប្រើ AFKSystem1)
-        -- ==========================================
-        if CurrentState == "AFK" then
+            -- 2. ហៅ TeleportAFKSystem
+            if _G.YOKUDO_TeleportAFKSystem then
+                _G.YOKUDO_TeleportAFKSystem.SetTargetId(BestEgg.Uid)
+                _G.YOKUDO_TeleportAFKSystem.Enable()
+            end
+
+            -- 3. រង់ចាំ TeleportAFKSystem បញ្ចប់
+            while _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() do
+                task.wait(0.5)
+                if StopRequested then break end
+            end
+
+            print("[FarmingManager] TeleportAFKSystem Done → Loop Again")
+        else
+            -- ==========================================
+            -- បើយប់ ឬ គ្មាន Egg → AFKSystem
+            -- ==========================================
+            print("[FarmingManager] Night or No Egg → AFKSystem")
+
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[FarmingManager] AFK | Starting AFKSystem")
                 _G.YOKUDO_AFKSystem.Enable()
             end
-            CurrentState = "WAIT_AFK"
-        end
 
-        -- ==========================================
-        -- STATE: WAIT_AFK (Check Egg រាល់ 1s)
-        -- ==========================================
-        if CurrentState == "WAIT_AFK" then
+            -- រង់ចាំ 1s មុន Check ម្តងទៀត
             task.wait(CHECK_INTERVAL)
-            if StopRequested then break end
-
-            local Text = GetNightTimerText()
-            local Sec, IsValid = ParseNightTimer(Text)
-
-            -- ✅ ថ្ងៃថ្មី → Stop AFK → Check Egg
-            if IsValid and Sec > 10 then
-                print("[FarmingManager] WAIT_AFK | Day → Stop AFK → CHECK_EGG")
-                StopAFKWithJump()
-                CurrentState = "CHECK_EGG"
-            else
-                -- ✅ Check Egg រាល់ 1s
-                local BestEgg = FindBestEgg()
-                if BestEgg then
-                    print("[FarmingManager] WAIT_AFK | Egg Found → Stop AFK → CHECK_EGG")
-                    StopAFKWithJump()
-                    CurrentState = "CHECK_EGG"
-                else
-                    print("[FarmingManager] WAIT_AFK | No Egg → Continue AFK")
-                end
-            end
         end
 
         task.wait(0.1)
@@ -300,17 +301,16 @@ local function Disable()
         FarmingThread = nil
     end
 
-    -- ✅ Stop ទាំងអស់ + Reset State
+    -- ✅ Stop ទាំងអស់ + Reset
     if _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() then
         _G.YOKUDO_TeleportAFKSystem.Disable()
     end
-    StopAFKWithJump()
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         _G.YOKUDO_AFKSystem.Disable()
     end
 
     CurrentState = "IDLE"
-    print("[YOKUDO] FarmingManager: OFF (All Stopped + Reset)")
+    print("[YOKUDO] FarmingManager: OFF (All Stopped)")
 end
 
 local function Toggle()
@@ -337,4 +337,4 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end
 }
 
-print("✅ FarmingManager Feature Loaded (ប្រើ AFKSystem1)")
+print("✅ FarmingManager Feature Loaded")
