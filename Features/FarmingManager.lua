@@ -1,7 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- Logic: Check Time + Check Egg → AFK ឬ TeleportAFK
--- ✅ មិន Run ពេល Load - ត្រូវរង់ចាំ User ធីក
+-- ✅ រង់ចាំ User ធីក មុននឹង Check
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -177,7 +176,7 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- STOP AFK (Jump Out + Fly to Safe Zone)
+-- ✅ STOP AFK (Jump Out + Fly to Safe Zone)
 -- ==================================================
 local function StopAFKAndGoSafe()
     if not _G.YOKUDO_AFKSystem then return end
@@ -217,14 +216,27 @@ end
 -- MAIN LOOP (Statemachine)
 -- ==================================================
 local function MainLoop()
+    -- ✅ រង់ចាំ User ធីក
+    while not FarmingEnabled do
+        task.wait(0.5)
+        if StopRequested then return end
+    end
+
+    print("[FarmingManager] MainLoop Started")
+
     while FarmingEnabled and not StopRequested do
+        -- ==========================================
+        -- CHECK TIME + CHECK EGG
+        -- ==========================================
         local Text = GetNightTimerText()
         local Sec, IsValid = ParseNightTimer(Text)
         local BestEgg = FindBestEgg()
 
         print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Egg: " .. (BestEgg and BestEgg.DisplayName or "None"))
 
-        -- ✅ បើថ្ងៃ (Sec > 10) និង មាន Egg
+        -- ==========================================
+        -- បើថ្ងៃ (Sec > 10) និង មាន Egg
+        -- ==========================================
         if IsValid and Sec > 10 and BestEgg then
             print("[FarmingManager] ✅ Day + Egg Found → TeleportAFKSystem")
 
@@ -243,7 +255,9 @@ local function MainLoop()
 
             print("[FarmingManager] TeleportAFKSystem Done → Loop Again")
         else
-            -- ✅ បើយប់ ឬ គ្មាន Egg → AFKSystem
+            -- ==========================================
+            -- បើយប់ ឬ គ្មាន Egg → AFKSystem
+            -- ==========================================
             print("[FarmingManager] Night or No Egg → AFKSystem")
 
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -259,7 +273,7 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE
+-- ✅ ENABLE (ចាប់ផ្តើមតែពេល User ធីក)
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
@@ -276,6 +290,9 @@ local function Enable()
     print("[YOKUDO] FarmingManager: ON")
 end
 
+-- ==================================================
+-- ✅ DISABLE (Reset State ទាំងអស់)
+-- ==================================================
 local function Disable()
     if not FarmingEnabled then return end
     FarmingEnabled = false
@@ -286,6 +303,7 @@ local function Disable()
         FarmingThread = nil
     end
 
+    -- ✅ Stop ទាំងអស់ + Reset
     if _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() then
         _G.YOKUDO_TeleportAFKSystem.Disable()
     end
@@ -294,7 +312,7 @@ local function Disable()
     end
 
     CurrentState = "IDLE"
-    print("[YOKUDO] FarmingManager: OFF (All Stopped)")
+    print("[YOKUDO] FarmingManager: OFF (All Stopped + Reset)")
 end
 
 local function Toggle()
@@ -310,7 +328,7 @@ local function SetRarities(List)
 end
 
 -- ==================================================
--- ✅ EXPORT (គ្មាន Auto Enable)
+-- EXPORT
 -- ==================================================
 _G.YOKUDO_FarmingManager = {
     Enable = Enable,
@@ -321,7 +339,4 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end
 }
 
--- ✅ មិន Auto Enable ពេល Load
--- ✅ ត្រូវរង់ចាំ User ធីកក្នុង Tabs/Farming.lua
-
-print("✅ FarmingManager Feature Loaded (មិន Auto Enable)")
+print("✅ FarmingManager Feature Loaded (រង់ចាំ User ធីក)")
