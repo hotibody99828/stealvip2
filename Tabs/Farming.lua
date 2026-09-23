@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
--- ✅ Logic ចាស់ទាំងស្រុង
+-- ✅ ភ្ជាប់ជាមួយ EggCheckPremium
+-- ✅ ភ្ជាប់ជាមួយ FarmingManager
 -- ✅ Dropdown Select Rarity
 -- ✅ Checkbox Auto AFK Farming
 -- ==================================================
@@ -267,7 +268,7 @@ FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- TOGGLE FARM (Logic ចាស់)
+-- TOGGLE FARM
 -- ==================================================
 local FarmEnabled = false
 
@@ -315,7 +316,7 @@ FarmButton.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- SYNC ON LOAD (Logic ចាស់)
+-- SYNC ON LOAD
 -- ==================================================
 task.spawn(function()
     task.wait(1)
@@ -331,7 +332,8 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- PERIODIC SYNC (រាល់ 1s) — Logic ចាស់-- ==================================================
+-- ✅ PERIODIC SYNC (រាល់ 1s)
+-- ==================================================
 task.spawn(function()
     while task.wait(1) do
         if _G.YOKUDO_FarmingManager then
@@ -349,13 +351,15 @@ task.spawn(function()
                     FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
                     FarmStroke.Color = Color3.fromRGB(200, 200, 220)
                 end
+
+                print("[YOKUDO] Farming UI Sync | State: " .. tostring(CurrentState))
             end
         end
     end
 end)
 
 -- ==================================================
--- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem)
 -- ==================================================
 _G.YOKUDO_RefreshFarmingUI = function()
     if _G.YOKUDO_FarmingManager then
@@ -370,7 +374,9 @@ _G.YOKUDO_RefreshFarmingUI = function()
             FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
             FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         end
+
+        print("[YOKUDO] Farming Tab UI Refreshed | State: " .. tostring(State))
     end
 end
 
-print("✅ Farming Tab Loaded (Logic ចាស់)")
+print("✅ Farming Tab Loaded")
