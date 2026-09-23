@@ -1,6 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Teleport AFK System
--- ✅ Stop Lock ពេលដល់ Safe Zone
+-- Mode 1: Target in Container (spawn)
+-- Mode 2: Target in Workspace (Y change)
+-- First Egg: Fly TP (Shot 15, Offset 10, Speed 1000)
+-- Target Egg: Instant TP (Lock 1)
+-- Safe Zone: Fly TP (Offset 10, Speed 1000)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -50,7 +54,7 @@ local AFK_TIMEOUT_SECONDS = 30
 
 local AFK_COLLECT_INTERVAL = 0.2
 local AFK_SEARCH_PREFIX = "FirstAreaEgg"
-local AFK_POSITION_THRESHOLD = 1
+local AFK_POSITION_THRESHOLD = 1  -- ✅ For Mode 2
 
 local AFK_LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -67,7 +71,7 @@ local AFK_ForceUpConnection = nil
 
 local AFK_Running = false
 local AFK_CurrentStep = "idle"
-local AFK_CurrentMode = "none"
+local AFK_CurrentMode = "none"  -- ✅ "spawn" or "workspace"
 
 local AFK_FlyConnection = nil
 local AFK_BodyVelocity = nil
@@ -88,6 +92,7 @@ local AFK_TargetCollected = false
 local AFK_RemotesFired = false
 
 local AFK_SavedTargetPosition = nil
+local AFK_SavedTargetY = nil  -- ✅ For Mode 2
 local AFK_TargetLockedCFrame = nil
 
 local AFK_SavedWalkSpeed = nil
@@ -107,7 +112,7 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- ✅ STOP LOCK (ពេលដល់ Safe Zone)
+-- STOP LOCK
 -- ==================================================
 local function StopLock()
     if AFK_LockConnection then
@@ -334,7 +339,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (First Egg + Safe Zone)
+-- FLY TP
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -381,7 +386,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if IsSafeZone then
             if HorizDist <= AFK_SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                -- ✅ Stop Lock ពេលដល់ Safe Zone
                 StopLock()
                 Root2.CFrame = CFrame.new(AFK_SAFE_ZONE)
                 Root2.AssemblyLinearVelocity = Vector3.zero
@@ -428,7 +432,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 -- ==================================================
--- INSTANT TP (Target Egg only)
+-- INSTANT TP
 -- ==================================================
 local function InstantTP(Destination, Callback)
     CleanupMovers()
@@ -515,15 +519,12 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (Stop Lock ភ្លាម)
+-- AUTO STOP
 -- ==================================================
 local function AutoStop()
     AFK_Running = false
     AFK_CurrentStep = "done"
-
-    -- ✅ Stop Lock ភ្លាម
     StopLock()
-
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -565,23 +566,19 @@ function StartFlyToTarget()
 end
 
 -- ==================================================
--- FLY TO SAFE (Stop Lock ភ្លាម)
+-- FLY TO SAFE
 -- ==================================================
 local function FlyToSafeZone()
     AFK_CurrentStep = "to_safe"
     print("[YOKUDO] TeleportAFKSystem: Fly to Safe Zone")
-
-    -- ✅ Stop Lock ភ្លាម មុន Fly
     StopLock()
-
     FlyTP(AFK_SAFE_ZONE, AFK_RETURN_SPEED, false, true, function()
-        -- ✅ AutoStop ភ្លាមពេលដល់ Safe Zone
         AutoStop()
     end)
 end
 
 -- ==================================================
--- HEARTBEAT
+-- HEARTBEAT (Mode 1 + Mode 2)
 -- ==================================================
 function StartActiveHeartbeat()
     if AFK_ActiveHeartbeat then
@@ -623,20 +620,23 @@ function StartActiveHeartbeat()
         end
 
         if AFK_CurrentStep == "collect_target" and not AFK_TargetCollected then
+            -- ✅ Mode 1 (spawn)
             if AFK_CurrentMode == "spawn" then
                 if workspace:FindFirstChild(AFK_TARGET_UID) then
                     AFK_TargetCollected = true
                     task.spawn(function() FlyToSafeZone() end)
                     return
                 end
+            -- ✅ Mode 2 (workspace - check Y)
             elseif AFK_CurrentMode == "workspace" then
-                if AFK_SavedTargetPosition then
+                if AFK_SavedTargetY then
                     local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
                     if WSEgg then
                         local CurrentPos = GetPosition(WSEgg)
                         if CurrentPos then
-                            local Dist = (CurrentPos - AFK_SavedTargetPosition).Magnitude
-                            if Dist >= AFK_POSITION_THRESHOLD then
+                            local CurrentY = CurrentPos.Y
+                            local DeltaY = math.abs(CurrentY - AFK_SavedTargetY)
+                            if DeltaY >= AFK_POSITION_THRESHOLD then
                                 AFK_TargetCollected = true
                                 task.spawn(function() FlyToSafeZone() end)
                                 return
@@ -662,7 +662,7 @@ function StopActiveHeartbeat()
 end
 
 -- ==================================================
--- MAIN PROCESS
+-- MAIN PROCESS (Mode 1 + Mode 2)
 -- ==================================================
 local function StartProcess()
     AFK_Running = true
@@ -675,19 +675,24 @@ local function StartProcess()
     AFK_TargetCollected = false
     AFK_RemotesFired = false
     AFK_SavedTargetPosition = nil
+    AFK_SavedTargetY = nil
     AFK_TargetLockedCFrame = nil
 
     SaveStats()
     EnableRagdollBypass()
 
+    -- ✅ Check Target Mode
     if IsTargetInContainer() then
         AFK_CurrentMode = "spawn"
+        print("[YOKUDO] TeleportAFKSystem: Mode 1 (spawn)")
     elseif IsTargetInWorkspace() then
         AFK_CurrentMode = "workspace"
         local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
         if WSEgg then
             AFK_SavedTargetPosition = GetPosition(WSEgg)
+            AFK_SavedTargetY = AFK_SavedTargetPosition.Y
         end
+        print("[YOKUDO] TeleportAFKSystem: Mode 2 (workspace)")
     else
         print("[YOKUDO] TeleportAFKSystem: Target not found → AutoStop")
         AutoStop()
@@ -706,7 +711,7 @@ local function StartProcess()
     AFK_CurrentStep = "fly_first"
     StartActiveHeartbeat()
 
-    print("[YOKUDO] TeleportAFKSystem: Fly to First Egg (Shot 15)")
+    print("[YOKUDO] TeleportAFKSystem: Fly to First Egg")
     FlyTP(EggPos, AFK_FLY_SPEED, true, false, function()
         AFK_CurrentStep = "collect_first"
     end)
@@ -730,6 +735,7 @@ local function FullReset()
     AFK_TargetCollected = false
     AFK_RemotesFired = false
     AFK_SavedTargetPosition = nil
+    AFK_SavedTargetY = nil
     AFK_TargetLockedCFrame = nil
 
     StopLock()
@@ -774,4 +780,4 @@ _G.YOKUDO_TeleportAFKSystem = {
     GetTargetId = function() return AFK_TARGET_UID end
 }
 
-print("✅ TeleportAFKSystem Loaded (Stop Lock ពេលដល់ Safe Zone)")
+print("✅ TeleportAFKSystem Loaded (Mode 1 + Mode 2)")
