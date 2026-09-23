@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Bypass Anti Cheat
 -- Humanoid Replace + Anti Death
+-- ✅ មិនត្រូវការ Restart Features (Features ប្រើ GetHumanoid() រាល់ពេល)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -236,15 +237,14 @@ local function RunBypassAntiCheat()
     BindAntiDeath(NewHumanoid)
 
     task.spawn(function()
-        while task.wait(0.1) do
-            if GodMode and NewHumanoid and NewHumanoid.Parent then
-                pcall(function()
-                    if NewHumanoid.Health < NewHumanoid.MaxHealth then
-                        NewHumanoid.Health = NewHumanoid.MaxHealth
-                    end
-                    NewHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                end)
-            end
+        while GodMode and NewHumanoid and NewHumanoid.Parent do
+            task.wait(0.1)
+            pcall(function()
+                if NewHumanoid.Health < NewHumanoid.MaxHealth then
+                    NewHumanoid.Health = NewHumanoid.MaxHealth
+                end
+                NewHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            end)
         end
     end)
 
@@ -380,8 +380,8 @@ end)
 -- RUN IMMEDIATELY
 -- ==================================================
 task.spawn(function()
-    task.wait(1)
+    task.wait(2) -- រង់ចាំ Features ផ្សេង Load មុន
     RunBypassAntiCheat()
 end)
 
-print("✅ BypassAntiCheat Feature Loaded")
+print("✅ BypassAntiCheat Feature Loaded (មិនត្រូវការ Restart Features)")
