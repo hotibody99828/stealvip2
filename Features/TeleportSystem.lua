@@ -1,11 +1,9 @@
---==================================================
+-- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
--- First Egg: FlyTP (Shot TP)
--- Target Egg: FlyTP (Shot TP) / Instant
--- Safe Zone: FlyTP (No Shot TP)
--- Teleport Speed: 50 - 1100
--- ForestStrike: Fire only when First Egg collected
---==================================================
+-- First Egg: FlyTP (Shot TP, Offset 10, Speed 1000)
+-- Target Egg: FlyTP / Instant (Lock 1)
+-- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
+-- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,10 +12,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
---==================================================
+-- ==================================================
 -- REMOTES
---==================================================
-
+-- ==================================================
 local CollectEvent = nil
 local ForestStrike = nil
 
@@ -36,25 +33,25 @@ end
 
 print("[YOKUDO] TeleportSystem: CollectEvent OK")
 
---==================================================
--- SETTINGS
---==================================================
-
+-- ==================================================
+-- ✅ SETTINGS (កែឱ្យលឿន)
+-- ==================================================
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
-local FLY_SPEED = 300
-local RETURN_SPEED = 300
+-- ✅ First Egg + Safe Zone: Fly TP
+local FLY_SPEED = 1000        -- ✅ លឿន
+local RETURN_SPEED = 800      -- ✅ លឿន
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 25
-local SHOT_DISTANCE = 30
-local LOCK_ABOVE = 2
+local FLY_OFFSET = 10         -- ✅ តូច (ពី 25 → 10)
+local SHOT_DISTANCE = 15      -- ✅ តូច (ពី 30 → 15)
+local LOCK_ABOVE = 1          -- ✅ តូច (ពី 2 → 1)
 
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
-local TIMEOUT_SECONDS = 30  -- ✅ Timeout យូរជាង
+local TIMEOUT_SECONDS = 30
 
 local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
@@ -66,18 +63,16 @@ local LOCK_POSITION = Vector3.new(
     -326.8830261230469
 )
 
---==================================================
--- RAGDOLL BYPASS STATE
---==================================================
-
+-- ==================================================
+-- RAGDOLL BYPASS
+-- ==================================================
 local RagdollEnabled = false
 local RagdollConnection = nil
 local ForceUpConnection = nil
 
---==================================================
+-- ==================================================
 -- STATE
---==================================================
-
+-- ==================================================
 local Running = false
 local CurrentStep = "idle"
 local CurrentMode = "none"
@@ -108,10 +103,9 @@ local SavedJumpPower = nil
 local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
---==================================================
+-- ==================================================
 -- GET HUMANOID
---==================================================
-
+-- ==================================================
 local function GetHumanoid()
     local Char = Player.Character
     if not Char then return nil, nil end
@@ -120,10 +114,9 @@ local function GetHumanoid()
     return Hum, Root
 end
 
---==================================================
+-- ==================================================
 -- RAGDOLL BYPASS
---==================================================
-
+-- ==================================================
 local function ForceUp()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
@@ -205,10 +198,9 @@ local function DisableRagdollBypass()
     print("[YOKUDO] Ragdoll Bypass: OFF")
 end
 
---==================================================
+-- ==================================================
 -- SAVE / RESTORE STATS
---==================================================
-
+-- ==================================================
 local function SaveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -229,10 +221,9 @@ local function RestoreStats()
     if SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedUseJumpPower end) end
 end
 
---==================================================
+-- ==================================================
 -- CLEANUP
---==================================================
-
+-- ==================================================
 local function CleanupMovers()
     if FlyConnection then
         FlyConnection:Disconnect()
@@ -282,10 +273,9 @@ local function CleanupMovers()
     end
 end
 
---==================================================
--- LOCK AT TARGET (Y+2)
---==================================================
-
+-- ==================================================
+-- LOCK AT TARGET (Y+1)
+-- ==================================================
 local function StartLock(TargetPosition)
     TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
 
@@ -308,10 +298,9 @@ local function StartLock(TargetPosition)
     end)
 end
 
---==================================================
+-- ==================================================
 -- GET POSITION
---==================================================
-
+-- ==================================================
 local function GetPosition(Object)
     if not Object then return nil end
     if Object:IsA("Model") then
@@ -327,10 +316,9 @@ local function GetPosition(Object)
     return nil
 end
 
---==================================================
+-- ==================================================
 -- SEARCH FIRST EGGS
---==================================================
-
+-- ==================================================
 local function SearchFirstEggs()
     FirstEggList = {}
     if not Container then return end
@@ -376,10 +364,9 @@ local function FindClosestEgg()
     return Closest
 end
 
---==================================================
+-- ==================================================
 -- FLY TP
---==================================================
-
+-- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
 
@@ -447,7 +434,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             end
         end
 
-        -- ✅ Target Egg: Shot TP
+        -- ✅ Target Egg: Shot TP (15 distance)
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
@@ -470,7 +457,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- ✅ Timeout យូរជាង
+        -- Timeout
         if tick() - StartTime > TIMEOUT_SECONDS then
             CleanupMovers()
             if Callback then Callback() end
@@ -487,10 +474,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     end)
 end
 
---==================================================
--- INSTANT FLY TP (FOR TARGET EGG ONLY)
---==================================================
-
+-- ==================================================
+-- INSTANT FLY TP (FOR TARGET EGG)
+-- ==================================================
 local function InstantFlyTP(Destination, Callback)
     CleanupMovers()
 
@@ -509,10 +495,9 @@ local function InstantFlyTP(Destination, Callback)
     if Callback then Callback() end
 end
 
---==================================================
+-- ==================================================
 -- TELEPORT TO TARGET (Option Specific)
---==================================================
-
+-- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
         print("[YOKUDO] Instant TP to Target")
@@ -523,10 +508,9 @@ local function TeleportToTarget(TargetPos, Callback)
     end
 end
 
---==================================================
+-- ==================================================
 -- REMOTE COLLECT
---==================================================
-
+-- ==================================================
 local function RemoteCollectFirst()
     if not CollectEvent or not FirstEggSlotKey or not FirstEggUid then return false end
     local success = pcall(function()
@@ -548,10 +532,9 @@ local function RemoteCollectTarget()
     return success
 end
 
---==================================================
--- FIRE FOREST STRIKE (ONLY WHEN FIRST EGG COLLECTED)
---==================================================
-
+-- ==================================================
+-- FIRE FOREST STRIKE
+-- ==================================================
 local function FireForestStrike()
     if RemotesFired then return end
     RemotesFired = true
@@ -573,13 +556,12 @@ local function FireForestStrike()
         end
     end)
 
-    print("[YOKUDO] ForestStrike Fired (Only Once per First Egg)")
+    print("[YOKUDO] ForestStrike Fired")
 end
 
---==================================================
+-- ==================================================
 -- CHECK EGG
---==================================================
-
+-- ==================================================
 local function IsFirstEggInWorkspace()
     if not FirstEggUid then return false end
     return workspace:FindFirstChild(FirstEggUid) ~= nil
@@ -601,10 +583,9 @@ local function IsTargetInWorkspace()
     return workspace:FindFirstChild(TARGET_UID) ~= nil
 end
 
---==================================================
+-- ==================================================
 -- AUTO STOP
---==================================================
-
+-- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
@@ -617,10 +598,9 @@ local function AutoStop()
     print("[YOKUDO] TeleportSystem: Auto Stop")
 end
 
---==================================================
+-- ==================================================
 -- FLY TO TARGET
---==================================================
-
+-- ==================================================
 function StartFlyToTarget()
     if FlyTargetStarted then return end
     FlyTargetStarted = true
@@ -656,14 +636,13 @@ function StartFlyToTarget()
     end)
 end
 
---==================================================
+-- ==================================================
 -- FLY TO SAFE (NO SHOT TP)
---==================================================
-
+-- ==================================================
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
+    print("[YOKUDO] FlyTP to Safe Zone")
 
     -- ✅ UseShotTP = false for Safe Zone
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
@@ -671,10 +650,9 @@ local function FlyToSafeZone()
     end)
 end
 
---==================================================
+-- ==================================================
 -- HEARTBEAT
---==================================================
-
+-- ==================================================
 function StartActiveHeartbeat()
     if ActiveHeartbeat then
         ActiveHeartbeat:Disconnect()
@@ -758,10 +736,9 @@ function StopActiveHeartbeat()
     end
 end
 
---==================================================
+-- ==================================================
 -- MAIN PROCESS
---==================================================
-
+-- ==================================================
 local function StartProcess()
     Running = true
     CurrentStep = "search"
@@ -839,10 +816,9 @@ local function StartProcess()
     end)
 end
 
---==================================================
+-- ==================================================
 -- FULL RESET
---==================================================
-
+-- ==================================================
 local function FullReset()
     Running = false
     CurrentStep = "idle"
@@ -868,10 +844,9 @@ local function FullReset()
     print("[YOKUDO] TeleportSystem: Full Reset")
 end
 
---==================================================
--- ENABLE / DISABLE / SET TARGET / SET SPEED / SET METHOD
---==================================================
-
+-- ==================================================
+-- ENABLE / DISABLE / SET
+-- ==================================================
 local function Enable()
     if Running then return end
     if not CollectEvent then warn("[YOKUDO] CollectEvent not found") return end
@@ -917,10 +892,9 @@ local function GetSpeed()
     return FLY_SPEED
 end
 
---==================================================
+-- ==================================================
 -- EXPORT
---==================================================
-
+-- ==================================================
 _G.YOKUDO_TeleportSystem = {
     Enable = Enable,
     Disable = Disable,
