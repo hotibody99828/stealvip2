@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ Fly TP ទៅ Safe Zone ដោយខ្លួនឯង (មិនប្រើ AFKSystem)
--- ✅ ប្រើ AreaEggCycle.IsNightPhase() សម្រាប់ Check Time
+-- ✅ SelfFlyTP ទៅ Safe Zone ប្រើ Speed 500
+-- ✅ មិន Lock ពេលដល់ Safe Zone
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -33,7 +33,8 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 5
 
-local FLY_SPEED = 1000
+local FLY_SPEED = 1000       -- ✅ សម្រាប់ TeleportSystem
+local SAFE_FLY_SPEED = 500   -- ✅ សម្រាប់ Fly ទៅ Safe Zone (ថ្មី)
 local RETURN_SPEED = 800
 local FLY_OFFSET = 10
 local METHOD = "InstantTeleport"
@@ -69,7 +70,7 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- ✅ CLEANUP FLY
+-- CLEANUP FLY
 -- ==================================================
 local function CleanupFly()
     if FlyConnection then
@@ -105,9 +106,9 @@ local function CleanupFly()
 end
 
 -- ==================================================
--- ✅ FLY TP (ដោយខ្លួនឯង - មិនប្រើ AFKSystem)
+-- ✅ SELF FLY TP (មាន Speed Parameter)
 -- ==================================================
-local function SelfFlyTP(Destination, Callback)
+local function SelfFlyTP(Destination, Speed, Callback)
     CleanupFly()
 
     local Hum, Root = GetHumanoid()
@@ -172,7 +173,7 @@ local function SelfFlyTP(Destination, Callback)
             return
         end
 
-        BodyVelocity.Velocity = Direction.Unit * FLY_SPEED
+        BodyVelocity.Velocity = Direction.Unit * Speed
         BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
     end)
 end
@@ -237,7 +238,6 @@ end
 -- STOP ALL
 -- ==================================================
 local function StopAll()
-    -- Stop AFK
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
         if not TreadmillPos then
@@ -259,18 +259,16 @@ local function StopAll()
         end
     end
 
-    -- Stop TeleportSystem
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
         print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
 
-    -- Cleanup Self Fly
     CleanupFly()
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE AND WAIT (ប្រើ SelfFlyTP)
+-- ✅ FLY TO SAFE ZONE AND WAIT (ប្រើ Speed 500)
 -- ==================================================
 local function FlyToSafeZoneAndWait()
     local Hum, Root = GetHumanoid()
@@ -284,17 +282,17 @@ local function FlyToSafeZoneAndWait()
         return true
     end
 
-    print("[FarmingManager] Fly to Safe Zone...")
+    print("[FarmingManager] Fly to Safe Zone (Speed: " .. SAFE_FLY_SPEED .. ")...")
 
-    -- ✅ ប្រើ SelfFlyTP ជំនួស AFKSystem.FlyTP
-    SelfFlyTP(SAFE_ZONE, function()
+    -- ✅ ប្រើ SelfFlyTP ជាមួយ Speed 500
+    SelfFlyTP(SAFE_ZONE, SAFE_FLY_SPEED, function()
         IsAtSafeZone = true
         print("[FarmingManager] ✅ At Safe Zone")
     end)
 
     -- រង់ចាំដល់ Safe Zone ពិតប្រាកដ
     local WaitTime = 0
-    while FarmingEnabled and WaitTime < 30 do
+    while FarmingEnabled and WaitTime < 10 do
         local Hum2, Root2 = GetHumanoid()
         if Root2 then
             local Dist = (Root2.Position - SAFE_ZONE).Magnitude
@@ -545,6 +543,7 @@ _G.YOKUDO_FarmingManager = {
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     FLY_SPEED = FLY_SPEED,
+    SAFE_FLY_SPEED = SAFE_FLY_SPEED,
     RETURN_SPEED = RETURN_SPEED,
     FLY_OFFSET = FLY_OFFSET,
     METHOD = METHOD
@@ -571,4 +570,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ FarmingManager Feature Loaded (Self Fly TP)")
+print("✅ FarmingManager Feature Loaded (Safe Zone Speed 500 + No Lock)")
