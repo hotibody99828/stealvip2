@@ -1,5 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader
+-- ✅ Load CharacterSystem មុន Features
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -172,6 +173,16 @@ loadstring(GetScript("Components.lua"))()
 -- ==================================================
 Loading.Update(25)
 loadstring(GetScript("Tabs/Init.lua"))()
+
+-- ==================================================
+-- ✅ LOAD CHARACTER SYSTEM (មុន Features)
+-- ==================================================
+Loading.Update(26)
+loadstring(GetScript("Features/CharacterSystem.lua"))()
+
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:Init()
+end
 
 -- ==================================================
 -- LOAD FEATURES
