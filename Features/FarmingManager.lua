@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
 -- ✅ ប្រើ AreaEggCycle សម្រាប់ Check Day/Night
+-- ✅ បង្ហាញ Print តែពេលចាំបាច់
 -- ✅ Night: Check Egg រាល់ 0.05s
 -- ✅ Day: Check Egg រាល់ 0.5s
 -- ✅ រង់ចាំ Fly TP ដល់ Safe Zone
@@ -14,7 +15,7 @@ local Workspace = game:GetService("Workspace")
 local Player = Players.LocalPlayer
 
 -- ==================================================
--- ✅ LOAD AREA EGG CYCLE (សម្រាប់ Day/Night)
+-- ✅ LOAD AREA EGG CYCLE
 -- ==================================================
 local AreaEggCycle = nil
 pcall(function()
@@ -32,6 +33,7 @@ end
 -- ==================================================
 local NIGHT_CHECK_INTERVAL = 0.05
 local DAY_CHECK_INTERVAL = 0.5
+local PRINT_INTERVAL = 5  -- ✅ បង្ហាញ Print រាល់ 5s
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000
@@ -49,6 +51,8 @@ local FarmingThread = nil
 local IsAtSafeZone = false
 local WaitingForDay = false
 local AFKStarted = false
+local LastPrintTime = 0
+local LastPhase = "UNKNOWN"
 
 -- ==================================================
 -- GET HUMANOID
@@ -70,18 +74,37 @@ local function GetPhase()
     end
 
     local ServerTime = Workspace:GetServerTimeNow()
-    
     local IsNight = AreaEggCycle.IsNightPhase(ServerTime)
     
     if IsNight then
-        -- គណនា Seconds Until Phase End
         local SecUntilReset = AreaEggCycle.SecondsUntilReset(ServerTime)
         return "Night", SecUntilReset
     else
-        -- ថ្ងៃ → គណនា Seconds មុន Night
         local SecUntilPhaseEnd = AreaEggCycle.SecondsUntilPhaseEnd(ServerTime)
         return "Day", SecUntilPhaseEnd
     end
+end
+
+-- ==================================================
+-- ✅ SHOULD PRINT
+-- ==================================================
+local function ShouldPrint(Phase)
+    local Now = tick()
+    
+    -- ✅ Print ពេល Phase ផ្លាស់ប្តូរ
+    if Phase ~= LastPhase then
+        LastPhase = Phase
+        LastPrintTime = Now
+        return true
+    end
+    
+    -- ✅ Print រាល់ 5s
+    if Now - LastPrintTime >= PRINT_INTERVAL then
+        LastPrintTime = Now
+        return true
+    end
+    
+    return false
 end
 
 -- ==================================================
@@ -182,12 +205,15 @@ local function MainLoop()
         local Phase, Sec = GetPhase()
         CurrentPhase = Phase
 
+        -- ✅ Print តែពេលចាំបាច់
+        if ShouldPrint(Phase) then
+            print("[FarmingManager] " .. Phase .. " | Sec Until " .. (Phase == "Day" and "Night" or "Reset") .. ": " .. tostring(math.floor(Sec)))
+        end
+
         -- ==========================================
         -- DAY: Check Egg រាល់ 0.5s
         -- ==========================================
         if Phase == "Day" then
-            print("[FarmingManager] Day | Sec Until Night: " .. tostring(Sec))
-
             if WaitingForDay then
                 WaitingForDay = false
                 print("[FarmingManager] ✅ Day Started → Stop Waiting")
@@ -212,11 +238,13 @@ local function MainLoop()
 
                 print("[FarmingManager] TeleportSystem Done → Loop Again")
             else
-                print("[FarmingManager] Day but No Egg → AFK")
+                if not AFKStarted then
+                    print("[FarmingManager] Day + No Egg → AFK")
 
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
+                    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                        _G.YOKUDO_AFKSystem.Enable()
+                        AFKStarted = true
+                    end
                 end
             end
 
@@ -258,7 +286,7 @@ local function MainLoop()
                     if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                         _G.YOKUDO_AFKSystem.Enable()
                         AFKStarted = true
-                        print("[FarmingManager] AFK Started")
+                        print("[FarmingManager] Night + No Egg → AFK")
                     end
                 end
             end
@@ -277,6 +305,8 @@ local function Enable()
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
     AFKStarted = false
+    LastPrintTime = 0
+    LastPhase = "UNKNOWN"
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
