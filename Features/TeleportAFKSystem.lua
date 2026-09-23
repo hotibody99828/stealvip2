@@ -42,8 +42,8 @@ local AFK_TARGET_UID = nil
 local AFK_SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local AFK_FLY_OFFSET = 10
-local AFK_FLY_SPEED = 1000
-local AFK_RETURN_SPEED = 1000
+local AFK_FLY_SPEED = 800
+local AFK_RETURN_SPEED = 800
 
 local AFK_LOCK_ABOVE = 1
 local AFK_SHOT_DISTANCE = 15
