@@ -200,7 +200,9 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ❌ ដក AFKSystem2 ចេញ
+-- ✅ EggCheckPremium (មុន FarmingManager)
+Loading.Update(50)
+loadstring(GetScript("Features/EggCheckPremium.lua"))()
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
@@ -211,15 +213,13 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ FarmingManager (ប្រើ TeleportSystem ដើម)
+-- ✅ FarmingManager (ប្រើ TeleportSystem + EggCheckPremium)
 Loading.Update(59)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
 -- ✅ ConfigSystem
 Loading.Update(60)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
-
--- ❌ ដក TeleportAFKSystem ចេញ
 
 -- ==================================================
 -- LOAD TABS
