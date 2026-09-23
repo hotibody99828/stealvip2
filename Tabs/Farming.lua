@@ -64,6 +64,20 @@ local function GetSelectedText()
     return table.concat(List, ", ")
 end
 
+local function PushRarities()
+    local List = {}
+    if SelectedRarities.Secret then table.insert(List, "Secret") end
+    if SelectedRarities.Eternal then table.insert(List, "Eternal") end
+    if SelectedRarities.Divine then table.insert(List, "Divine") end
+
+    if _G.YOKUDO_EggCheckPremium then
+        _G.YOKUDO_EggCheckPremium.SetRarities(List)
+    end
+    if _G.YOKUDO_FarmingManager then
+        _G.YOKUDO_FarmingManager.SetRarities(List)
+    end
+end
+
 -- Dropdown Button
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 120, 0, 28)
@@ -162,25 +176,7 @@ local function CreateDropdownOption(Name, Order)
         SelectedRarities[Name] = not SelectedRarities[Name]
         UpdateOptionVisual(Name)
         DropdownBtn.Text = GetSelectedText() .. " ▼"
-
-        -- ✅ Update EggCheckPremium
-        if _G.YOKUDO_EggCheckPremium then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_EggCheckPremium.SetRarities(List)
-        end
-
-        -- ✅ Update FarmingManager
-        if _G.YOKUDO_FarmingManager then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_FarmingManager.SetRarities(List)
-        end
-
+        PushRarities()
         print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
@@ -284,25 +280,7 @@ local function ToggleFarm()
     if FarmEnabled then
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         FarmStroke.Color = Color3.fromRGB(135, 120, 225)
-
-        -- ✅ Set Rarities ទៅ EggCheckPremium
-        if _G.YOKUDO_EggCheckPremium then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_EggCheckPremium.SetRarities(List)
-        end
-
-        -- ✅ Set Rarities ទៅ FarmingManager
-        if _G.YOKUDO_FarmingManager then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_FarmingManager.SetRarities(List)
-        end
-
+        PushRarities()
         _G.YOKUDO_FarmingManager.Enable()
     else
         FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
@@ -320,6 +298,7 @@ end)
 -- ==================================================
 task.spawn(function()
     task.wait(1)
+    PushRarities()
     if _G.YOKUDO_FarmingManager then
         local State = _G.YOKUDO_FarmingManager.IsEnabled()
         FarmEnabled = State
@@ -332,7 +311,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- ✅ PERIODIC SYNC (រាល់ 1s)
+-- PERIODIC SYNC (រាល់ 1s)
 -- ==================================================
 task.spawn(function()
     while task.wait(1) do
@@ -351,15 +330,13 @@ task.spawn(function()
                     FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
                     FarmStroke.Color = Color3.fromRGB(200, 200, 220)
                 end
-
-                print("[YOKUDO] Farming UI Sync | State: " .. tostring(CurrentState))
             end
         end
     end
 end)
 
 -- ==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- REFRESH FUNCTION
 -- ==================================================
 _G.YOKUDO_RefreshFarmingUI = function()
     if _G.YOKUDO_FarmingManager then
@@ -374,8 +351,6 @@ _G.YOKUDO_RefreshFarmingUI = function()
             FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
             FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         end
-
-        print("[YOKUDO] Farming Tab UI Refreshed | State: " .. tostring(State))
     end
 end
 
