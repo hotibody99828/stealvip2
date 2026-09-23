@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ រង់ចាំ User ធីក មុននឹង Check
--- ✅ មិនប៉ះ _G.YOKUDO_TeleportSystem (ចាស់)
+-- ✅ មិនចាប់ផ្តើម MainLoop ពេល Load
+-- ✅ ចាប់ផ្តើមតែពេល Enable()
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,6 @@ local FarmingEnabled = false
 local CurrentState = "IDLE"
 local SelectedRarities = {}
 local FarmingThread = nil
-local StopRequested = false
 
 -- ==================================================
 -- GET HUMANOID
@@ -177,7 +176,7 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- ✅ STOP AFK (Jump Out + Fly to Safe Zone)
+-- STOP AFK (Jump Out + Fly to Safe Zone)
 -- ==================================================
 local function StopAFKAndGoSafe()
     if not _G.YOKUDO_AFKSystem then return end
@@ -214,27 +213,20 @@ local function StopAFKAndGoSafe()
 end
 
 -- ==================================================
--- MAIN LOOP (Statemachine)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
-    -- ✅ រង់ចាំ User ធីក
-    while not FarmingEnabled do
-        task.wait(0.5)
-        if StopRequested then return end
-    end
-
     print("[FarmingManager] MainLoop Started")
 
-    while FarmingEnabled and not StopRequested do
+    while FarmingEnabled do
         local Text = GetNightTimerText()
         local Sec, IsValid = ParseNightTimer(Text)
         local BestEgg = FindBestEgg()
 
         print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Egg: " .. (BestEgg and BestEgg.DisplayName or "None"))
 
-        -- បើថ្ងៃ (Sec > 10) និង មាន Egg
         if IsValid and Sec > 10 and BestEgg then
-            print("[FarmingManager] ✅ Day + Egg Found → TeleportAFKSystem")
+            print("[FarmingManager] ✅ Day + Egg → TeleportAFKSystem")
 
             StopAFKAndGoSafe()
             task.wait(1)
@@ -246,12 +238,11 @@ local function MainLoop()
 
             while _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() do
                 task.wait(0.5)
-                if StopRequested then break end
+                if not FarmingEnabled then break end
             end
 
             print("[FarmingManager] TeleportAFKSystem Done → Loop Again")
         else
-            -- បើយប់ ឬ គ្មាន Egg → AFKSystem
             print("[FarmingManager] Night or No Egg → AFKSystem")
 
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -267,12 +258,11 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE
+-- ✅ ENABLE (ចាប់ផ្តើមតែពេល User ធីក)
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
     FarmingEnabled = true
-    StopRequested = false
     CurrentState = "CHECK_TIME"
 
     if FarmingThread then
@@ -284,16 +274,19 @@ local function Enable()
     print("[YOKUDO] FarmingManager: ON")
 end
 
+-- ==================================================
+-- ✅ DISABLE (Reset State ទាំងអស់)
+-- ==================================================
 local function Disable()
     if not FarmingEnabled then return end
     FarmingEnabled = false
-    StopRequested = true
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
         FarmingThread = nil
     end
 
+    -- Stop ទាំងអស់
     if _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() then
         _G.YOKUDO_TeleportAFKSystem.Disable()
     end
@@ -302,7 +295,7 @@ local function Disable()
     end
 
     CurrentState = "IDLE"
-    print("[YOKUDO] FarmingManager: OFF (All Stopped + Reset)")
+    print("[YOKUDO] FarmingManager: OFF")
 end
 
 local function Toggle()
@@ -329,4 +322,5 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end
 }
 
-print("✅ FarmingManager Feature Loaded")
+-- ✅ មិនចាប់ផ្តើម MainLoop ពេល Load
+print("✅ FarmingManager Feature Loaded (រង់ចាំ User ធីក)")
