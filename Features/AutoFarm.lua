@@ -1,6 +1,7 @@
 --==================================================
 -- YOKUDO HUB | FEATURE | Auto Farm
 -- Check Egg + Display Card + Select + Send to Teleport
+-- ✅ Register ជាមួយ CharacterSystem
 --==================================================
 
 local Players = game:GetService("Players")
@@ -193,8 +194,6 @@ end
 local function SelectEgg(EggData)
     SelectedEgg = EggData
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
-
-    -- ✅ Just save EggData — no teleport yet
 end
 
 --==================================================
@@ -206,13 +205,11 @@ local function StartTeleport()
         return
     end
 
-    -- ✅ Read Method and Speed from Setting dropdown
     local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
     local Speed = _G.YOKUDO_TeleportSpeed or 300
 
     print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed) .. " | Target: " .. SelectedEgg.Id)
 
-    -- ✅ Call TeleportSystem (single file with 2 options)
     if _G.YOKUDO_TeleportSystem then
         _G.YOKUDO_TeleportSystem.SetMethod(Method)
         _G.YOKUDO_TeleportSystem.SetSpeed(Speed)
@@ -247,4 +244,30 @@ _G.YOKUDO_AutoFarm = {
     FormatMoney = FormatMoney
 }
 
-print("✅ AutoFarm Feature Loaded")
+--==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+--==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "AutoFarm",
+        Enable = EnableAutoFarm,
+        Disable = DisableAutoFarm,
+        IsEnabled = function() return AutoFarmEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            -- ✅ AutoFarm មិនត្រូវការ Re-Apply ពិសេស
+            -- ព្រោះវាគ្រាន់តែ Scan Eggs និង Select
+            -- TeleportSystem ជាអ្នកធ្វើការ
+            if AutoFarmEnabled and SelectedEgg then
+                task.wait(2)
+                pcall(function()
+                    -- Restart Teleport បើកំពុងប្រើ
+                    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+                        StartTeleport()
+                    end
+                end)
+            end
+        end
+    })
+end
+
+print("✅ AutoFarm Feature Loaded (Register)")
