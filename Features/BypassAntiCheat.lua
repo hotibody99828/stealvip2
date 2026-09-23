@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Bypass Anti Cheat
 -- Humanoid Replace + Anti Death
--- ✅ មិនត្រូវការ Restart Features (Features ប្រើ GetHumanoid() រាល់ពេល)
+-- ✅ Restart Features តាមរយៈ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -129,6 +129,15 @@ local function RunBypassAntiCheat()
     print("[YOKUDO] New Humanoid:", NewHumanoid)
 
     --==================================================
+    -- UPDATE CHARACTER SYSTEM
+    --==================================================
+    if _G.YOKUDO_CharacterSystem then
+        _G.YOKUDO_CharacterSystem.CurrentHumanoid = NewHumanoid
+        _G.YOKUDO_CharacterSystem.CurrentRoot = Character:FindFirstChild("HumanoidRootPart")
+        print("[YOKUDO] CharacterSystem Updated with New Humanoid")
+    end
+
+    --==================================================
     -- RESTORE JUMP PROPERTIES
     --==================================================
     pcall(function()
@@ -237,14 +246,15 @@ local function RunBypassAntiCheat()
     BindAntiDeath(NewHumanoid)
 
     task.spawn(function()
-        while GodMode and NewHumanoid and NewHumanoid.Parent do
-            task.wait(0.1)
-            pcall(function()
-                if NewHumanoid.Health < NewHumanoid.MaxHealth then
-                    NewHumanoid.Health = NewHumanoid.MaxHealth
-                end
-                NewHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            end)
+        while task.wait(0.1) do
+            if GodMode and NewHumanoid and NewHumanoid.Parent then
+                pcall(function()
+                    if NewHumanoid.Health < NewHumanoid.MaxHealth then
+                        NewHumanoid.Health = NewHumanoid.MaxHealth
+                    end
+                    NewHumanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                end)
+            end
         end
     end)
 
@@ -361,6 +371,16 @@ local function RunBypassAntiCheat()
         end)
     end
 
+    --==================================================
+    -- ✅ RESTART FEATURES តាមរយៈ CHARACTER SYSTEM
+    --==================================================
+    if _G.YOKUDO_CharacterSystem then
+        task.spawn(function()
+            task.wait(0.5)
+            _G.YOKUDO_CharacterSystem:RestartAllFeatures()
+        end)
+    end
+
     print("")
     print("========================================")
     print("[YOKUDO] HUMANOID REPLACE + ANTI DEATH COMPLETE")
@@ -384,4 +404,4 @@ task.spawn(function()
     RunBypassAntiCheat()
 end)
 
-print("✅ BypassAntiCheat Feature Loaded (មិនត្រូវការ Restart Features)")
+print("✅ BypassAntiCheat Feature Loaded (Restart Features via CharacterSystem)")
