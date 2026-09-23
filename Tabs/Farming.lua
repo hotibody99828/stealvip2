@@ -331,4 +331,46 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- PERIODIC SYNC (រាល់ 1s) — Logic ចាស់
+-- PERIODIC SYNC (រាល់ 1s) — Logic ចាស់-- ==================================================
+task.spawn(function()
+    while task.wait(1) do
+        if _G.YOKUDO_FarmingManager then
+            local CurrentState = _G.YOKUDO_FarmingManager.IsEnabled()
+            local UIState = FarmCheck.Visible
+
+            if CurrentState ~= UIState then
+                FarmEnabled = CurrentState
+                FarmCheck.Visible = CurrentState
+
+                if CurrentState then
+                    FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                    FarmStroke.Color = Color3.fromRGB(135, 120, 225)
+                else
+                    FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+                    FarmStroke.Color = Color3.fromRGB(200, 200, 220)
+                end
+            end
+        end
+    end
+end)
+
+-- ==================================================
+-- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- ==================================================
+_G.YOKUDO_RefreshFarmingUI = function()
+    if _G.YOKUDO_FarmingManager then
+        local State = _G.YOKUDO_FarmingManager.IsEnabled()
+        FarmEnabled = State
+        FarmCheck.Visible = State
+
+        if State then
+            FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            FarmStroke.Color = Color3.fromRGB(135, 120, 225)
+        else
+            FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+            FarmStroke.Color = Color3.fromRGB(200, 200, 220)
+        end
+    end
+end
+
+print("✅ Farming Tab Loaded (Logic ចាស់)")
