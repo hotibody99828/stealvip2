@@ -1,7 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ Day: Fly TP ទៅ Egg
--- ✅ Night: Stop AFK → Safe Zone → រង់ចាំ Day
+-- ✅ Night: AFK រហូតដល់ Egg Spawn
+-- ✅ Egg Spawn ពេល Night: Stop AFK → Safe Zone → រង់ចាំ Day
+-- ✅ Day: Fly TP ទៅ First Egg
 -- ✅ Settings: Speed 1000, Return 800, Offset 10
 -- ✅ Method: InstantTeleport
 -- ==================================================
@@ -29,7 +30,9 @@ local CurrentState = "IDLE"
 local CurrentPhase = "UNKNOWN"
 local SelectedRarities = {}
 local FarmingThread = nil
-local IsAtSafeZone = false  -- ✅ Track Safe Zone
+local IsAtSafeZone = false
+local WaitingForDay = false
+local AFKStarted = false  -- ✅ Track AFK
 
 -- ==================================================
 -- GET HUMANOID
@@ -197,7 +200,7 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- ✅ STOP AFK (Jump Out) - មិន Fly ទៅ Safe Zone ទេ
+-- STOP AFK (Jump Out)
 -- ==================================================
 local function StopAFKOnly()
     if not _G.YOKUDO_AFKSystem then return end
@@ -220,12 +223,13 @@ local function StopAFKOnly()
 
     _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
         _G.YOKUDO_AFKSystem.Disable()
+        AFKStarted = false
         print("[FarmingManager] ✅ Jumped out!")
     end)
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE
+-- FLY TO SAFE ZONE
 -- ==================================================
 local function FlyToSafeZone()
     local Hum, Root = GetHumanoid()
@@ -263,18 +267,21 @@ local function MainLoop()
         -- DAY: Sec > 10 → Check Egg + Teleport
         -- ==========================================
         if Phase == "Day" then
+            if WaitingForDay then
+                WaitingForDay = false
+                print("[FarmingManager] ✅ Day Started → Stop Waiting")
+            end
+
             local BestEgg = FindBestEgg()
 
             if BestEgg then
                 print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem")
 
-                -- Stop AFK + Fly to Safe Zone
                 StopAFKOnly()
                 task.wait(0.5)
                 FlyToSafeZone()
                 task.wait(1)
 
-                -- ហៅ TeleportSystem (Instant)
                 if _G.YOKUDO_TeleportSystem then
                     _G.YOKUDO_TeleportSystem.SetMethod("InstantTeleport")
                     _G.YOKUDO_TeleportSystem.SetSpeed(FLY_SPEED)
@@ -293,39 +300,65 @@ local function MainLoop()
 
                 if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                     _G.YOKUDO_AFKSystem.Enable()
+                    AFKStarted = true
                 end
 
                 task.wait(CHECK_INTERVAL)
             end
 
         -- ==========================================
-        -- NIGHT: Sec <= 10 → Stop AFK → Safe Zone → រង់ចាំ Day
+        -- NIGHT: Sec <= 10
         -- ==========================================
         else
-            print("[FarmingManager] Night (Sec: " .. tostring(Sec) .. ") → Stop AFK → Safe Zone")
+            print("[FarmingManager] Night (Sec: " .. tostring(Sec) .. ")")
 
-            -- 1. Stop AFK (Jump Out)
-            StopAFKOnly()
-            task.wait(0.5)
+            -- ✅ Check Egg រាល់ 1s
+            local BestEgg = FindBestEgg()
 
-            -- 2. Fly TP ទៅ Safe Zone
-            FlyToSafeZone()
+            if BestEgg then
+                print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop AFK → Safe Zone")
 
-            -- 3. រង់ចាំនៅ Safe Zone រហូតដល់ Day
-            print("[FarmingManager] Waiting at Safe Zone until Day...")
-            while FarmingEnabled do
-                local Text2 = GetNightTimerText()
-                local Phase2, Sec2 = GetPhase(Text2)
-                CurrentPhase = Phase2
-
-                print("[FarmingManager] Waiting | Time: " .. tostring(Text2) .. " | Sec: " .. tostring(Sec2) .. " | Phase: " .. Phase2)
-
-                if Phase2 == "Day" then
-                    print("[FarmingManager] Day Started → Break Wait")
-                    break
+                -- 1. Stop AFK (Jump Out) - ✅ ទើប Stop ពេល Egg Spawn
+                if AFKStarted then
+                    StopAFKOnly()
+                    task.wait(0.5)
                 end
 
-                task.wait(1)
+                -- 2. Fly TP ទៅ Safe Zone
+                FlyToSafeZone()
+
+                -- 3. រង់ចាំនៅ Safe Zone រហូតដល់ Day
+                WaitingForDay = true
+                print("[FarmingManager] Waiting at Safe Zone until Day...")
+
+                while FarmingEnabled and WaitingForDay do
+                    local Text2 = GetNightTimerText()
+                    local Phase2, Sec2 = GetPhase(Text2)
+                    CurrentPhase = Phase2
+
+                    print("[FarmingManager] Waiting | Time: " .. tostring(Text2) .. " | Sec: " .. tostring(Sec2) .. " | Phase: " .. Phase2)
+
+                    if Phase2 == "Day" then
+                        print("[FarmingManager] Day Started → Break Wait")
+                        WaitingForDay = false
+                        break
+                    end
+
+                    task.wait(1)
+                end
+            else
+                -- ✅ គ្មាន Egg → បន្ត AFK (កុំ Stop)
+                print("[FarmingManager] Night + No Egg → Continue AFK")
+
+                if not AFKStarted then
+                    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                        _G.YOKUDO_AFKSystem.Enable()
+                        AFKStarted = true
+                        print("[FarmingManager] AFK Started")
+                    end
+                end
+
+                task.wait(CHECK_INTERVAL)
             end
         end
 
@@ -341,6 +374,7 @@ local function Enable()
     if FarmingEnabled then return end
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
+    AFKStarted = false
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -368,6 +402,8 @@ local function Disable()
     end
 
     IsAtSafeZone = false
+    WaitingForDay = false
+    AFKStarted = false
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
