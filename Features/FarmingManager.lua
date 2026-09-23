@@ -1,8 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ ប្រើ AreaEggCycle.IsNightPhase() សម្រាប់ Check Time ពិត
--- ✅ Egg Spawn ពេល Night: Stop AFK → Safe Zone → រង់ចាំ Day
--- ✅ ពេល Day: Fly TP ទៅ First Egg + Target Egg
+-- ✅ Fly TP ទៅ Safe Zone ដោយខ្លួនឯង (មិនប្រើ AFKSystem)
+-- ✅ ប្រើ AreaEggCycle.IsNightPhase() សម្រាប់ Check Time
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -13,7 +12,7 @@ local Workspace = game:GetService("Workspace")
 local Player = Players.LocalPlayer
 
 -- ==================================================
--- ✅ AREA EGG CYCLE (សម្រាប់ Check Time ពិត)
+-- AREA EGG CYCLE
 -- ==================================================
 local AreaEggCycle = nil
 
@@ -52,6 +51,13 @@ local AFKStarted = false
 local PendingEggUid = nil
 
 -- ==================================================
+-- FLY TP STATE
+-- ==================================================
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
+
+-- ==================================================
 -- GET HUMANOID
 -- ==================================================
 local function GetHumanoid()
@@ -63,7 +69,116 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- ✅ GET PHASE (ប្រើ AreaEggCycle.IsNightPhase)
+-- ✅ CLEANUP FLY
+-- ==================================================
+local function CleanupFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if BodyVelocity then
+        pcall(function()
+            BodyVelocity.Velocity = Vector3.zero
+            BodyVelocity.MaxForce = Vector3.zero
+        end)
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
+    if BodyGyro then
+        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
+    local Hum, Root = GetHumanoid()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
+    end
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+end
+
+-- ==================================================
+-- ✅ FLY TP (ដោយខ្លួនឯង - មិនប្រើ AFKSystem)
+-- ==================================================
+local function SelfFlyTP(Destination, Callback)
+    CleanupFly()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        if Callback then Callback() end
+        return
+    end
+    if Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    Hum.PlatformStand = true
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1250
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 3000
+    BodyGyro.D = 500
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
+
+    local StartTime = tick()
+
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not FarmingEnabled then
+            CleanupFly()
+            return
+        end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 then
+            CleanupFly()
+            return
+        end
+        if Hum2.Health <= 0 then return end
+        if not BodyVelocity or not BodyGyro then CleanupFly() return end
+
+        local CurrentPos = Root2.Position
+        local Direction = Destination - CurrentPos
+        local TotalDist = Direction.Magnitude
+
+        if TotalDist <= 3 then
+            CleanupFly()
+            Root2.CFrame = CFrame.new(Destination)
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+            if Callback then Callback() end
+            return
+        end
+
+        if tick() - StartTime > 30 then
+            CleanupFly()
+            if Callback then Callback() end
+            return
+        end
+
+        BodyVelocity.Velocity = Direction.Unit * FLY_SPEED
+        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
+    end)
+end
+
+-- ==================================================
+-- GET PHASE
 -- ==================================================
 local function GetPhase()
     if AreaEggCycle then
@@ -80,7 +195,6 @@ local function GetPhase()
         end
     end
     
-    -- ✅ Fallback: ប្រើ NightTimer
     local Success, Text = pcall(function()
         return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
     end)
@@ -99,9 +213,6 @@ local function GetPhase()
     return "UNKNOWN"
 end
 
--- ==================================================
--- ✅ GET SECONDS UNTIL RESET
--- ==================================================
 local function GetSecondsUntilReset()
     if AreaEggCycle then
         local Success, Sec = pcall(function()
@@ -126,6 +237,7 @@ end
 -- STOP ALL
 -- ==================================================
 local function StopAll()
+    -- Stop AFK
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
         if not TreadmillPos then
@@ -147,14 +259,18 @@ local function StopAll()
         end
     end
 
+    -- Stop TeleportSystem
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
         print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
+
+    -- Cleanup Self Fly
+    CleanupFly()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE AND WAIT
+-- ✅ FLY TO SAFE ZONE AND WAIT (ប្រើ SelfFlyTP)
 -- ==================================================
 local function FlyToSafeZoneAndWait()
     local Hum, Root = GetHumanoid()
@@ -170,13 +286,13 @@ local function FlyToSafeZoneAndWait()
 
     print("[FarmingManager] Fly to Safe Zone...")
 
-    if _G.YOKUDO_AFKSystem then
-        _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
-            IsAtSafeZone = true
-            print("[FarmingManager] ✅ At Safe Zone")
-        end)
-    end
+    -- ✅ ប្រើ SelfFlyTP ជំនួស AFKSystem.FlyTP
+    SelfFlyTP(SAFE_ZONE, function()
+        IsAtSafeZone = true
+        print("[FarmingManager] ✅ At Safe Zone")
+    end)
 
+    -- រង់ចាំដល់ Safe Zone ពិតប្រាកដ
     local WaitTime = 0
     while FarmingEnabled and WaitTime < 30 do
         local Hum2, Root2 = GetHumanoid()
@@ -216,7 +332,7 @@ local function StartTeleport(EggUid)
 end
 
 -- ==================================================
--- WAIT FOR DAY (ប្រើ AreaEggCycle)
+-- WAIT FOR DAY
 -- ==================================================
 local function WaitForDay()
     print("[FarmingManager] Waiting for Day...")
@@ -237,7 +353,7 @@ local function WaitForDay()
 end
 
 -- ==================================================
--- NIGHT LOOP (Check រាល់ 0.05s)
+-- NIGHT LOOP
 -- ==================================================
 local function NightLoop()
     print("[FarmingManager] NightLoop Started (0.05s)")
@@ -298,7 +414,7 @@ local function NightLoop()
 end
 
 -- ==================================================
--- DAY LOOP (Check រាល់ 0.5s)
+-- DAY LOOP
 -- ==================================================
 local function DayLoop()
     print("[FarmingManager] DayLoop Started (0.5s)")
@@ -455,4 +571,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ FarmingManager Feature Loaded (ប្រើ AreaEggCycle.IsNightPhase)")
+print("✅ FarmingManager Feature Loaded (Self Fly TP)")
