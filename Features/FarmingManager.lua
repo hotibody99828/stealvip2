@@ -1,5 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
+-- ✅ ភ្ជាប់ជាមួយ EggCheckPremium
 -- ✅ Night: AFK រហូតដល់ Egg Spawn
 -- ✅ Egg Spawn ពេល Night: Stop AFK → Safe Zone → រង់ចាំ Day
 -- ✅ Day: Fly TP ទៅ First Egg
@@ -28,11 +29,10 @@ local FLY_OFFSET = 10
 local FarmingEnabled = false
 local CurrentState = "IDLE"
 local CurrentPhase = "UNKNOWN"
-local SelectedRarities = {}
 local FarmingThread = nil
 local IsAtSafeZone = false
 local WaitingForDay = false
-local AFKStarted = false  -- ✅ Track AFK
+local AFKStarted = false
 
 -- ==================================================
 -- GET HUMANOID
@@ -79,124 +79,13 @@ local function GetPhase(Text)
 end
 
 -- ==================================================
--- CHECK EGG BY RARITY
+-- FIND BEST EGG (ប្រើ EggCheckPremium)
 -- ==================================================
-local function GetPetData(AssetCategory)
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return nil end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return nil end
-    local Configs = Assets:FindFirstChild("Configs")
-    if not Configs then return nil end
-
-    local Config = Configs:FindFirstChild(AssetCategory)
-    if not Config then return nil end
-
-    local Success, Module = pcall(function() return require(Config) end)
-    if not Success or not Module then return nil end
-
-    return {
-        Rarity = Module.Rarity and (Module.Rarity._id or Module.Rarity.RarityId) or nil,
-        EarningRate = Module.EarningRate or 0,
-        DisplayName = Module.DisplayName or AssetCategory
-    }
-end
-
-local function BuildMeshIdMap()
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return {} end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return {} end
-    local Configs = Assets:FindFirstChild("Configs")
-    local EggModels = ReplicatedStorage:FindFirstChild("Assets")
-    if EggModels then EggModels = EggModels:FindFirstChild("Models") end
-    if EggModels then EggModels = EggModels:FindFirstChild("Eggs") end
-    if not Configs or not EggModels then return {} end
-
-    local Map = {}
-    for _, Config in ipairs(Configs:GetChildren()) do
-        local Success, Module = pcall(function() return require(Config) end)
-        if Success and Module and Module.Egg then
-            local ModelName = Module.Egg.ModelName or Config.Name
-            local Template = EggModels:FindFirstChild(ModelName)
-            if Template then
-                for _, Desc in ipairs(Template:GetDescendants()) do
-                    if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-                        Map[Desc.MeshId] = Config.Name
-                    end
-                    if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-                        Map[Desc.MeshId] = Config.Name
-                    end
-                end
-            end
-        end
-    end
-    return Map
-end
-
-local MeshIdMap = BuildMeshIdMap()
-
-local function FindAssetCategory(EggModel)
-    for _, Desc in ipairs(EggModel:GetDescendants()) do
-        if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-            local Cat = MeshIdMap[Desc.MeshId]
-            if Cat then return Cat end
-        end
-        if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-            local Cat = MeshIdMap[Desc.MeshId]
-            if Cat then return Cat end
-        end
+local function FindBestEgg()
+    if _G.YOKUDO_EggCheckPremium then
+        return _G.YOKUDO_EggCheckPremium.FindBestEgg()
     end
     return nil
-end
-
--- ==================================================
--- SORT EGG
--- ==================================================
-local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3
-}
-
-local function SortEggs(EggList)
-    table.sort(EggList, function(a, b)
-        local Pa = RARITY_PRIORITY[a.Rarity] or 999
-        local Pb = RARITY_PRIORITY[b.Rarity] or 999
-        if Pa ~= Pb then return Pa < Pb end
-        return a.EarningRate > b.EarningRate
-    end)
-end
-
-local function FindBestEgg()
-    local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if not Container then return nil end
-
-    local EggList = {}
-
-    for _, Slot in ipairs(Container:GetChildren()) do
-        if Slot:IsA("Model") then
-            local Category = FindAssetCategory(Slot)
-            if Category then
-                local Data = GetPetData(Category)
-                if Data and SelectedRarities[Data.Rarity] then
-                    table.insert(EggList, {
-                        Slot = Slot,
-                        Uid = Slot.Name,
-                        Rarity = Data.Rarity,
-                        EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName
-                    })
-                end
-            end
-        end
-    end
-
-    if #EggList == 0 then return nil end
-    SortEggs(EggList)
-    return EggList[1]
 end
 
 -- ==================================================
@@ -312,22 +201,18 @@ local function MainLoop()
         else
             print("[FarmingManager] Night (Sec: " .. tostring(Sec) .. ")")
 
-            -- ✅ Check Egg រាល់ 1s
             local BestEgg = FindBestEgg()
 
             if BestEgg then
                 print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop AFK → Safe Zone")
 
-                -- 1. Stop AFK (Jump Out) - ✅ ទើប Stop ពេល Egg Spawn
                 if AFKStarted then
                     StopAFKOnly()
                     task.wait(0.5)
                 end
 
-                -- 2. Fly TP ទៅ Safe Zone
                 FlyToSafeZone()
 
-                -- 3. រង់ចាំនៅ Safe Zone រហូតដល់ Day
                 WaitingForDay = true
                 print("[FarmingManager] Waiting at Safe Zone until Day...")
 
@@ -347,7 +232,6 @@ local function MainLoop()
                     task.wait(1)
                 end
             else
-                -- ✅ គ្មាន Egg → បន្ត AFK (កុំ Stop)
                 print("[FarmingManager] Night + No Egg → Continue AFK")
 
                 if not AFKStarted then
@@ -414,9 +298,8 @@ local function Toggle()
 end
 
 local function SetRarities(List)
-    SelectedRarities = {}
-    for _, r in ipairs(List) do
-        SelectedRarities[r] = true
+    if _G.YOKUDO_EggCheckPremium then
+        _G.YOKUDO_EggCheckPremium.SetRarities(List)
     end
     print("[YOKUDO] FarmingManager Rarities: " .. table.concat(List, ", "))
 end
@@ -434,4 +317,4 @@ _G.YOKUDO_FarmingManager = {
     GetPhase = function() return CurrentPhase end
 }
 
-print("✅ FarmingManager Feature Loaded (Night and Day Logic)")
+print("✅ FarmingManager Feature Loaded (ប្រើ EggCheckPremium)")
