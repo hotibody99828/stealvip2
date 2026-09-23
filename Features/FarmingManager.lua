@@ -1,9 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ Night: Check 0.05s
--- ✅ Day: Check 0.5s
--- ✅ NightLoop → Return to MainLoop ពេល Day
--- ✅ Mode 1 + Mode 2 (TeleportSystem)
+-- ✅ ពេល Day មកដល់ → Fly ទៅ First Egg ភ្លាម
+-- ✅ Mode 2 (Workspace) ដំណើរការ
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,6 +32,7 @@ local FarmingThread = nil
 local IsAtSafeZone = false
 local WaitingForDay = false
 local AFKStarted = false
+local PendingEggUid = nil  -- ✅ Egg UID ដែលរង់ចាំ
 
 -- ==================================================
 -- GET HUMANOID
@@ -87,10 +86,9 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- STOP ALL (AFK + TeleportSystem)
+-- STOP ALL
 -- ==================================================
 local function StopAll()
-    -- Stop AFK
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
         if not TreadmillPos then
@@ -112,7 +110,6 @@ local function StopAll()
         end
     end
 
-    -- Stop TeleportSystem
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
         print("[FarmingManager] ✅ TeleportSystem Stopped")
@@ -143,7 +140,6 @@ local function FlyToSafeZoneAndWait()
         end)
     end
 
-    -- រង់ចាំដល់ Safe Zone ពិតប្រាកដ
     local WaitTime = 0
     while FarmingEnabled and WaitTime < 10 do
         local Hum2, Root2 = GetHumanoid()
@@ -175,9 +171,6 @@ local function StartTeleport(EggUid)
     print("[FarmingManager] Starting Teleport:")
     print("  - Target UID: " .. tostring(EggUid))
     print("  - Method: " .. METHOD)
-    print("  - Fly Speed: " .. FLY_SPEED)
-    print("  - Return Speed: " .. RETURN_SPEED)
-    print("  - Fly Offset: " .. FLY_OFFSET)
 
     _G.YOKUDO_TeleportSystem.SetMethod(METHOD)
     _G.YOKUDO_TeleportSystem.SetSpeed(FLY_SPEED)
@@ -186,7 +179,27 @@ local function StartTeleport(EggUid)
 end
 
 -- ==================================================
--- NIGHT LOOP (Check 0.05s)
+-- ✅ EXECUTE TELEPORT (Fly ទៅ First Egg → Collect)
+-- ==================================================
+local function ExecuteTeleport(EggUid)
+    -- 1. Fly TP ទៅ Safe Zone + រង់ចាំ
+    FlyToSafeZoneAndWait()
+    task.wait(1)
+
+    -- 2. Start Teleport
+    StartTeleport(EggUid)
+
+    -- 3. រង់ចាំ TeleportSystem បញ្ចប់
+    while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
+        task.wait(0.5)
+        if not FarmingEnabled then break end
+    end
+
+    print("[FarmingManager] TeleportSystem Done → Loop Again")
+end
+
+-- ==================================================
+-- NIGHT LOOP (Check រាល់ 0.05s)
 -- ==================================================
 local function NightLoop()
     print("[FarmingManager] NightLoop Started (0.05s)")
@@ -196,10 +209,17 @@ local function NightLoop()
         local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
-        -- ✅ បើ Day → Return ត្រឡប់ទៅ MainLoop
+        -- ✅ បើ Day → Execute Teleport (បើមាន Pending Egg)
         if Phase == "Day" then
-            print("[FarmingManager] Day Started → Return to MainLoop")
-            return "Day"
+            print("[FarmingManager] Day Started → Break NightLoop")
+
+            if PendingEggUid then
+                print("[FarmingManager] ✅ Pending Egg Found → Execute Teleport")
+                ExecuteTeleport(PendingEggUid)
+                PendingEggUid = nil
+            end
+
+            return
         end
 
         local BestEgg = FindBestEgg()
@@ -207,35 +227,44 @@ local function NightLoop()
         if BestEgg then
             print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop All → Safe Zone")
 
+            -- 1. Save Pending Egg UID
+            PendingEggUid = BestEgg.Uid
+
+            -- 2. Stop All
             StopAll()
             task.wait(0.5)
 
-            local ReachedSafe = FlyToSafeZoneAndWait()
+            -- 3. Fly TP ទៅ Safe Zone
+            FlyToSafeZoneAndWait()
 
-            if ReachedSafe then
-                print("[FarmingManager] At Safe Zone → Waiting for Day (0.5s check)")
-                WaitingForDay = true
+            -- 4. រង់ចាំ Day (Check 0.5s)
+            print("[FarmingManager] At Safe Zone → Waiting for Day (0.5s check)")
+            WaitingForDay = true
 
-                while FarmingEnabled and WaitingForDay do
-                    local Text2 = GetNightTimerText()
-                    local Phase2, Sec2 = GetPhase(Text2)
-                    CurrentPhase = Phase2
+            while FarmingEnabled and WaitingForDay do
+                local Text2 = GetNightTimerText()
+                local Phase2, Sec2 = GetPhase(Text2)
+                CurrentPhase = Phase2
 
-                    print("[FarmingManager] Waiting | Time: " .. tostring(Text2) .. " | Sec: " .. tostring(Sec2) .. " | Phase: " .. Phase2)
+                print("[FarmingManager] Waiting | Time: " .. tostring(Text2) .. " | Sec: " .. tostring(Sec2) .. " | Phase: " .. Phase2)
 
-                    if Phase2 == "Day" then
-                        print("[FarmingManager] Day Started → Return to MainLoop")
-                        WaitingForDay = false
-                        return "Day"
+                if Phase2 == "Day" then
+                    print("[FarmingManager] Day Started → Break Wait")
+
+                    -- ✅ Execute Teleport ភ្លាម
+                    if PendingEggUid then
+                        ExecuteTeleport(PendingEggUid)
+                        PendingEggUid = nil
                     end
 
-                    task.wait(DAY_CHECK_INTERVAL)
+                    WaitingForDay = false
+                    return
                 end
-            else
-                print("[FarmingManager] ⚠️ Failed to reach Safe Zone")
+
+                task.wait(DAY_CHECK_INTERVAL)
             end
 
-            return "Day"
+            return
         else
             if not AFKStarted then
                 if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -248,11 +277,10 @@ local function NightLoop()
 
         task.wait(NIGHT_CHECK_INTERVAL)
     end
-    return "Stop"
 end
 
 -- ==================================================
--- DAY LOOP (Check 0.5s)
+-- DAY LOOP (Check រាល់ 0.5s)
 -- ==================================================
 local function DayLoop()
     print("[FarmingManager] DayLoop Started (0.5s)")
@@ -262,10 +290,9 @@ local function DayLoop()
         local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
-        -- ✅ បើ Night → Return ត្រឡប់ទៅ MainLoop
         if Phase == "Night" then
-            print("[FarmingManager] Night Started → Return to MainLoop")
-            return "Night"
+            print("[FarmingManager] Night Started → Break DayLoop")
+            return
         end
 
         local BestEgg = FindBestEgg()
@@ -275,19 +302,7 @@ local function DayLoop()
 
             StopAll()
             task.wait(0.5)
-
-            FlyToSafeZoneAndWait()
-            task.wait(1)
-
-            StartTeleport(BestEgg.Uid)
-
-            -- រង់ចាំ TeleportSystem បញ្ចប់
-            while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
-                task.wait(0.5)
-                if not FarmingEnabled then break end
-            end
-
-            print("[FarmingManager] TeleportSystem Done → Loop Again")
+            ExecuteTeleport(BestEgg.Uid)
         else
             print("[FarmingManager] Day but No Egg → AFK")
 
@@ -299,11 +314,10 @@ local function DayLoop()
 
         task.wait(DAY_CHECK_INTERVAL)
     end
-    return "Stop"
 end
 
 -- ==================================================
--- MAIN LOOP (Day/Night Switch)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started")
@@ -315,17 +329,10 @@ local function MainLoop()
 
         print("[FarmingManager] Phase: " .. Phase .. " | Sec: " .. tostring(Sec))
 
-        local NextPhase = "UNKNOWN"
-
         if Phase == "Day" then
-            NextPhase = DayLoop()
+            DayLoop()
         else
-            NextPhase = NightLoop()
-        end
-
-        -- ✅ បើ NextPhase == "Stop" → Break
-        if NextPhase == "Stop" then
-            break
+            NightLoop()
         end
 
         task.wait(0.1)
@@ -341,6 +348,7 @@ local function Enable()
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
     AFKStarted = false
+    PendingEggUid = nil
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -365,6 +373,7 @@ local function Disable()
     IsAtSafeZone = false
     WaitingForDay = false
     AFKStarted = false
+    PendingEggUid = nil
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -400,4 +409,25 @@ _G.YOKUDO_FarmingManager = {
     METHOD = METHOD
 }
 
-print("✅ FarmingManager Feature Loaded (Fixed Night → Day Return)")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "FarmingManager",
+        Enable = Enable,
+        Disable = Disable,
+        IsEnabled = function() return FarmingEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            if FarmingEnabled then
+                task.wait(1)
+                if FarmingThread then
+                    pcall(function() task.cancel(FarmingThread) end)
+                end
+                FarmingThread = task.spawn(function() MainLoop() end)
+            end
+        end
+    })
+end
+
+print("✅ FarmingManager Feature Loaded (Fixed Day Execute Teleport)")
