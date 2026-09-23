@@ -234,6 +234,12 @@ loadstring(GetScript("Tabs/Event.lua"))()
 Loading.Update(85)
 loadstring(GetScript("Tabs/HopServer.lua"))()
 
+Loading.Update(83)
+loadstring(GetScript("Features/TeleportAFKSystem.lua"))()
+
+Loading.Update(84)
+loadstring(GetScript("Features/FarmingManager.lua"))()
+
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
