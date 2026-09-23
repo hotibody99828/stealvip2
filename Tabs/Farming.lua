@@ -228,11 +228,12 @@ FarmLabel.TextYAlignment = Enum.TextYAlignment.Center
 FarmLabel.Font = Enum.Font.GothamBold
 FarmLabel.Parent = FarmHolder
 
+-- ✅ Subtitle ដែលកែហើយ
 local FarmSub = Instance.new("TextLabel")
 FarmSub.Size = UDim2.new(1, -50, 0, 18)
 FarmSub.Position = UDim2.new(0, 0, 0, 24)
 FarmSub.BackgroundTransparency = 1
-FarmSub.Text = "Auto Select + Teleport + Collect + AFK"
+FarmSub.Text = "No farm egg noob2"
 FarmSub.TextColor3 = Color3.fromRGB(150, 150, 170)
 FarmSub.TextSize = 10
 FarmSub.TextXAlignment = Enum.TextXAlignment.Left
@@ -332,7 +333,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- ✅ PERIODIC SYNC (រាល់ 1s)
+-- PERIODIC SYNC (រាល់ 1s)
 -- ==================================================
 task.spawn(function()
     while task.wait(1) do
@@ -359,7 +360,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
 -- ==================================================
 _G.YOKUDO_RefreshFarmingUI = function()
     if _G.YOKUDO_FarmingManager then
