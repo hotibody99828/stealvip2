@@ -1,7 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Attack Drone
--- Attack ONLY Top1 (AugmentedDrone) | Top2 (ReactorDrone) | Top3 (ScrapDrone)
--- FOLLOW_SPEED = 700
+-- Attack ONLY Top1 | Top2 | Top3
+-- ✅ Logic ចាស់ទាំងស្រុង — InitialFlyAndStartLoop (Signed X)
+-- ✅ Fly TP មិន Lock + Stop ភ្លាម + Reset CFrame
+-- ✅ Lock CFrame តែពេល Follow Mob
+-- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,8 +17,8 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 -- ==================================================
 local ATTACK_RANGE = 16
-local ATTACK_INTERVAL = 0.02
-local FOLLOW_SPEED = 700
+local ATTACK_INTERVAL = 0.05
+local FOLLOW_SPEED = 500
 local FOLLOW_BEHIND_DISTANCE = 3
 local SHORT_TP_DISTANCE = 20
 local SPAWN_POSITION_1 = Vector3.new(2140, 77, -367)
@@ -28,7 +31,6 @@ local ARRIVE_TIMEOUT = 15
 local CONTAINER_NAME = "ScrambleLocalVisuals"
 local SEARCH_PREFIXES = { "DroneVisual_", "PersonalDrone_" }
 
--- Tier Priority
 local TIER_PRIORITY = {
     ["AugmentedDrone"] = 1,
     ["ReactorDrone"] = 2,
@@ -56,7 +58,6 @@ local CurrentSpawnIndex = 1
 local IsFlying = false
 local SpawnLoopRunning = false
 
--- Live Saved Stats
 local SavedStats = {
     WalkSpeed = nil,
     JumpPower = nil,
@@ -65,14 +66,12 @@ local SavedStats = {
     Humanoid = nil,
 }
 
--- ==================================================
--- FORWARD DECLARATIONS
--- ==================================================
 local StartFollow
 local FlyTPToPosition
 local StartAttackLoop
 local SpawnLoop
 local StopAttack
+local InitialFlyAndStartLoop
 
 -- ==================================================
 -- GET HUMANOID
@@ -357,7 +356,17 @@ function StartFollow()
         local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= SHORT_TP_DISTANCE then
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            task.wait(0.1)
             CleanupMovers()
+
             Root2.CFrame = CFrame.new(BehindPos, TargetPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
@@ -412,11 +421,22 @@ function FlyTPToPosition(Destination, Callback)
         local TotalDist = math.floor(Direction.Magnitude)
 
         if TotalDist <= 2 then
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            task.wait(0.1)
             CleanupMovers()
             IsFlying = false
+
             Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
+
             if Callback then Callback() end
             return
         end
@@ -575,7 +595,49 @@ function StartAttackLoop()
 end
 
 -- ==================================================
--- START / STOP (ហៅដោយ ManagerDrone)
+-- INITIAL FLY (Logic ចាស់ — Signed X Distance)
+-- ==================================================
+function InitialFlyAndStartLoop()
+    local Hum, Root = GetHumanoid()
+    if not Root then return end
+
+    local PlayerPos = Root.Position
+    local PlayerToPoint1Signed = math.floor(PlayerPos.X - POINT_1.X)
+
+    print("========================================")
+    print("[AttackDrone] Initial Fly Decision (Signed X)")
+    print("  Player Pos:                       ", PlayerPos)
+    print("  Signed (Player.X - Point1.X):     ", PlayerToPoint1Signed)
+    print("========================================")
+
+    if PlayerToPoint1Signed > 0 then
+        print("[AttackDrone] → Signed > 0 (Player in FRONT) → Fly to Spawn 1")
+        CurrentSpawnIndex = 1
+        SpawnLoop()
+    else
+        print("[AttackDrone] → Signed <= 0 (Player at/behind) → Fly to Safe first")
+        local SafeArrived = false
+        FlyTPToPosition(SAFE_ZONE, function()
+            SafeArrived = true
+            print("[AttackDrone] ✅ Arrived at Safe Zone")
+        end)
+
+        local WaitTime = 0
+        while AttackDroneEnabled and not SafeArrived and WaitTime < ARRIVE_TIMEOUT do
+            task.wait(0.1)
+            WaitTime = WaitTime + 0.1
+        end
+
+        if not AttackDroneEnabled then return end
+        task.wait(SAFE_WAIT_TIME)
+        print("[AttackDrone] Safe Zone Reached → Start Spawn Loop")
+        CurrentSpawnIndex = 1
+        SpawnLoop()
+    end
+end
+
+-- ==================================================
+-- START / STOP
 -- ==================================================
 local function StartAttack()
     if AttackDroneEnabled then return end
@@ -589,13 +651,11 @@ local function StartAttack()
 
     StartAttackLoop()
 
-    -- Fly ទៅ Safe Zone មុន → បន្ទាប់មក Spawn Loop
-    FlyTPToPosition(SAFE_ZONE, function()
-        task.wait(SAFE_WAIT_TIME)
-        SpawnLoop()
-    end)
+    print("[AttackDrone] Attack Drone: ON (Initial Fly Logic — Signed X)")
 
-    print("[AttackDrone] Attack Drone: ON")
+    task.spawn(function()
+        InitialFlyAndStartLoop()
+    end)
 end
 
 local function StopAttackDrone()
@@ -617,18 +677,16 @@ local function StopAttackDrone()
         _G.YOKUDO_AutoAttack.DisableAutoEquip()
     end
 
+    local Hum, Root = GetHumanoid()
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
     print("[AttackDrone] Attack Drone: OFF")
 end
-
--- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED
--- ==================================================
-Player.CharacterAdded:Connect(function()
-    if AttackDroneEnabled then
-        task.wait(1)
-        SaveLiveStats()
-    end
-end)
 
 -- ==================================================
 -- EXPORT
@@ -644,6 +702,7 @@ _G.YOKUDO_AttackDrone = {
     IsEnabled = function() return AttackDroneEnabled end,
     StopAttack = StopAttack,
     SpawnLoop = SpawnLoop,
+    InitialFlyAndStartLoop = InitialFlyAndStartLoop,
     FindAllDrones = FindAllDrones,
     FindBestDrone = FindBestDrone,
     GetDronePriority = GetDronePriority,
@@ -658,4 +717,36 @@ _G.YOKUDO_AttackDrone = {
     FOLLOW_SPEED = FOLLOW_SPEED
 }
 
-print("✅ AttackDrone Feature Loaded")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "AttackDrone",
+        Enable = StartAttack,
+        Disable = StopAttackDrone,
+        IsEnabled = function() return AttackDroneEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            if AttackDroneEnabled then
+                task.wait(1)
+                CleanupMovers()
+                CurrentTarget = nil
+                CurrentTargetPriority = nil
+                CurrentSpawnIndex = 1
+                IsFlying = false
+                SpawnLoopRunning = false
+                LastFire = 0
+                TraceSequence = 0
+
+                SaveLiveStats()
+                StartAttackLoop()
+
+                task.spawn(function()
+                    InitialFlyAndStartLoop()
+                end)
+            end
+        end
+    })
+end
+
+print("✅ AttackDrone Feature Loaded (Logic ចាស់ទាំងស្រុង + Register)")
