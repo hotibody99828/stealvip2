@@ -1,14 +1,29 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
+-- ✅ ប្រើ AreaEggCycle.IsNightPhase() សម្រាប់ Check Time ពិត
 -- ✅ Egg Spawn ពេល Night: Stop AFK → Safe Zone → រង់ចាំ Day
--- ✅ ពេល Day: Fly TP ទៅ First Egg + Target Egg (Mode 1 + Mode 2)
--- ✅ Mode 2: Egg នៅ Workspace
+-- ✅ ពេល Day: Fly TP ទៅ First Egg + Target Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
+
+-- ==================================================
+-- ✅ AREA EGG CYCLE (សម្រាប់ Check Time ពិត)
+-- ==================================================
+local AreaEggCycle = nil
+
+pcall(function()
+    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
+end)
+
+if not AreaEggCycle then
+    warn("[FarmingManager] AreaEggCycle not found! Using fallback.")
+end
 
 -- ==================================================
 -- FIXED SETTINGS
@@ -17,7 +32,7 @@ local NIGHT_CHECK_INTERVAL = 0.05
 local DAY_CHECK_INTERVAL = 0.5
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
-local SAFE_WAIT_AFTER_REACH = 5  -- ✅ រង់ចាំ 5s នៅ Safe Zone មុន Fly
+local SAFE_WAIT_AFTER_REACH = 5
 
 local FLY_SPEED = 1000
 local RETURN_SPEED = 800
@@ -34,7 +49,7 @@ local FarmingThread = nil
 local IsAtSafeZone = false
 local WaitingForDay = false
 local AFKStarted = false
-local PendingEggUid = nil  -- ✅ Egg ដែលរកឃើញពេល Night
+local PendingEggUid = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -48,33 +63,53 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- GET NIGHT TIMER
+-- ✅ GET PHASE (ប្រើ AreaEggCycle.IsNightPhase)
 -- ==================================================
-local function GetNightTimerText()
+local function GetPhase()
+    if AreaEggCycle then
+        local Success, IsNight = pcall(function()
+            return AreaEggCycle.IsNightPhase(Workspace:GetServerTimeNow())
+        end)
+        
+        if Success then
+            if IsNight then
+                return "Night"
+            else
+                return "Day"
+            end
+        end
+    end
+    
+    -- ✅ Fallback: ប្រើ NightTimer
     local Success, Text = pcall(function()
         return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
     end)
+    
     if Success and Text then
-        return tostring(Text)
+        local M = tonumber(string.match(Text, "(%d+)m")) or 0
+        local S = tonumber(string.match(Text, "(%d+)s")) or 0
+        local Sec = M * 60 + S
+        if Sec > 10 then
+            return "Day"
+        else
+            return "Night"
+        end
     end
-    return nil
+    
+    return "UNKNOWN"
 end
 
-local function ParseNightTimer(Text)
-    if not Text then return 0, false end
-    local M = tonumber(string.match(Text, "(%d+)m")) or 0
-    local S = tonumber(string.match(Text, "(%d+)s")) or 0
-    return M * 60 + S, true
-end
-
-local function GetPhase(Text)
-    local Sec, IsValid = ParseNightTimer(Text)
-    if not IsValid then return "UNKNOWN", 0 end
-    if Sec > 10 then
-        return "Day", Sec
-    else
-        return "Night", Sec
+-- ==================================================
+-- ✅ GET SECONDS UNTIL RESET
+-- ==================================================
+local function GetSecondsUntilReset()
+    if AreaEggCycle then
+        local Success, Sec = pcall(function()
+            return AreaEggCycle.SecondsUntilReset(Workspace:GetServerTimeNow())
+        end)
+        if Success then return Sec end
     end
+    return 0
 end
 
 -- ==================================================
@@ -143,7 +178,7 @@ local function FlyToSafeZoneAndWait()
     end
 
     local WaitTime = 0
-    while FarmingEnabled and WaitTime < 10 do
+    while FarmingEnabled and WaitTime < 30 do
         local Hum2, Root2 = GetHumanoid()
         if Root2 then
             local Dist = (Root2.Position - SAFE_ZONE).Magnitude
@@ -181,14 +216,13 @@ local function StartTeleport(EggUid)
 end
 
 -- ==================================================
--- ✅ WAIT FOR DAY (Check រាល់ 0.5s)
+-- WAIT FOR DAY (ប្រើ AreaEggCycle)
 -- ==================================================
 local function WaitForDay()
     print("[FarmingManager] Waiting for Day...")
 
     while FarmingEnabled do
-        local Text = GetNightTimerText()
-        local Phase, Sec = GetPhase(Text)
+        local Phase = GetPhase()
         CurrentPhase = Phase
 
         if Phase == "Day" then
@@ -209,8 +243,7 @@ local function NightLoop()
     print("[FarmingManager] NightLoop Started (0.05s)")
 
     while FarmingEnabled do
-        local Text = GetNightTimerText()
-        local Phase, Sec = GetPhase(Text)
+        local Phase = GetPhase()
         CurrentPhase = Phase
 
         if Phase == "Day" then
@@ -223,38 +256,29 @@ local function NightLoop()
         if BestEgg then
             print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName)
 
-            -- ✅ Save Egg UID សម្រាប់ Day
             PendingEggUid = BestEgg.Uid
 
-            -- 1. Stop All
             StopAll()
             task.wait(0.5)
 
-            -- 2. Fly TP ទៅ Safe Zone + រង់ចាំ
             local ReachedSafe = FlyToSafeZoneAndWait()
 
             if ReachedSafe then
-                -- ✅ រង់ចាំ 5s នៅ Safe Zone
                 print("[FarmingManager] Waiting 5s at Safe Zone...")
                 task.wait(SAFE_WAIT_AFTER_REACH)
 
-                -- ✅ រង់ចាំ Day
                 local IsDay = WaitForDay()
 
                 if IsDay and PendingEggUid then
-                    print("[FarmingManager] ✅ Day Reached → Start Teleport to Egg: " .. tostring(PendingEggUid))
-
-                    -- 3. Start Teleport ទៅ Egg ដែលបាន Save
+                    print("[FarmingManager] ✅ Day Reached → Start Teleport")
                     StartTeleport(PendingEggUid)
 
-                    -- 4. រង់ចាំ TeleportSystem បញ្ចប់
                     while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
                         task.wait(0.5)
                         if not FarmingEnabled then break end
                     end
 
                     PendingEggUid = nil
-                    print("[FarmingManager] TeleportSystem Done → Loop Again")
                 end
             end
 
@@ -280,8 +304,7 @@ local function DayLoop()
     print("[FarmingManager] DayLoop Started (0.5s)")
 
     while FarmingEnabled do
-        local Text = GetNightTimerText()
-        local Phase, Sec = GetPhase(Text)
+        local Phase = GetPhase()
         CurrentPhase = Phase
 
         if Phase == "Night" then
@@ -292,29 +315,21 @@ local function DayLoop()
         local BestEgg = FindBestEgg()
 
         if BestEgg then
-            print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem")
+            print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName)
 
-            -- 1. Stop All
             StopAll()
             task.wait(0.5)
 
-            -- 2. Fly TP ទៅ Safe Zone + រង់ចាំ
             FlyToSafeZoneAndWait()
             task.wait(1)
 
-            -- 3. Start Teleport
             StartTeleport(BestEgg.Uid)
 
-            -- 4. រង់ចាំ TeleportSystem បញ្ចប់
             while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
                 task.wait(0.5)
                 if not FarmingEnabled then break end
             end
-
-            print("[FarmingManager] TeleportSystem Done → Loop Again")
         else
-            print("[FarmingManager] Day but No Egg → AFK")
-
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                 _G.YOKUDO_AFKSystem.Enable()
                 AFKStarted = true
@@ -332,11 +347,11 @@ local function MainLoop()
     print("[FarmingManager] MainLoop Started")
 
     while FarmingEnabled do
-        local Text = GetNightTimerText()
-        local Phase, Sec = GetPhase(Text)
+        local Phase = GetPhase()
+        local Sec = GetSecondsUntilReset()
         CurrentPhase = Phase
 
-        print("[FarmingManager] Phase: " .. Phase .. " | Sec: " .. tostring(Sec))
+        print("[FarmingManager] Phase: " .. Phase .. " | SecUntilReset: " .. math.floor(Sec))
 
         if Phase == "Day" then
             DayLoop()
@@ -410,6 +425,7 @@ _G.YOKUDO_FarmingManager = {
     SetRarities = SetRarities,
     GetState = function() return CurrentState end,
     GetPhase = function() return CurrentPhase end,
+    GetSecondsUntilReset = GetSecondsUntilReset,
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     FLY_SPEED = FLY_SPEED,
@@ -439,4 +455,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ FarmingManager Feature Loaded (Fixed Day/Night Logic)")
+print("✅ FarmingManager Feature Loaded (ប្រើ AreaEggCycle.IsNightPhase)")
