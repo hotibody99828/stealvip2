@@ -1,6 +1,6 @@
---==================================================
+-- ==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader
---==================================================
+-- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
 
@@ -15,9 +15,9 @@ end
 
 print("🔵 Loading YOKUDO HUB...")
 
---==================================================
+-- ==================================================
 -- CACHE SYSTEM
---==================================================
+-- ==================================================
 _G.YOKUDO_Cache = _G.YOKUDO_Cache or {}
 
 local function GetScript(path)
@@ -30,9 +30,9 @@ local function GetScript(path)
     return script
 end
 
---==================================================
+-- ==================================================
 -- WAIT UNTIL GAME IS LOADED
---==================================================
+-- ==================================================
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 
 local Player = game.Players.LocalPlayer
@@ -40,9 +40,9 @@ local CoreGui = game:GetService("CoreGui")
 
 print("✅ Game loaded, Player: " .. Player.Name)
 
---==================================================
+-- ==================================================
 -- CREATE LOADING SCREEN
---==================================================
+-- ==================================================
 local function CreateLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     LoadingGui.Name = "LoadingScreen"
@@ -149,15 +149,15 @@ local function CreateLoadingScreen()
     }
 end
 
---==================================================
+-- ==================================================
 -- CREATE LOADING SCREEN
---==================================================
+-- ==================================================
 local Loading = CreateLoadingScreen()
 Loading.Update(5)
 
---==================================================
+-- ==================================================
 -- LOAD CORE FILES
---==================================================
+-- ==================================================
 Loading.Update(10)
 loadstring(GetScript("Config.lua"))()
 
@@ -167,15 +167,15 @@ loadstring(GetScript("UI.lua"))()
 Loading.Update(20)
 loadstring(GetScript("Components.lua"))()
 
---==================================================
+-- ==================================================
 -- LOAD TABS MANAGER
---==================================================
+-- ==================================================
 Loading.Update(25)
 loadstring(GetScript("Tabs/Init.lua"))()
 
---==================================================
+-- ==================================================
 -- LOAD FEATURES
---==================================================
+-- ==================================================
 Loading.Update(28)
 loadstring(GetScript("Features/AntiAFK.lua"))()
 
@@ -197,8 +197,13 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
+-- ✅ AFKSystem (Features ផ្សេង)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
+
+-- ✅ AFKSystem2 (សម្រាប់ AFK Farm only)
+Loading.Update(50)
+loadstring(GetScript("Features/AFKSystem2.lua"))()
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
@@ -209,13 +214,21 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ ConfigSystem (Load After Features, Before Tabs)
+-- ✅ TeleportAFKSystem (សម្រាប់ AFK Farm)
+Loading.Update(58)
+loadstring(GetScript("Features/TeleportAFKSystem.lua"))()
+
+-- ✅ FarmingManager (ហៅ AFKSystem2 + TeleportAFKSystem)
 Loading.Update(59)
+loadstring(GetScript("Features/FarmingManager.lua"))()
+
+-- ✅ ConfigSystem
+Loading.Update(60)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
---==================================================
+-- ==================================================
 -- LOAD TABS
---==================================================
+-- ==================================================
 Loading.Update(62)
 loadstring(GetScript("Tabs/Info.lua"))()
 
@@ -234,18 +247,12 @@ loadstring(GetScript("Tabs/Event.lua"))()
 Loading.Update(85)
 loadstring(GetScript("Tabs/HopServer.lua"))()
 
-Loading.Update(83)
-loadstring(GetScript("Features/TeleportAFKSystem.lua"))()
-
-Loading.Update(84)
-loadstring(GetScript("Features/FarmingManager.lua"))()
-
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
---==================================================
+-- ==================================================
 -- SELECT DEFAULT TAB
---==================================================
+-- ==================================================
 Loading.Update(92)
 if _G.YOKUDO_TabsManager then
     _G.YOKUDO_TabsManager:SelectTabByName("Info")
@@ -253,15 +260,15 @@ end
 
 Loading.Update(95)
 
---==================================================
+-- ==================================================
 -- LOAD ANTI CHEAT
---==================================================
+-- ==================================================
 Loading.Update(98)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
---==================================================
+-- ==================================================
 -- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
---==================================================
+-- ==================================================
 print("⏳ Waiting 2s before applying config...")
 task.wait(2)
 
