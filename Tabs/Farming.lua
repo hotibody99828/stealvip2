@@ -13,8 +13,41 @@ local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
--- 1. SELECT EGG TYPE (DROPDOWN)
+-- SELECT EGG TYPE (DROPDOWN - ដូច Setting)
 -- ==================================================
+local RarityHolder = Instance.new("Frame")
+RarityHolder.Size = UDim2.new(1, 0, 0, 52)
+RarityHolder.BackgroundTransparency = 1
+RarityHolder.LayoutOrder = 2
+RarityHolder.ZIndex = 100
+RarityHolder.Parent = FarmingPage
+
+local RarityLabel = Instance.new("TextLabel")
+RarityLabel.Size = UDim2.new(1, -120, 0, 20)
+RarityLabel.Position = UDim2.new(0, 0, 0, 2)
+RarityLabel.BackgroundTransparency = 1
+RarityLabel.Text = "Select Egg Type"
+RarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+RarityLabel.TextSize = 13
+RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+RarityLabel.TextYAlignment = Enum.TextYAlignment.Center
+RarityLabel.Font = Enum.Font.GothamBold
+RarityLabel.ZIndex = 101
+RarityLabel.Parent = RarityHolder
+
+local RarityTitle = Instance.new("TextLabel")
+RarityTitle.Size = UDim2.new(1, -120, 0, 18)
+RarityTitle.Position = UDim2.new(0, 0, 0, 24)
+RarityTitle.BackgroundTransparency = 1
+RarityTitle.Text = "Select Rarity to Farm"
+RarityTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+RarityTitle.TextSize = 10
+RarityTitle.TextXAlignment = Enum.TextXAlignment.Left
+RarityTitle.Font = Enum.Font.Gotham
+RarityTitle.ZIndex = 101
+RarityTitle.Parent = RarityHolder
+
+-- Selected Rarities
 local SelectedRarities = { Secret = true, Eternal = true, Divine = true }
 
 local function GetSelectedText()
@@ -23,61 +56,19 @@ local function GetSelectedText()
     if SelectedRarities.Eternal then table.insert(List, "Eternal") end
     if SelectedRarities.Divine then table.insert(List, "Divine") end
     if #List == 0 then return "None" end
+    if #List == 3 then return "All" end
     return table.concat(List, ", ")
 end
 
-local RarityHolder = Instance.new("Frame")
-RarityHolder.Size = UDim2.new(1, 0, 0, 52)
-RarityHolder.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
-RarityHolder.BorderSizePixel = 0
-RarityHolder.LayoutOrder = 2
-RarityHolder.ZIndex = 100
-RarityHolder.Parent = FarmingPage
-
-local RarityCorner = Instance.new("UICorner")
-RarityCorner.CornerRadius = UDim.new(0, 8)
-RarityCorner.Parent = RarityHolder
-
-local RarityStroke = Instance.new("UIStroke")
-RarityStroke.Color = Color3.fromRGB(105, 90, 190)
-RarityStroke.Thickness = 1.5
-RarityStroke.Transparency = 0.4
-RarityStroke.Parent = RarityHolder
-
-local RarityLabel = Instance.new("TextLabel")
-RarityLabel.Size = UDim2.new(1, -120, 0, 20)
-RarityLabel.Position = UDim2.new(0, 10, 0, 4)
-RarityLabel.BackgroundTransparency = 1
-RarityLabel.Text = "Select Egg Type"
-RarityLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-RarityLabel.TextSize = 13
-RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-RarityLabel.TextYAlignment = Enum.TextYAlignment.Center
-RarityLabel.Font = Enum.Font.GothamBold
-RarityLabel.ZIndex = 101
-RarityLabel.Parent = RarityHolder
-
-local RaritySub = Instance.new("TextLabel")
-RaritySub.Size = UDim2.new(1, -120, 0, 16)
-RaritySub.Position = UDim2.new(0, 10, 0, 24)
-RaritySub.BackgroundTransparency = 1
-RaritySub.Text = "Select Rarity to Farm"
-RaritySub.TextColor3 = Color3.fromRGB(150, 150, 170)
-RaritySub.TextSize = 10
-RaritySub.TextXAlignment = Enum.TextXAlignment.Left
-RaritySub.Font = Enum.Font.Gotham
-RaritySub.ZIndex = 101
-RaritySub.Parent = RarityHolder
-
 -- Dropdown Button
 local DropdownBtn = Instance.new("TextButton")
-DropdownBtn.Size = UDim2.new(0, 220, 0, 28)
-DropdownBtn.Position = UDim2.new(1, -230, 0.5, -14)
+DropdownBtn.Size = UDim2.new(0, 120, 0, 28)
+DropdownBtn.Position = UDim2.new(1, -120, 0.5, -14)
 DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
 DropdownBtn.BorderSizePixel = 0
 DropdownBtn.Text = GetSelectedText() .. " ▼"
 DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-DropdownBtn.TextSize = 10
+DropdownBtn.TextSize = 11
 DropdownBtn.Font = Enum.Font.GothamBold
 DropdownBtn.AutoButtonColor = false
 DropdownBtn.ZIndex = 101
@@ -95,12 +86,12 @@ DdStroke.Parent = DropdownBtn
 
 -- Dropdown List
 local DropdownList = Instance.new("Frame")
-DropdownList.Size = UDim2.new(0, 220, 0, 90)
-DropdownList.Position = UDim2.new(1, -230, 1, 4)
+DropdownList.Size = UDim2.new(0, 120, 0, 80)
+DropdownList.Position = UDim2.new(1, -120, 1, 2)
 DropdownList.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
 DropdownList.BorderSizePixel = 0
 DropdownList.Visible = false
-DropdownList.ZIndex = 999
+DropdownList.ZIndex = 200
 DropdownList.Parent = RarityHolder
 
 local DlCorner = Instance.new("UICorner")
@@ -125,10 +116,12 @@ DlPadding.PaddingLeft = UDim.new(0, 4)
 DlPadding.PaddingRight = UDim.new(0, 4)
 DlPadding.Parent = DropdownList
 
--- Dropdown Options
+-- Create Dropdown Option
+local OptionButtons = {}
+
 local function CreateDropdownOption(Name, Order)
     local Option = Instance.new("TextButton")
-    Option.Size = UDim2.new(1, 0, 0, 24)
+    Option.Size = UDim2.new(1, 0, 0, 22)
     Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
     Option.BorderSizePixel = 0
     Option.Text = Name
@@ -137,34 +130,25 @@ local function CreateDropdownOption(Name, Order)
     Option.Font = Enum.Font.GothamMedium
     Option.AutoButtonColor = false
     Option.LayoutOrder = Order
-    Option.ZIndex = 1000
+    Option.ZIndex = 201
     Option.Parent = DropdownList
 
     local OptCorner = Instance.new("UICorner")
     OptCorner.CornerRadius = UDim.new(0, 4)
     OptCorner.Parent = Option
 
-    local OptStroke = Instance.new("UIStroke")
-    OptStroke.Color = Color3.fromRGB(200, 200, 220)
-    OptStroke.Thickness = 1
-    OptStroke.Transparency = 0.5
-    OptStroke.Parent = Option
-
-    local function UpdateVisual()
-        if SelectedRarities[Name] then
-            Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            OptStroke.Color = Color3.fromRGB(135, 120, 225)
-            Option.Text = "✓ " .. Name
-        else
-            Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-            OptStroke.Color = Color3.fromRGB(200, 200, 220)
-            Option.Text = Name
-        end
-    end
+    OptionButtons[Name] = Option
 
     Option.MouseButton1Click:Connect(function()
         SelectedRarities[Name] = not SelectedRarities[Name]
-        UpdateVisual()
+
+        -- Update Visual
+        if SelectedRarities[Name] then
+            Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        else
+            Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+        end
+
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
         if _G.YOKUDO_FarmingManager then
@@ -176,7 +160,19 @@ local function CreateDropdownOption(Name, Order)
         end
     end)
 
-    UpdateVisual()
+    Option.MouseEnter:Connect(function()
+        TweenService:Create(Option, TweenInfo.new(0.1), {
+            BackgroundColor3 = Color3.fromRGB(45, 46, 60)
+        }):Play()
+    end)
+
+    Option.MouseLeave:Connect(function()
+        if not SelectedRarities[Name] then
+            TweenService:Create(Option, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+            }):Play()
+        end
+    end)
 end
 
 CreateDropdownOption("Secret", 1)
@@ -188,31 +184,20 @@ DropdownBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- 2. FEATURE: AUTO AFK FARMING EGG (ដាក់ខាងក្រោម)
+-- FEATURE: AUTO AFK FARMING EGG (ដាក់ខាងក្រោម)
 -- ==================================================
 local FarmHolder = Instance.new("Frame")
 FarmHolder.Size = UDim2.new(1, 0, 0, 52)
-FarmHolder.BackgroundColor3 = Color3.fromRGB(28, 29, 42)
-FarmHolder.BorderSizePixel = 0
+FarmHolder.BackgroundTransparency = 1
 FarmHolder.LayoutOrder = 3
 FarmHolder.Parent = FarmingPage
 
-local FarmCorner = Instance.new("UICorner")
-FarmCorner.CornerRadius = UDim.new(0, 8)
-FarmCorner.Parent = FarmHolder
-
-local FarmStroke = Instance.new("UIStroke")
-FarmStroke.Color = Color3.fromRGB(105, 90, 190)
-FarmStroke.Thickness = 1.5
-FarmStroke.Transparency = 0.4
-FarmStroke.Parent = FarmHolder
-
 local FarmLabel = Instance.new("TextLabel")
-FarmLabel.Size = UDim2.new(1, -60, 0, 20)
-FarmLabel.Position = UDim2.new(0, 10, 0, 4)
+FarmLabel.Size = UDim2.new(1, -50, 0, 20)
+FarmLabel.Position = UDim2.new(0, 0, 0, 2)
 FarmLabel.BackgroundTransparency = 1
 FarmLabel.Text = "Auto AFK Farming Egg"
-FarmLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+FarmLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 FarmLabel.TextSize = 13
 FarmLabel.TextXAlignment = Enum.TextXAlignment.Left
 FarmLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -220,8 +205,8 @@ FarmLabel.Font = Enum.Font.GothamBold
 FarmLabel.Parent = FarmHolder
 
 local FarmSub = Instance.new("TextLabel")
-FarmSub.Size = UDim2.new(1, -60, 0, 16)
-FarmSub.Position = UDim2.new(0, 10, 0, 24)
+FarmSub.Size = UDim2.new(1, -50, 0, 18)
+FarmSub.Position = UDim2.new(0, 0, 0, 24)
 FarmSub.BackgroundTransparency = 1
 FarmSub.Text = "Auto Select + Teleport + Collect + AFK"
 FarmSub.TextColor3 = Color3.fromRGB(150, 150, 170)
@@ -231,36 +216,35 @@ FarmSub.Font = Enum.Font.Gotham
 FarmSub.Parent = FarmHolder
 
 local FarmButton = Instance.new("TextButton")
-FarmButton.Size = UDim2.new(0, 34, 0, 34)
-FarmButton.Position = UDim2.new(1, -44, 0.5, -17)
-FarmButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-FarmButton.BackgroundTransparency = 0.85
+FarmButton.Size = UDim2.new(0, 26, 0, 26)
+FarmButton.Position = UDim2.new(1, -26, 0.5, -13)
+FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
 FarmButton.BorderSizePixel = 0
 FarmButton.Text = ""
 FarmButton.AutoButtonColor = false
 FarmButton.Parent = FarmHolder
 
-local FarmButtonCorner = Instance.new("UICorner")
-FarmButtonCorner.CornerRadius = UDim.new(0, 8)
-FarmButtonCorner.Parent = FarmButton
+local FarmCorner = Instance.new("UICorner")
+FarmCorner.CornerRadius = UDim.new(0, 6)
+FarmCorner.Parent = FarmButton
 
-local FarmButtonStroke = Instance.new("UIStroke")
-FarmButtonStroke.Color = Color3.fromRGB(255, 255, 255)
-FarmButtonStroke.Thickness = 2
-FarmButtonStroke.Parent = FarmButton
+local FarmStroke = Instance.new("UIStroke")
+FarmStroke.Color = Color3.fromRGB(200, 200, 220)
+FarmStroke.Thickness = 1.5
+FarmStroke.Parent = FarmButton
 
 local FarmCheck = Instance.new("TextLabel")
 FarmCheck.Size = UDim2.new(1, 0, 1, 0)
 FarmCheck.BackgroundTransparency = 1
 FarmCheck.Text = "✓"
 FarmCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-FarmCheck.TextSize = 20
+FarmCheck.TextSize = 18
 FarmCheck.Font = Enum.Font.GothamBold
 FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- CHECKBOX TOGGLE
+-- TOGGLE FARM
 -- ==================================================
 local FarmEnabled = false
 
@@ -275,8 +259,7 @@ local function ToggleFarm()
 
     if FarmEnabled then
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        FarmButton.BackgroundTransparency = 0
-        FarmButtonStroke.Color = Color3.fromRGB(135, 120, 225)
+        FarmStroke.Color = Color3.fromRGB(135, 120, 225)
 
         local List = {}
         if SelectedRarities.Secret then table.insert(List, "Secret") end
@@ -286,9 +269,8 @@ local function ToggleFarm()
 
         _G.YOKUDO_FarmingManager.Enable()
     else
-        FarmButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        FarmButton.BackgroundTransparency = 0.85
-        FarmButtonStroke.Color = Color3.fromRGB(255, 255, 255)
+        FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         _G.YOKUDO_FarmingManager.Disable()
     end
 end
@@ -308,21 +290,9 @@ task.spawn(function()
         FarmCheck.Visible = State
         if State then
             FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            FarmButton.BackgroundTransparency = 0
-            FarmButtonStroke.Color = Color3.fromRGB(135, 120, 225)
+            FarmStroke.Color = Color3.fromRGB(135, 120, 225)
         end
     end
 end)
 
--- ==================================================
--- AUTO UPDATE DROPDOWN TEXT
--- ==================================================
-task.spawn(function()
-    while task.wait(0.5) do
-        if DropdownBtn then
-            DropdownBtn.Text = GetSelectedText() .. " ▼"
-        end
-    end
-end)
-
-print("✅ Farming Tab Loaded (Dropdown + Feature on Bottom)")
+print("✅ Farming Tab Loaded (Dropdown + Checkbox)")
