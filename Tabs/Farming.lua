@@ -1,13 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
+-- ✅ ដក Debug Loop ចេញ - មិន Check ពេល Load
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local Player = Players.LocalPlayer
 
 local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 
@@ -310,29 +307,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- ✅ DEBUG LOOP (បង្ហាញតែពេល Enabled)
+-- ✅ ដក DEBUG LOOP ចេញទាំងស្រុង
 -- ==================================================
-task.spawn(function()
-    while task.wait(1) do
-        if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
-            local Success, Text = pcall(function()
-                return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
-            end)
-
-            if Success and Text then
-                local M = tonumber(string.match(Text, "(%d+)m")) or 0
-                local S = tonumber(string.match(Text, "(%d+)s")) or 0
-                local TotalSec = M * 60 + S
-
-                local State = "IDLE"
-                if _G.YOKUDO_FarmingManager then
-                    State = _G.YOKUDO_FarmingManager.GetState() or "IDLE"
-                end
-
-                print("[FarmingDebug] NightTimer: " .. Text .. " | Sec: " .. TotalSec .. " | State: " .. State)
-            end
-        end
-    end
-end)
 
 print("✅ Farming Tab Loaded")
