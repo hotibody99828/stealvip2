@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
 -- គ្រប់គ្រង Logic Farming: Check Time + Check Egg + Call Teleport/AFK
+-- ប្រើ AFKSystem2 (សម្រាប់ AFK Farm only)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -185,10 +186,8 @@ local function MainLoop()
             local Text = GetNightTimerText()
             local Sec, IsValid = ParseNightTimer(Text)
             if IsValid and Sec > 10 then
-                -- ថ្ងៃ → បន្ត Check Egg
                 CurrentState = "CHECK_EGG"
             else
-                -- យប់ → ហៅ AFK
                 CurrentState = "AFK"
             end
         end
@@ -199,14 +198,12 @@ local function MainLoop()
         if CurrentState == "CHECK_EGG" then
             local BestEgg = FindBestEgg()
             if BestEgg then
-                -- ✅ មាន Egg Target → ហៅ TeleportAFKSystem
                 if _G.YOKUDO_TeleportAFKSystem then
                     _G.YOKUDO_TeleportAFKSystem.SetTargetId(BestEgg.Uid)
                     _G.YOKUDO_TeleportAFKSystem.Enable()
                 end
                 CurrentState = "WAIT_TELEPORT"
             else
-                -- ✅ គ្មាន Egg → ហៅ AFK
                 CurrentState = "AFK"
             end
         end
@@ -217,17 +214,17 @@ local function MainLoop()
         if CurrentState == "WAIT_TELEPORT" then
             local TeleportRunning = _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled()
             if not TeleportRunning then
-                -- ✅ TeleportAFKSystem បញ្ចប់ → Check Egg ម្តងទៀត
                 CurrentState = "CHECK_EGG"
             end
         end
 
         -- ==========================================
-        -- STATE: AFK
+        -- STATE: AFK (ប្រើ AFKSystem2)
         -- ==========================================
         if CurrentState == "AFK" then
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
+            -- ✅ ប្រើ AFKSystem2 (សម្រាប់ AFK Farm only)
+            if _G.YOKUDO_AFKSystem2 and not _G.YOKUDO_AFKSystem2.IsEnabled() then
+                _G.YOKUDO_AFKSystem2.Enable()
             end
             CurrentState = "WAIT_AFK"
         end
@@ -236,17 +233,15 @@ local function MainLoop()
         -- STATE: WAIT_AFK
         -- ==========================================
         if CurrentState == "WAIT_AFK" then
-            -- Check NightTimer ម្តងទៀត
             local Text = GetNightTimerText()
             local Sec, IsValid = ParseNightTimer(Text)
             if IsValid and Sec > 10 then
-                -- ✅ ថ្ងៃថ្មី → Stop AFK → Check Egg
-                if _G.YOKUDO_AFKSystem then
-                    _G.YOKUDO_AFKSystem.Disable()
+                -- ✅ ថ្ងៃថ្មី → Stop AFKSystem2 → Check Egg
+                if _G.YOKUDO_AFKSystem2 then
+                    _G.YOKUDO_AFKSystem2.Disable()
                 end
                 CurrentState = "CHECK_EGG"
             else
-                -- នៅតែយប់ → បន្ត AFK
                 task.wait(1)
             end
         end
@@ -284,8 +279,9 @@ local function Disable()
     if _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() then
         _G.YOKUDO_TeleportAFKSystem.Disable()
     end
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-        _G.YOKUDO_AFKSystem.Disable()
+    -- ✅ ប្រើ AFKSystem2
+    if _G.YOKUDO_AFKSystem2 and _G.YOKUDO_AFKSystem2.IsEnabled() then
+        _G.YOKUDO_AFKSystem2.Disable()
     end
 
     print("[YOKUDO] FarmingManager: OFF")
@@ -315,4 +311,4 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end
 }
 
-print("✅ FarmingManager Feature Loaded")
+print("✅ FarmingManager Feature Loaded (ប្រើ AFKSystem2)")
