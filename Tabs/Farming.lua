@@ -4,6 +4,10 @@
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
 
 local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 
@@ -13,7 +17,7 @@ local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
--- SELECT EGG TYPE (DROPDOWN - ដូច Setting)
+-- SELECT EGG TYPE (DROPDOWN)
 -- ==================================================
 local RarityHolder = Instance.new("Frame")
 RarityHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -116,8 +120,25 @@ DlPadding.PaddingLeft = UDim.new(0, 4)
 DlPadding.PaddingRight = UDim.new(0, 4)
 DlPadding.Parent = DropdownList
 
--- Create Dropdown Option
+-- ==================================================
+-- CREATE DROPDOWN OPTION (កែ Color Logic)
+-- ==================================================
 local OptionButtons = {}
+
+local function UpdateOptionVisual(Name)
+    local Option = OptionButtons[Name]
+    if not Option then return end
+
+    if SelectedRarities[Name] then
+        -- ✅ Select → មាន Color ស្វាយ
+        Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        Option.Text = "✓ " .. Name
+    else
+        -- ✅ ដក Select → Color ធម្មតា
+        Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+        Option.Text = Name
+    end
+end
 
 local function CreateDropdownOption(Name, Order)
     local Option = Instance.new("TextButton")
@@ -142,12 +163,8 @@ local function CreateDropdownOption(Name, Order)
     Option.MouseButton1Click:Connect(function()
         SelectedRarities[Name] = not SelectedRarities[Name]
 
-        -- Update Visual
-        if SelectedRarities[Name] then
-            Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        else
-            Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-        end
+        -- ✅ Update Visual ភ្លាមៗ
+        UpdateOptionVisual(Name)
 
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
@@ -158,21 +175,25 @@ local function CreateDropdownOption(Name, Order)
             if SelectedRarities.Divine then table.insert(List, "Divine") end
             _G.YOKUDO_FarmingManager.SetRarities(List)
         end
+
+        print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
     Option.MouseEnter:Connect(function()
-        TweenService:Create(Option, TweenInfo.new(0.1), {
-            BackgroundColor3 = Color3.fromRGB(45, 46, 60)
-        }):Play()
-    end)
-
-    Option.MouseLeave:Connect(function()
         if not SelectedRarities[Name] then
             TweenService:Create(Option, TweenInfo.new(0.1), {
-                BackgroundColor3 = Color3.fromRGB(30, 31, 45)
+                BackgroundColor3 = Color3.fromRGB(45, 46, 60)
             }):Play()
         end
     end)
+
+    Option.MouseLeave:Connect(function()
+        -- ✅ Reset Color តាម Select State
+        UpdateOptionVisual(Name)
+    end)
+
+    -- ✅ Set Initial Visual
+    UpdateOptionVisual(Name)
 end
 
 CreateDropdownOption("Secret", 1)
@@ -184,7 +205,7 @@ DropdownBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- FEATURE: AUTO AFK FARMING EGG (ដាក់ខាងក្រោម)
+-- FEATURE: AUTO AFK FARMING EGG
 -- ==================================================
 local FarmHolder = Instance.new("Frame")
 FarmHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -295,4 +316,30 @@ task.spawn(function()
     end
 end)
 
-print("✅ Farming Tab Loaded (Dropdown + Checkbox)")
+-- ==================================================
+-- ✅ SHOW TIME SERVER IN CONSOLE (Debug)
+-- ==================================================
+task.spawn(function()
+    while task.wait(1) do
+        local Success, Text = pcall(function()
+            return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+        end)
+
+        if Success and Text then
+            local M = tonumber(string.match(Text, "(%d+)m")) or 0
+            local S = tonumber(string.match(Text, "(%d+)s")) or 0
+            local TotalSec = M * 60 + S
+
+            local State = "IDLE"
+            if _G.YOKUDO_FarmingManager then
+                State = _G.YOKUDO_FarmingManager.GetState() or "IDLE"
+            end
+
+            print("[FarmingDebug] NightTimer: " .. Text .. " | Sec: " .. TotalSec .. " | State: " .. State)
+        else
+            print("[FarmingDebug] NightTimer: Not Found")
+        end
+    end
+end)
+
+print("✅ Farming Tab Loaded (Dropdown + Debug)")
