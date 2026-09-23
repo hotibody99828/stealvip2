@@ -201,9 +201,6 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ AFKSystem2 (សម្រាប់ AFK Farm only)
-Loading.Update(50)
-loadstring(GetScript("Features/AFKSystem2.lua"))()
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
