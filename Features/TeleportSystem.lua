@@ -3,6 +3,7 @@
 -- First Egg: FlyTP (Shot TP, Offset 10, Speed 1000)
 -- Target Egg: FlyTP / Instant (Lock 1)
 -- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
+-- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -39,15 +40,14 @@ print("[YOKUDO] TeleportSystem: CollectEvent OK")
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
--- ✅ First Egg + Safe Zone: Fly TP
-local FLY_SPEED = 1000        -- ✅ លឿន
-local RETURN_SPEED = 800      -- ✅ លឿន
+local FLY_SPEED = 1000
+local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 10         -- ✅ តូច (ពី 25 → 10)
-local SHOT_DISTANCE = 15      -- ✅ តូច (ពី 30 → 15)
-local LOCK_ABOVE = 1          -- ✅ តូច (ពី 2 → 1)
+local FLY_OFFSET = 10
+local SHOT_DISTANCE = 15
+local LOCK_ABOVE = 1
 
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
@@ -421,7 +421,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone: No Shot TP
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
@@ -434,7 +433,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             end
         end
 
-        -- ✅ Target Egg: Shot TP (15 distance)
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
@@ -446,7 +444,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- Arrived fallback
         if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
             CleanupMovers()
             Root2.CFrame = LockCFrame
@@ -457,7 +454,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- Timeout
         if tick() - StartTime > TIMEOUT_SECONDS then
             CleanupMovers()
             if Callback then Callback() end
@@ -644,7 +640,6 @@ local function FlyToSafeZone()
 
     print("[YOKUDO] FlyTP to Safe Zone")
 
-    -- ✅ UseShotTP = false for Safe Zone
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
     end)
@@ -809,7 +804,6 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    -- ✅ First Egg: Shot TP = true
     print("[YOKUDO] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         CurrentStep = "collect_first"
@@ -907,4 +901,37 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option)")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "TeleportSystem",
+        Enable = Enable,
+        Disable = Disable,
+        IsEnabled = function() return Running end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            -- ✅ TeleportSystem ប្រើ GetHumanoid() រាល់ពេល
+            -- ដូច្នេះវាចាប់ Humanoid ថ្មីដោយស្វ័យប្រវត្តិ
+            -- ប៉ុន្តែបើកំពុងរត់ យើង Restart ដើម្បីធានា
+            if Running then
+                task.wait(1)
+                pcall(function()
+                    local Method = CurrentMethod
+                    local Speed = FLY_SPEED
+                    local TargetId = TARGET_UID
+                    Disable()
+                    task.wait(0.5)
+                    SetMethod(Method)
+                    SetSpeed(Speed)
+                    if TargetId then
+                        SetTargetId(TargetId)
+                    end
+                    Enable()
+                end)
+            end
+        end
+    })
+end
+
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + Register)")
