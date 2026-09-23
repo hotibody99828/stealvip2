@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
--- ✅ ដក Debug Loop ចេញ - មិន Check ពេល Load
+-- ✅ ភ្ជាប់ជាមួយ EggCheckPremium
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -160,12 +160,13 @@ local function CreateDropdownOption(Name, Order)
         UpdateOptionVisual(Name)
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
-        if _G.YOKUDO_FarmingManager then
+        -- ✅ Update EggCheckPremium
+        if _G.YOKUDO_EggCheckPremium then
             local List = {}
             if SelectedRarities.Secret then table.insert(List, "Secret") end
             if SelectedRarities.Eternal then table.insert(List, "Eternal") end
             if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_FarmingManager.SetRarities(List)
+            _G.YOKUDO_EggCheckPremium.SetRarities(List)
         end
 
         print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
@@ -272,11 +273,14 @@ local function ToggleFarm()
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         FarmStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        local List = {}
-        if SelectedRarities.Secret then table.insert(List, "Secret") end
-        if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-        if SelectedRarities.Divine then table.insert(List, "Divine") end
-        _G.YOKUDO_FarmingManager.SetRarities(List)
+        -- ✅ Set Rarities ទៅ EggCheckPremium
+        if _G.YOKUDO_EggCheckPremium then
+            local List = {}
+            if SelectedRarities.Secret then table.insert(List, "Secret") end
+            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
+            if SelectedRarities.Divine then table.insert(List, "Divine") end
+            _G.YOKUDO_EggCheckPremium.SetRarities(List)
+        end
 
         _G.YOKUDO_FarmingManager.Enable()
     else
@@ -306,8 +310,4 @@ task.spawn(function()
     end
 end)
 
--- ==================================================
--- ✅ ដក DEBUG LOOP ចេញទាំងស្រុង
--- ==================================================
-
-print("✅ Farming Tab Loaded")
+print("✅ Farming Tab Loaded (ប្រើ EggCheckPremium)")
