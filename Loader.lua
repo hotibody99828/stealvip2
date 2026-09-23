@@ -197,10 +197,10 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
--- ✅ AFKSystem (Features ផ្សេង)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
+-- ❌ ដក AFKSystem2 ចេញ
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
@@ -211,17 +211,15 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ TeleportAFKSystem (សម្រាប់ AFK Farm)
-Loading.Update(58)
-loadstring(GetScript("Features/TeleportAFKSystem.lua"))()
-
--- ✅ FarmingManager (ហៅ AFKSystem2 + TeleportAFKSystem)
+-- ✅ FarmingManager (ប្រើ TeleportSystem ដើម)
 Loading.Update(59)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
 -- ✅ ConfigSystem
 Loading.Update(60)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
+
+-- ❌ ដក TeleportAFKSystem ចេញ
 
 -- ==================================================
 -- LOAD TABS
