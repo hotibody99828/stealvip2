@@ -1,9 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Teleport AFK System
--- First Egg: Fly TP (Shot 15, Offset 10, Speed 1000)
--- Target Egg: Instant TP (Lock 1)
--- Safe Zone: Fly TP (Offset 10, Speed 1000)
--- ✅ ដាច់ពី TeleportSystem ចាស់ (មិនជាន់គ្នា)
+-- ✅ Stop Lock ពេលដល់ Safe Zone
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -35,20 +32,16 @@ end
 print("[YOKUDO] TeleportAFKSystem: CollectEvent OK")
 
 -- ==================================================
--- ✅ SETTINGS (ដាច់ពី TeleportSystem ចាស់)
+-- SETTINGS
 -- ==================================================
 local AFK_TARGET_UID = nil
 local AFK_SAFE_ZONE = Vector3.new(533, 70, -366)
 
--- ✅ First Egg + Safe Zone: Fly TP (Offset 10, Speed 1000)
 local AFK_FLY_OFFSET = 10
 local AFK_FLY_SPEED = 1000
 local AFK_RETURN_SPEED = 1000
 
--- ✅ Target Egg: Instant TP (Lock 1)
 local AFK_LOCK_ABOVE = 1
-
--- ✅ Shot TP: 15 distance
 local AFK_SHOT_DISTANCE = 15
 
 local AFK_ARRIVE_DISTANCE = 2
@@ -66,7 +59,7 @@ local AFK_LOCK_POSITION = Vector3.new(
 )
 
 -- ==================================================
--- ✅ STATE (ដាច់ពី TeleportSystem ចាស់)
+-- STATE
 -- ==================================================
 local AFK_RagdollEnabled = false
 local AFK_RagdollConnection = nil
@@ -111,6 +104,17 @@ local function GetHumanoid()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     local Root = Char:FindFirstChild("HumanoidRootPart")
     return Hum, Root
+end
+
+-- ==================================================
+-- ✅ STOP LOCK (ពេលដល់ Safe Zone)
+-- ==================================================
+local function StopLock()
+    if AFK_LockConnection then
+        AFK_LockConnection:Disconnect()
+        AFK_LockConnection = nil
+        print("[YOKUDO] TeleportAFKSystem: Lock Stopped")
+    end
 end
 
 -- ==================================================
@@ -213,10 +217,7 @@ local function CleanupMovers()
         AFK_FlyConnection:Disconnect()
         AFK_FlyConnection = nil
     end
-    if AFK_LockConnection then
-        AFK_LockConnection:Disconnect()
-        AFK_LockConnection = nil
-    end
+    StopLock()
     if AFK_BodyVelocity then
         pcall(function()
             AFK_BodyVelocity.Velocity = Vector3.zero
@@ -253,16 +254,14 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- LOCK AT TARGET (Y+1)
+-- LOCK AT TARGET
 -- ==================================================
 local function StartLock(TargetPosition)
     AFK_TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, AFK_LOCK_ABOVE, 0))
-    if AFK_LockConnection then
-        AFK_LockConnection:Disconnect()
-    end
+    StopLock()
     AFK_LockConnection = RunService.Heartbeat:Connect(function()
         if not AFK_Running then
-            if AFK_LockConnection then AFK_LockConnection:Disconnect() AFK_LockConnection = nil end
+            StopLock()
             return
         end
         local Hum, Root = GetHumanoid()
@@ -382,16 +381,16 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if IsSafeZone then
             if HorizDist <= AFK_SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                Root2.CFrame = LockCFrame
+                -- ✅ Stop Lock ពេលដល់ Safe Zone
+                StopLock()
+                Root2.CFrame = CFrame.new(AFK_SAFE_ZONE)
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
                 if Callback then Callback() end
                 return
             end
         end
 
-        -- ✅ Shot TP: 15 distance
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= AFK_SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
@@ -516,11 +515,15 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (Stop Lock ភ្លាម)
 -- ==================================================
 local function AutoStop()
     AFK_Running = false
     AFK_CurrentStep = "done"
+
+    -- ✅ Stop Lock ភ្លាម
+    StopLock()
+
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -562,12 +565,17 @@ function StartFlyToTarget()
 end
 
 -- ==================================================
--- FLY TO SAFE
+-- FLY TO SAFE (Stop Lock ភ្លាម)
 -- ==================================================
 local function FlyToSafeZone()
     AFK_CurrentStep = "to_safe"
     print("[YOKUDO] TeleportAFKSystem: Fly to Safe Zone")
+
+    -- ✅ Stop Lock ភ្លាម មុន Fly
+    StopLock()
+
     FlyTP(AFK_SAFE_ZONE, AFK_RETURN_SPEED, false, true, function()
+        -- ✅ AutoStop ភ្លាមពេលដល់ Safe Zone
         AutoStop()
     end)
 end
@@ -724,6 +732,7 @@ local function FullReset()
     AFK_SavedTargetPosition = nil
     AFK_TargetLockedCFrame = nil
 
+    StopLock()
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -765,4 +774,4 @@ _G.YOKUDO_TeleportAFKSystem = {
     GetTargetId = function() return AFK_TARGET_UID end
 }
 
-print("✅ TeleportAFKSystem Loaded (ដាច់ពី TeleportSystem ចាស់)")
+print("✅ TeleportAFKSystem Loaded (Stop Lock ពេលដល់ Safe Zone)")
