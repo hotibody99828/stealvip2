@@ -1,5 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Walk Speed
+-- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -71,7 +72,7 @@ local function StartWalkSpeed()
 end
 
 -- ==================================================
--- SET VALUE (ពេល User វាយ Value ថ្មី)
+-- SET VALUE
 -- ==================================================
 local function SetWalkSpeedValue(Value)
     WalkSpeedValue = math.clamp(Value, 50, 1000)
@@ -82,7 +83,7 @@ local function SetWalkSpeedValue(Value)
 end
 
 -- ==================================================
--- TOGGLE FUNCTION (ពេល User ធីក Checkbox)
+-- TOGGLE FUNCTION
 -- ==================================================
 local function ToggleWalkSpeed()
     WalkSpeedEnabled = not WalkSpeedEnabled
@@ -112,20 +113,6 @@ local function DisableWalkSpeed()
 end
 
 -- ==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED
--- ==================================================
-Player.CharacterAdded:Connect(function()
-    if WalkSpeedEnabled then
-        task.wait(1)
-        local Hum = GetHumanoid()
-        if Hum then
-            OriginalWalkSpeed = Hum.WalkSpeed
-        end
-        ApplyWalkSpeed()
-    end
-end)
-
--- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_WalkSpeed = {
@@ -137,4 +124,27 @@ _G.YOKUDO_WalkSpeed = {
     GetValue = function() return WalkSpeedValue end
 }
 
-print("✅ WalkSpeed Feature Loaded")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "WalkSpeed",
+        Enable = EnableWalkSpeed,
+        Disable = DisableWalkSpeed,
+        IsEnabled = function() return WalkSpeedEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            if WalkSpeedEnabled then
+                task.wait(0.5)
+                if Hum then
+                    pcall(function()
+                        OriginalWalkSpeed = Hum.WalkSpeed
+                        Hum.WalkSpeed = WalkSpeedValue
+                    end)
+                end
+            end
+        end
+    })
+end
+
+print("✅ WalkSpeed Feature Loaded (Register)")
