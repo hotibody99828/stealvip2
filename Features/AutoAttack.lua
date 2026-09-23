@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Auto Attack
 -- Auto Equip Bat + Auto Fire Remote (Range 17 + Fast)
+-- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -11,7 +12,7 @@ local Player = Players.LocalPlayer
 local Backpack = Player:WaitForChild("Backpack")
 
 -- ==================================================
--- FIND REMOTE (Path ពិត)
+-- FIND REMOTE
 -- ==================================================
 local function GetBatSwingRemote()
     local Success, Remote = pcall(function()
@@ -26,8 +27,8 @@ end
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local ATTACK_RANGE = 60       -- Range ដែល Server ទទួលយកបាន
-local FIRE_INTERVAL = 0.01    -- លឿនបំផុត (ពី 0.5 → 0.02)
+local ATTACK_RANGE = 60
+local FIRE_INTERVAL = 0.01
 
 -- ==================================================
 -- STATE
@@ -128,7 +129,7 @@ local function ToggleAutoEquip()
 end
 
 -- ==================================================
--- FEATURE 2: AUTO FIRE REMOTE (Range 17 + Fast)
+-- FEATURE 2: AUTO FIRE REMOTE
 -- ==================================================
 local function FindClosestPlayer()
     local Hum, Root = GetHumanoid()
@@ -203,16 +204,6 @@ local function ToggleAutoHit()
 end
 
 -- ==================================================
--- AUTO RE-EQUIP ON CHARACTER ADDED
--- ==================================================
-Player.CharacterAdded:Connect(function()
-    if AutoEquipEnabled then
-        task.wait(1)
-        EquipBat()
-    end
-end)
-
--- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_AutoAttack = {
@@ -229,4 +220,33 @@ _G.YOKUDO_AutoAttack = {
     FindClosestPlayer = FindClosestPlayer
 }
 
-print("✅ AutoAttack Feature Loaded (Range 17 + Fast)")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "AutoAttack",
+        Enable = function()
+            if AutoEquipEnabled then EnableAutoEquip() end
+            if AutoHitEnabled then EnableAutoHit() end
+        end,
+        Disable = function()
+            DisableAutoEquip()
+            DisableAutoHit()
+        end,
+        IsEnabled = function()
+            return AutoEquipEnabled or AutoHitEnabled
+        end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            task.wait(1)
+            if AutoEquipEnabled then
+                pcall(function() EnableAutoEquip() end)
+            end
+            if AutoHitEnabled then
+                pcall(function() EnableAutoHit() end)
+            end
+        end
+    })
+end
+
+print("✅ AutoAttack Feature Loaded (Range 17 + Fast + Register)")
