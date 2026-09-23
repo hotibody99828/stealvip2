@@ -1,44 +1,28 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ ប្រើ AreaEggCycle សម្រាប់ Check Day/Night
--- ✅ បង្ហាញ Print តែពេលចាំបាច់
 -- ✅ Night: Check Egg រាល់ 0.05s
 -- ✅ Day: Check Egg រាល់ 0.5s
--- ✅ រង់ចាំ Fly TP ដល់ Safe Zone
+-- ✅ រង់ចាំ Fly TP ដល់ Safe Zone មុននឹងបន្ត
+-- ✅ Fixed Settings
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 
 -- ==================================================
--- ✅ LOAD AREA EGG CYCLE
--- ==================================================
-local AreaEggCycle = nil
-pcall(function()
-    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
-end)
-
-if AreaEggCycle then
-    print("[FarmingManager] AreaEggCycle Loaded")
-else
-    warn("[FarmingManager] AreaEggCycle Not Found!")
-end
-
--- ==================================================
 -- ✅ FIXED SETTINGS
 -- ==================================================
-local NIGHT_CHECK_INTERVAL = 0.05
-local DAY_CHECK_INTERVAL = 0.5
-local PRINT_INTERVAL = 5  -- ✅ បង្ហាញ Print រាល់ 5s
+local NIGHT_CHECK_INTERVAL = 0.05  -- ✅ លឿន
+local DAY_CHECK_INTERVAL = 0.5     -- ✅ យឺត
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000
 local RETURN_SPEED = 800
 local FLY_OFFSET = 10
+
 local METHOD = "InstantTeleport"
 
 -- ==================================================
@@ -51,8 +35,6 @@ local FarmingThread = nil
 local IsAtSafeZone = false
 local WaitingForDay = false
 local AFKStarted = false
-local LastPrintTime = 0
-local LastPhase = "UNKNOWN"
 
 -- ==================================================
 -- GET HUMANOID
@@ -66,45 +48,36 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- ✅ GET PHASE (ប្រើ AreaEggCycle)
+-- GET NIGHT TIMER
 -- ==================================================
-local function GetPhase()
-    if not AreaEggCycle then
-        return "UNKNOWN", 0
+local function GetNightTimerText()
+    local Success, Text = pcall(function()
+        return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+    end)
+    if Success and Text then
+        return tostring(Text)
     end
+    return nil
+end
 
-    local ServerTime = Workspace:GetServerTimeNow()
-    local IsNight = AreaEggCycle.IsNightPhase(ServerTime)
-    
-    if IsNight then
-        local SecUntilReset = AreaEggCycle.SecondsUntilReset(ServerTime)
-        return "Night", SecUntilReset
-    else
-        local SecUntilPhaseEnd = AreaEggCycle.SecondsUntilPhaseEnd(ServerTime)
-        return "Day", SecUntilPhaseEnd
-    end
+local function ParseNightTimer(Text)
+    if not Text then return 0, false end
+    local M = tonumber(string.match(Text, "(%d+)m")) or 0
+    local S = tonumber(string.match(Text, "(%d+)s")) or 0
+    return M * 60 + S, true
 end
 
 -- ==================================================
--- ✅ SHOULD PRINT
+-- GET PHASE
 -- ==================================================
-local function ShouldPrint(Phase)
-    local Now = tick()
-    
-    -- ✅ Print ពេល Phase ផ្លាស់ប្តូរ
-    if Phase ~= LastPhase then
-        LastPhase = Phase
-        LastPrintTime = Now
-        return true
+local function GetPhase(Text)
+    local Sec, IsValid = ParseNightTimer(Text)
+    if not IsValid then return "UNKNOWN", 0 end
+    if Sec > 10 then
+        return "Day", Sec
+    else
+        return "Night", Sec
     end
-    
-    -- ✅ Print រាល់ 5s
-    if Now - LastPrintTime >= PRINT_INTERVAL then
-        LastPrintTime = Now
-        return true
-    end
-    
-    return false
 end
 
 -- ==================================================
@@ -147,7 +120,7 @@ local function StopAFKOnly()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE
+-- ✅ FLY TO SAFE ZONE (រង់ចាំដល់ Safe Zone)
 -- ==================================================
 local function FlyToSafeZone()
     local Hum, Root = GetHumanoid()
@@ -166,6 +139,7 @@ local function FlyToSafeZone()
             end)
         end
         
+        -- ✅ រង់ចាំដល់ Fly TP បញ្ចប់ (មិនលើស 10s)
         local WaitTime = 0
         while not FlyDone and WaitTime < 10 do
             task.wait(0.05)
@@ -179,7 +153,7 @@ local function FlyToSafeZone()
 end
 
 -- ==================================================
--- START TELEPORT
+-- ✅ START TELEPORT
 -- ==================================================
 local function StartTeleport(EggUid)
     if not _G.YOKUDO_TeleportSystem then
@@ -187,7 +161,9 @@ local function StartTeleport(EggUid)
         return
     end
 
-    print("[FarmingManager] Starting Teleport: " .. tostring(EggUid))
+    print("[FarmingManager] Starting Teleport:")
+    print("  - Target UID: " .. tostring(EggUid))
+    print("  - Method: " .. METHOD)
 
     _G.YOKUDO_TeleportSystem.SetMethod(METHOD)
     _G.YOKUDO_TeleportSystem.SetSpeed(FLY_SPEED)
@@ -202,18 +178,16 @@ local function MainLoop()
     print("[FarmingManager] MainLoop Started")
 
     while FarmingEnabled do
-        local Phase, Sec = GetPhase()
+        local Text = GetNightTimerText()
+        local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
-        -- ✅ Print តែពេលចាំបាច់
-        if ShouldPrint(Phase) then
-            print("[FarmingManager] " .. Phase .. " | Sec Until " .. (Phase == "Day" and "Night" or "Reset") .. ": " .. tostring(math.floor(Sec)))
-        end
-
         -- ==========================================
-        -- DAY: Check Egg រាល់ 0.5s
+        -- DAY: Sec > 10 → Check Egg រាល់ 0.5s
         -- ==========================================
         if Phase == "Day" then
+            print("[FarmingManager] Day | Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec))
+
             if WaitingForDay then
                 WaitingForDay = false
                 print("[FarmingManager] ✅ Day Started → Stop Waiting")
@@ -222,7 +196,7 @@ local function MainLoop()
             local BestEgg = FindBestEgg()
 
             if BestEgg then
-                print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName)
+                print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem")
 
                 StopAFKOnly()
                 task.wait(0.5)
@@ -238,39 +212,42 @@ local function MainLoop()
 
                 print("[FarmingManager] TeleportSystem Done → Loop Again")
             else
-                if not AFKStarted then
-                    print("[FarmingManager] Day + No Egg → AFK")
+                print("[FarmingManager] Day but No Egg → AFK")
 
-                    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                        _G.YOKUDO_AFKSystem.Enable()
-                        AFKStarted = true
-                    end
+                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                    _G.YOKUDO_AFKSystem.Enable()
+                    AFKStarted = true
                 end
             end
 
-            task.wait(DAY_CHECK_INTERVAL)
+            task.wait(DAY_CHECK_INTERVAL)  -- ✅ 0.5s
 
         -- ==========================================
-        -- NIGHT: Check Egg រាល់ 0.05s
+        -- NIGHT: Sec <= 10 → Check Egg រាល់ 0.05s
         -- ==========================================
         else
+            -- ✅ បង្ហាញតែពេលចាំបាច់ (កុំ Spam)
+            -- print("[FarmingManager] Night | Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec))
+
             local BestEgg = FindBestEgg()
 
             if BestEgg then
-                print("[FarmingManager] ✅ Night + Egg: " .. BestEgg.DisplayName)
+                print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop AFK → Safe Zone")
 
                 if AFKStarted then
                     StopAFKOnly()
                     task.wait(0.5)
                 end
 
+                -- ✅ Fly TP ទៅ Safe Zone + រង់ចាំដល់
                 FlyToSafeZone()
 
                 WaitingForDay = true
                 print("[FarmingManager] Waiting at Safe Zone until Day...")
 
                 while FarmingEnabled and WaitingForDay do
-                    local Phase2, Sec2 = GetPhase()
+                    local Text2 = GetNightTimerText()
+                    local Phase2, Sec2 = GetPhase(Text2)
                     CurrentPhase = Phase2
 
                     if Phase2 == "Day" then
@@ -279,19 +256,20 @@ local function MainLoop()
                         break
                     end
 
-                    task.wait(0.5)
+                    task.wait(0.5)  -- ✅ Check Day/Night រាល់ 0.5s
                 end
             else
+                -- ✅ គ្មាន Egg → បន្ត AFK
                 if not AFKStarted then
                     if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                         _G.YOKUDO_AFKSystem.Enable()
                         AFKStarted = true
-                        print("[FarmingManager] Night + No Egg → AFK")
+                        print("[FarmingManager] AFK Started")
                     end
                 end
             end
 
-            task.wait(NIGHT_CHECK_INTERVAL)
+            task.wait(NIGHT_CHECK_INTERVAL)  -- ✅ 0.05s
         end
     end
     print("[FarmingManager] MainLoop Stopped")
@@ -305,8 +283,6 @@ local function Enable()
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
     AFKStarted = false
-    LastPrintTime = 0
-    LastPhase = "UNKNOWN"
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -363,11 +339,10 @@ _G.YOKUDO_FarmingManager = {
     SetRarities = SetRarities,
     GetState = function() return CurrentState end,
     GetPhase = function() return CurrentPhase end,
-    GetPhaseInfo = function() return GetPhase() end,
     FLY_SPEED = FLY_SPEED,
     RETURN_SPEED = RETURN_SPEED,
     FLY_OFFSET = FLY_OFFSET,
     METHOD = METHOD
 }
 
-print("✅ FarmingManager Feature Loaded (ប្រើ AreaEggCycle)")
+print("✅ FarmingManager Feature Loaded (Night 0.05s | Day 0.5s)")
