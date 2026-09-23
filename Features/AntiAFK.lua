@@ -1,9 +1,7 @@
 --==================================================
 -- YOKUDO HUB | FEATURE | Anti AFK
 -- Prevent AFK Kick/Hop using 3 Methods
--- Method 1: Mouse Move
--- Method 2: Camera Rotation
--- Method 3: Camera Zoom
+-- ✅ GetHumanoid() ថ្មីរាល់ពេល → មិនត្រូវការ Re-Bind
 --==================================================
 
 local Players = game:GetService("Players")
@@ -11,40 +9,42 @@ local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 
 --==================================================
+-- GET HUMANOID (ថ្មីរាល់ពេល)
+--==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    local Root = Char:FindFirstChild("HumanoidRootPart")
+    return Hum, Root
+end
+
+--==================================================
 -- SETTINGS
 --==================================================
-
 local MOUSE_INTERVAL_MIN = 45
 local MOUSE_INTERVAL_MAX = 120
-
 local CAMERA_INTERVAL_MIN = 60
 local CAMERA_INTERVAL_MAX = 180
-
 local ZOOM_INTERVAL_MIN = 90
 local ZOOM_INTERVAL_MAX = 240
 
 --==================================================
 -- STATE
 --==================================================
-
 local AntiAFKEnabled = false
 local MouseThread = nil
 local CameraThread = nil
 local ZoomThread = nil
 
 --==================================================
--- METHOD 1: MOUSE MOVE
+-- METHODS
 --==================================================
-
 local function DoMouseMove()
     pcall(function()
         mousemoverel(math.random(-15, 15), math.random(-15, 15))
     end)
 end
-
---==================================================
--- METHOD 2: CAMERA ROTATION
---==================================================
 
 local function DoCameraRotation()
     pcall(function()
@@ -58,10 +58,6 @@ local function DoCameraRotation()
         end
     end)
 end
-
---==================================================
--- METHOD 3: CAMERA ZOOM
---==================================================
 
 local function DoCameraZoom()
     pcall(function()
@@ -78,103 +74,61 @@ end
 --==================================================
 -- ENABLE / DISABLE
 --==================================================
-
 local function EnableAntiAFK()
     if AntiAFKEnabled then return end
     AntiAFKEnabled = true
 
-    -- ✅ Method 1: Mouse Move
     MouseThread = task.spawn(function()
         while AntiAFKEnabled do
-            local WaitTime = math.random(MOUSE_INTERVAL_MIN, MOUSE_INTERVAL_MAX)
-            task.wait(WaitTime)
+            task.wait(math.random(MOUSE_INTERVAL_MIN, MOUSE_INTERVAL_MAX))
             if not AntiAFKEnabled then break end
             DoMouseMove()
-            print("[YOKUDO] Anti AFK: Mouse Move")
         end
     end)
 
-    -- ✅ Method 2: Camera Rotation
     CameraThread = task.spawn(function()
         while AntiAFKEnabled do
-            local WaitTime = math.random(CAMERA_INTERVAL_MIN, CAMERA_INTERVAL_MAX)
-            task.wait(WaitTime)
+            task.wait(math.random(CAMERA_INTERVAL_MIN, CAMERA_INTERVAL_MAX))
             if not AntiAFKEnabled then break end
             DoCameraRotation()
-            print("[YOKUDO] Anti AFK: Camera Rotation")
         end
     end)
 
-    -- ✅ Method 3: Camera Zoom
     ZoomThread = task.spawn(function()
         while AntiAFKEnabled do
-            local WaitTime = math.random(ZOOM_INTERVAL_MIN, ZOOM_INTERVAL_MAX)
-            task.wait(WaitTime)
+            task.wait(math.random(ZOOM_INTERVAL_MIN, ZOOM_INTERVAL_MAX))
             if not AntiAFKEnabled then break end
             DoCameraZoom()
-            print("[YOKUDO] Anti AFK: Camera Zoom")
         end
     end)
 
-    print("[YOKUDO] Anti AFK: ON (3 Methods)")
+    print("[YOKUDO] Anti AFK: ON")
 end
 
 local function DisableAntiAFK()
     if not AntiAFKEnabled then return end
     AntiAFKEnabled = false
 
-    if MouseThread then
-        pcall(function() task.cancel(MouseThread) end)
-        MouseThread = nil
-    end
-    if CameraThread then
-        pcall(function() task.cancel(CameraThread) end)
-        CameraThread = nil
-    end
-    if ZoomThread then
-        pcall(function() task.cancel(ZoomThread) end)
-        ZoomThread = nil
-    end
+    if MouseThread then pcall(function() task.cancel(MouseThread) end) MouseThread = nil end
+    if CameraThread then pcall(function() task.cancel(CameraThread) end) CameraThread = nil end
+    if ZoomThread then pcall(function() task.cancel(ZoomThread) end) ZoomThread = nil end
 
     print("[YOKUDO] Anti AFK: OFF")
 end
 
 local function ToggleAntiAFK()
-    if AntiAFKEnabled then
-        DisableAntiAFK()
-    else
-        EnableAntiAFK()
-    end
+    if AntiAFKEnabled then DisableAntiAFK() else EnableAntiAFK() end
 end
-
---==================================================
--- AUTO RE-APPLY ON CHARACTER ADDED
---==================================================
-
-Player.CharacterAdded:Connect(function()
-    if AntiAFKEnabled then
-        task.wait(2)
-        print("[YOKUDO] Anti AFK: Character Respawned")
-    end
-end)
 
 --==================================================
 -- EXPORT
 --==================================================
-
 _G.YOKUDO_AntiAFK = {
     Enable = EnableAntiAFK,
     Disable = DisableAntiAFK,
     Toggle = ToggleAntiAFK,
     IsEnabled = function() return AntiAFKEnabled end,
-
-    -- ✅ Settings
-    MOUSE_INTERVAL_MIN = MOUSE_INTERVAL_MIN,
-    MOUSE_INTERVAL_MAX = MOUSE_INTERVAL_MAX,
-    CAMERA_INTERVAL_MIN = CAMERA_INTERVAL_MIN,
-    CAMERA_INTERVAL_MAX = CAMERA_INTERVAL_MAX,
-    ZOOM_INTERVAL_MIN = ZOOM_INTERVAL_MIN,
-    ZOOM_INTERVAL_MAX = ZOOM_INTERVAL_MAX
+    GetHumanoid = GetHumanoid
 }
 
-print("✅ AntiAFK Feature Loaded (3 Methods)")
+print("✅ AntiAFK Feature Loaded")
