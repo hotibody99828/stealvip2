@@ -1,10 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Teleport AFK System
--- Mode 1: Target in Container (spawn)
--- Mode 2: Target in Workspace (Y change)
--- First Egg: Fly TP (Shot 15, Offset 10, Speed 1000)
--- Target Egg: Instant TP (Lock 1)
--- Safe Zone: Fly TP (Offset 10, Speed 1000)
+-- ដាច់ពី TeleportSystem ចាស់ទាំងស្រុង
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -12,38 +8,40 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player = Players.LocalPlayer
-local Container = workspace:WaitForChild("AreaEggSlotsClient")
+
+-- ✅ AFK Container (ដាច់ពី TeleportSystem ចាស់)
+local AFK_Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- REMOTES
+-- ✅ AFK REMOTES (ដាច់ពី TeleportSystem ចាស់)
 -- ==================================================
-local CollectEvent = nil
-local ForestStrike = nil
+local AFK_CollectEvent = nil
+local AFK_ForestStrike = nil
 
 pcall(function()
-    CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
+    AFK_CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
 end)
 
 pcall(function()
-    ForestStrike = ReplicatedStorage.Packages.Networking["RE/GuardPatrol/ForestStrike"]
+    AFK_ForestStrike = ReplicatedStorage.Packages.Networking["RE/GuardPatrol/ForestStrike"]
 end)
 
-if not CollectEvent then
-    warn("[YOKUDO] TeleportAFKSystem: CollectEvent not found")
+if not AFK_CollectEvent then
+    warn("[YOKUDO] TeleportAFKSystem: AFK_CollectEvent not found")
     return
 end
 
-print("[YOKUDO] TeleportAFKSystem: CollectEvent OK")
+print("[YOKUDO] TeleportAFKSystem: AFK_CollectEvent OK")
 
 -- ==================================================
--- SETTINGS
+-- ✅ AFK SETTINGS (ដាច់ពី TeleportSystem ចាស់)
 -- ==================================================
 local AFK_TARGET_UID = nil
 local AFK_SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local AFK_FLY_OFFSET = 10
-local AFK_FLY_SPEED = 800
-local AFK_RETURN_SPEED = 800
+local AFK_FLY_SPEED = 1000
+local AFK_RETURN_SPEED = 1000
 
 local AFK_LOCK_ABOVE = 1
 local AFK_SHOT_DISTANCE = 15
@@ -54,7 +52,7 @@ local AFK_TIMEOUT_SECONDS = 30
 
 local AFK_COLLECT_INTERVAL = 0.2
 local AFK_SEARCH_PREFIX = "FirstAreaEgg"
-local AFK_POSITION_THRESHOLD = 1  -- ✅ For Mode 2
+local AFK_POSITION_THRESHOLD = 1
 
 local AFK_LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -63,7 +61,7 @@ local AFK_LOCK_POSITION = Vector3.new(
 )
 
 -- ==================================================
--- STATE
+-- ✅ AFK STATE (ដាច់ពី TeleportSystem ចាស់)
 -- ==================================================
 local AFK_RagdollEnabled = false
 local AFK_RagdollConnection = nil
@@ -71,7 +69,7 @@ local AFK_ForceUpConnection = nil
 
 local AFK_Running = false
 local AFK_CurrentStep = "idle"
-local AFK_CurrentMode = "none"  -- ✅ "spawn" or "workspace"
+local AFK_CurrentMode = "none"
 
 local AFK_FlyConnection = nil
 local AFK_BodyVelocity = nil
@@ -92,7 +90,7 @@ local AFK_TargetCollected = false
 local AFK_RemotesFired = false
 
 local AFK_SavedTargetPosition = nil
-local AFK_SavedTargetY = nil  -- ✅ For Mode 2
+local AFK_SavedTargetY = nil
 local AFK_TargetLockedCFrame = nil
 
 local AFK_SavedWalkSpeed = nil
@@ -296,12 +294,12 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- SEARCH FIRST EGGS
+-- SEARCH FIRST EGGS (ប្រើ AFK_Container)
 -- ==================================================
 local function SearchFirstEggs()
     AFK_FirstEggList = {}
-    if not Container then return end
-    for _, Slot in ipairs(Container:GetChildren()) do
+    if not AFK_Container then return end
+    for _, Slot in ipairs(AFK_Container:GetChildren()) do
         if string.find(Slot.Name, AFK_SEARCH_PREFIX) then
             local SlotNum = string.match(Slot.Name, "Slot_(%d+)")
             if SlotNum then
@@ -450,12 +448,12 @@ local function InstantTP(Destination, Callback)
 end
 
 -- ==================================================
--- REMOTE COLLECT
+-- REMOTE COLLECT (ប្រើ AFK_CollectEvent)
 -- ==================================================
 local function RemoteCollectFirst()
-    if not CollectEvent or not AFK_FirstEggSlotKey or not AFK_FirstEggUid then return false end
+    if not AFK_CollectEvent or not AFK_FirstEggSlotKey or not AFK_FirstEggUid then return false end
     return pcall(function()
-        return CollectEvent:InvokeServer({
+        return AFK_CollectEvent:InvokeServer({
             FirstAreaSlotKey = AFK_FirstEggSlotKey,
             Uid = AFK_FirstEggUid
         })
@@ -463,23 +461,23 @@ local function RemoteCollectFirst()
 end
 
 local function RemoteCollectTarget()
-    if not CollectEvent or not AFK_TARGET_UID then return false end
+    if not AFK_CollectEvent or not AFK_TARGET_UID then return false end
     return pcall(function()
-        return CollectEvent:InvokeServer({
+        return AFK_CollectEvent:InvokeServer({
             Uid = AFK_TARGET_UID
         })
     end)
 end
 
 -- ==================================================
--- FIRE FOREST STRIKE
+-- FIRE FOREST STRIKE (ប្រើ AFK_ForestStrike)
 -- ==================================================
 local function FireForestStrike()
     if AFK_RemotesFired then return end
     AFK_RemotesFired = true
     EnableRagdollBypass()
     pcall(function()
-        ForestStrike:FireServer({
+        AFK_ForestStrike:FireServer({
             EggUid = AFK_FirstEggUid,
             GuardCFrame = CFrame.new(AFK_LOCK_POSITION)
         })
@@ -495,7 +493,7 @@ local function FireForestStrike()
 end
 
 -- ==================================================
--- CHECK EGG
+-- CHECK EGG (ប្រើ AFK_Container)
 -- ==================================================
 local function IsFirstEggInWorkspace()
     if not AFK_FirstEggUid then return false end
@@ -504,13 +502,13 @@ end
 
 local function IsFirstEggInContainer()
     if not AFK_FirstEggUid then return false end
-    if not Container then return false end
-    return Container:FindFirstChild(AFK_FirstEggUid) ~= nil
+    if not AFK_Container then return false end
+    return AFK_Container:FindFirstChild(AFK_FirstEggUid) ~= nil
 end
 
 local function IsTargetInContainer()
-    if not AFK_TARGET_UID or not Container then return false end
-    return Container:FindFirstChild(AFK_TARGET_UID) ~= nil
+    if not AFK_TARGET_UID or not AFK_Container then return false end
+    return AFK_Container:FindFirstChild(AFK_TARGET_UID) ~= nil
 end
 
 local function IsTargetInWorkspace()
@@ -533,7 +531,7 @@ local function AutoStop()
 end
 
 -- ==================================================
--- FLY TO TARGET (Instant TP)
+-- FLY TO TARGET
 -- ==================================================
 function StartFlyToTarget()
     if AFK_FlyTargetStarted then return end
@@ -542,7 +540,7 @@ function StartFlyToTarget()
 
     local TargetPos = nil
     if AFK_CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(AFK_TARGET_UID)
+        local TargetEgg = AFK_Container and AFK_Container:FindFirstChild(AFK_TARGET_UID)
         if TargetEgg then
             TargetPos = GetPosition(TargetEgg)
         end
@@ -620,14 +618,12 @@ function StartActiveHeartbeat()
         end
 
         if AFK_CurrentStep == "collect_target" and not AFK_TargetCollected then
-            -- ✅ Mode 1 (spawn)
             if AFK_CurrentMode == "spawn" then
                 if workspace:FindFirstChild(AFK_TARGET_UID) then
                     AFK_TargetCollected = true
                     task.spawn(function() FlyToSafeZone() end)
                     return
                 end
-            -- ✅ Mode 2 (workspace - check Y)
             elseif AFK_CurrentMode == "workspace" then
                 if AFK_SavedTargetY then
                     local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
@@ -681,7 +677,6 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
-    -- ✅ Check Target Mode
     if IsTargetInContainer() then
         AFK_CurrentMode = "spawn"
         print("[YOKUDO] TeleportAFKSystem: Mode 1 (spawn)")
@@ -751,7 +746,7 @@ end
 -- ==================================================
 local function Enable()
     if AFK_Running then return end
-    if not CollectEvent then warn("[YOKUDO] TeleportAFKSystem: CollectEvent not found") return end
+    if not AFK_CollectEvent then warn("[YOKUDO] TeleportAFKSystem: AFK_CollectEvent not found") return end
     if not AFK_TARGET_UID then warn("[YOKUDO] TeleportAFKSystem: No Target ID") return end
 
     FullReset()
@@ -780,4 +775,4 @@ _G.YOKUDO_TeleportAFKSystem = {
     GetTargetId = function() return AFK_TARGET_UID end
 }
 
-print("✅ TeleportAFKSystem Loaded (Mode 1 + Mode 2)")
+print("✅ TeleportAFKSystem Loaded (ដាច់ពី TeleportSystem ចាស់)")
