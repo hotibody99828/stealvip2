@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Egg Check Premium
 -- ជ្រើសរើស Egg តាម Rarity (Divine > Eternal > Secret) និង $/s
+-- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -237,4 +238,34 @@ _G.YOKUDO_EggCheckPremium = {
     RARITY_PRIORITY = RARITY_PRIORITY
 }
 
-print("✅ EggCheckPremium Feature Loaded")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "EggCheckPremium",
+        Enable = function()
+            -- EggCheckPremium គ្មាន Enable ពិសេស
+            -- វាគ្រាន់តែ Scan Eggs និង Filter
+        end,
+        Disable = function()
+            -- គ្មាន Disable ពិសេស
+        end,
+        IsEnabled = function()
+            return false -- មិនមែន Feature ប្រភេទ Enable/Disable
+        end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            -- ✅ EggCheckPremium មិនត្រូវការ Re-Apply ពិសេស
+            -- ព្រោះវាគ្រាន់តែ Scan Eggs
+            -- ប៉ុន្តែយើង Rebuild MeshId Map បើចាំបាច់
+            task.wait(1)
+            pcall(function()
+                if not MeshIdMapBuilt then
+                    BuildMeshIdMap()
+                end
+            end)
+        end
+    })
+end
+
+print("✅ EggCheckPremium Feature Loaded (Register)")
