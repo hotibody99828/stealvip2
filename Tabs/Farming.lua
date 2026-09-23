@@ -1,8 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Farming (Start Steal Egg)
--- ✅ Tap Farming
--- ✅ Title: No Steal Egg Noob
--- ✅ មិនត្រូវការ Register (ប្រើ GetHumanoid រាល់ពេល)
+-- YOKUDO HUB | TAB | Farming (Auto AFK Farming Steal Egg)
+-- ✅ Logic ចាស់ — ហៅ Features ចាស់ៗ
+-- ✅ Title: Auto AFK Farming Steal Egg
+-- ✅ Feature: Auto Farm Steal Egg
+-- ✅ មិនមាន Select Egg Type
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -12,32 +13,15 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player = Players.LocalPlayer
-local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 
 -- ==================================================
--- REMOTES
--- ==================================================
-local CollectEvent = nil
-pcall(function()
-    CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
-end)
-
--- ==================================================
--- SETTINGS
--- ==================================================
-local TAP_INTERVAL = 0.05
-local TAP_RANGE = 50
-local SEARCH_PREFIX = "FirstAreaEgg"
-
--- ==================================================
 -- STATE
 -- ==================================================
-local TapEnabled = false
-local TapThread = nil
-local TapCount = 0
-local LastTapTime = 0
+local AutoFarmEnabled = false
+local AutoFarmThread = nil
+local IsProcessing = false
 
 -- ==================================================
 -- GET HUMANOID
@@ -51,221 +35,237 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- GET POSITION
+-- MAIN AUTO FARM LOOP
 -- ==================================================
-local function GetPosition(Object)
-    if not Object then return nil end
-    if Object:IsA("Model") then
-        if Object.PrimaryPart then return Object.PrimaryPart.Position end
-        local Part = Object:FindFirstChildWhichIsA("BasePart")
-        if Part then return Part.Position end
-        for _, Desc in ipairs(Object:GetDescendants()) do
-            if Desc:IsA("BasePart") then return Desc.Position end
+local function AutoFarmLoop()
+    print("[AutoFarm] MainLoop Started")
+
+    while AutoFarmEnabled do
+        -- ✅ 1. Check Best Egg ពី EggCheckPremium
+        local BestEgg = nil
+        if _G.YOKUDO_EggCheckPremium then
+            BestEgg = _G.YOKUDO_EggCheckPremium.FindBestEgg()
         end
-    elseif Object:IsA("BasePart") then
-        return Object.Position
-    end
-    return nil
-end
 
--- ==================================================
--- FIND NEAREST EGG
--- ==================================================
-local function FindNearestEgg()
-    local Hum, Root = GetHumanoid()
-    if not Root then return nil end
+        if BestEgg then
+            print("[AutoFarm] Found Egg: " .. BestEgg.DisplayName)
 
-    local Nearest = nil
-    local NearestDist = TAP_RANGE
+            -- ✅ 2. Stop AFK (បើកំពុង AFK)
+            if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+                print("[AutoFarm] Stop AFK → Jump Out")
 
-    for _, Slot in ipairs(Container:GetChildren()) do
-        if string.find(Slot.Name, SEARCH_PREFIX) then
-            local Pos = GetPosition(Slot)
-            if Pos then
-                local Dist = (Pos - Root.Position).Magnitude
-                if Dist < NearestDist then
-                    NearestDist = Dist
-                    Nearest = Slot
+                local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+                if not TreadmillPos then
+                    local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+                    if Treadmill then
+                        TreadmillPos = Treadmill.Position
+                    end
+                end
+
+                if TreadmillPos then
+                    _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+                        _G.YOKUDO_AFKSystem.Disable()
+                    end)
+                    task.wait(1)
+                else
+                    _G.YOKUDO_AFKSystem.Disable()
                 end
             end
-        end
-    end
 
-    return Nearest
-end
+            -- ✅ 3. Fly to Safe Zone
+            if _G.YOKUDO_AFKSystem then
+                local FlyDone = false
+                _G.YOKUDO_AFKSystem.FlyTP(Vector3.new(533, 70, -366), function()
+                    FlyDone = true
+                end)
 
--- ==================================================
--- FIRE TAP REMOTE
--- ==================================================
-local function FireTap(Egg)
-    if not Egg or not CollectEvent then return end
-
-    local SlotNum = string.match(Egg.Name, "Slot_(%d+)")
-    if not SlotNum then return end
-
-    local SlotKey = "Forest:Slot_" .. SlotNum
-    local Uid = Egg.Name
-
-    pcall(function()
-        CollectEvent:InvokeServer({
-            FirstAreaSlotKey = SlotKey,
-            Uid = Uid
-        })
-    end)
-
-    TapCount = TapCount + 1
-end
-
--- ==================================================
--- TAP LOOP
--- ==================================================
-local function StartTapLoop()
-    if TapThread then
-        pcall(function() task.cancel(TapThread) end)
-        TapThread = nil
-    end
-
-    TapThread = task.spawn(function()
-        while TapEnabled do
-            local now = tick()
-            if now - LastTapTime >= TAP_INTERVAL then
-                LastTapTime = now
-
-                local Egg = FindNearestEgg()
-                if Egg then
-                    FireTap(Egg)
+                local WaitTime = 0
+                while not FlyDone and WaitTime < 10 do
+                    task.wait(0.05)
+                    WaitTime = WaitTime + 0.05
+                    if not AutoFarmEnabled then break end
                 end
             end
-            task.wait()
+
+            -- ✅ 4. Start Teleport to Egg
+            if _G.YOKUDO_TeleportSystem and BestEgg then
+                print("[AutoFarm] Start Teleport to: " .. BestEgg.Uid)
+
+                _G.YOKUDO_TeleportSystem.SetMethod("InstantTeleport")
+                _G.YOKUDO_TeleportSystem.SetSpeed(1000)
+                _G.YOKUDO_TeleportSystem.SetTargetId(BestEgg.Uid)
+                _G.YOKUDO_TeleportSystem.Enable()
+
+                -- ✅ 5. រង់ចាំ Teleport បញ្ចប់
+                while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
+                    task.wait(0.5)
+                    if not AutoFarmEnabled then break end
+                end
+
+                print("[AutoFarm] Teleport Done")
+            end
+        else
+            print("[AutoFarm] No Egg → AFK")
+
+            -- ✅ 6. គ្មាន Egg → AFK
+            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                _G.YOKUDO_AFKSystem.Enable()
+            end
         end
-    end)
+
+        task.wait(0.5)
+    end
+    print("[AutoFarm] MainLoop Stopped")
 end
 
 -- ==================================================
 -- ENABLE / DISABLE
 -- ==================================================
-local function EnableTap()
-    if TapEnabled then return end
-    TapEnabled = true
-    TapCount = 0
-    StartTapLoop()
-    print("[YOKUDO] Start Steal Egg: ON")
+local function EnableAutoFarm()
+    if AutoFarmEnabled then return end
+    AutoFarmEnabled = true
+
+    if AutoFarmThread then
+        pcall(function() task.cancel(AutoFarmThread) end)
+        AutoFarmThread = nil
+    end
+    AutoFarmThread = task.spawn(function() AutoFarmLoop() end)
+
+    print("[YOKUDO] Auto Farm Steal Egg: ON")
 end
 
-local function DisableTap()
-    if not TapEnabled then return end
-    TapEnabled = false
+local function DisableAutoFarm()
+    if not AutoFarmEnabled then return end
+    AutoFarmEnabled = false
 
-    if TapThread then
-        pcall(function() task.cancel(TapThread) end)
-        TapThread = nil
+    if AutoFarmThread then
+        pcall(function() task.cancel(AutoFarmThread) end)
+        AutoFarmThread = nil
     end
 
-    print("[YOKUDO] Start Steal Egg: OFF")
+    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+        _G.YOKUDO_TeleportSystem.Disable()
+    end
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+        _G.YOKUDO_AFKSystem.Disable()
+    end
+
+    print("[YOKUDO] Auto Farm Steal Egg: OFF")
 end
 
-local function ToggleTap()
-    if TapEnabled then DisableTap() else EnableTap() end
+local function ToggleAutoFarm()
+    if AutoFarmEnabled then DisableAutoFarm() else EnableAutoFarm() end
 end
 
 -- ==================================================
 -- UI
 -- ==================================================
-CreateSectionTitle(FarmingPage, "No Steal Egg Noob", 1)
+CreateSectionTitle(FarmingPage, "Auto AFK Farming Steal Egg", 1)
 
-local TapHolder = Instance.new("Frame")
-TapHolder.Size = UDim2.new(1, 0, 0, 52)
-TapHolder.BackgroundTransparency = 1
-TapHolder.LayoutOrder = 2
-TapHolder.Parent = FarmingPage
+-- Toggle Holder
+local FarmHolder = Instance.new("Frame")
+FarmHolder.Size = UDim2.new(1, 0, 0, 52)
+FarmHolder.BackgroundTransparency = 1
+FarmHolder.LayoutOrder = 2
+FarmHolder.Parent = FarmingPage
 
-local TapLabel = Instance.new("TextLabel")
-TapLabel.Size = UDim2.new(1, -50, 0, 20)
-TapLabel.Position = UDim2.new(0, 0, 0, 2)
-TapLabel.BackgroundTransparency = 1
-TapLabel.Text = "Start Steal Egg"
-TapLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-TapLabel.TextSize = 13
-TapLabel.TextXAlignment = Enum.TextXAlignment.Left
-TapLabel.TextYAlignment = Enum.TextYAlignment.Center
-TapLabel.Font = Enum.Font.GothamBold
-TapLabel.Parent = TapHolder
+local FarmLabel = Instance.new("TextLabel")
+FarmLabel.Size = UDim2.new(1, -50, 0, 20)
+FarmLabel.Position = UDim2.new(0, 0, 0, 2)
+FarmLabel.BackgroundTransparency = 1
+FarmLabel.Text = "Auto Farm Steal Egg"
+FarmLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+FarmLabel.TextSize = 13
+FarmLabel.TextXAlignment = Enum.TextXAlignment.Left
+FarmLabel.TextYAlignment = Enum.TextYAlignment.Center
+FarmLabel.Font = Enum.Font.GothamBold
+FarmLabel.Parent = FarmHolder
 
-local TapSub = Instance.new("TextLabel")
-TapSub.Size = UDim2.new(1, -50, 0, 18)
-TapSub.Position = UDim2.new(0, 0, 0, 24)
-TapSub.BackgroundTransparency = 1
-TapSub.Text = "Tap: 0"
-TapSub.TextColor3 = Color3.fromRGB(150, 150, 170)
-TapSub.TextSize = 10
-TapSub.TextXAlignment = Enum.TextXAlignment.Left
-TapSub.Font = Enum.Font.Gotham
-TapSub.Parent = TapHolder
+local FarmSub = Instance.new("TextLabel")
+FarmSub.Size = UDim2.new(1, -50, 0, 18)
+FarmSub.Position = UDim2.new(0, 0, 0, 24)
+FarmSub.BackgroundTransparency = 1
+FarmSub.Text = "Auto Check Egg + Teleport + AFK"
+FarmSub.TextColor3 = Color3.fromRGB(150, 150, 170)
+FarmSub.TextSize = 10
+FarmSub.TextXAlignment = Enum.TextXAlignment.Left
+FarmSub.Font = Enum.Font.Gotham
+FarmSub.Parent = FarmHolder
 
-local TapButton = Instance.new("TextButton")
-TapButton.Size = UDim2.new(0, 26, 0, 26)
-TapButton.Position = UDim2.new(1, -26, 0.5, -13)
-TapButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-TapButton.BorderSizePixel = 0
-TapButton.Text = ""
-TapButton.AutoButtonColor = false
-TapButton.Parent = TapHolder
+local FarmButton = Instance.new("TextButton")
+FarmButton.Size = UDim2.new(0, 26, 0, 26)
+FarmButton.Position = UDim2.new(1, -26, 0.5, -13)
+FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+FarmButton.BorderSizePixel = 0
+FarmButton.Text = ""
+FarmButton.AutoButtonColor = false
+FarmButton.Parent = FarmHolder
 
-local TapCorner = Instance.new("UICorner")
-TapCorner.CornerRadius = UDim.new(0, 6)
-TapCorner.Parent = TapButton
+local FarmCorner = Instance.new("UICorner")
+FarmCorner.CornerRadius = UDim.new(0, 6)
+FarmCorner.Parent = FarmButton
 
-local TapStroke = Instance.new("UIStroke")
-TapStroke.Color = Color3.fromRGB(200, 200, 220)
-TapStroke.Thickness = 1.5
-TapStroke.Parent = TapButton
+local FarmStroke = Instance.new("UIStroke")
+FarmStroke.Color = Color3.fromRGB(200, 200, 220)
+FarmStroke.Thickness = 1.5
+FarmStroke.Parent = FarmButton
 
-local TapCheck = Instance.new("TextLabel")
-TapCheck.Size = UDim2.new(1, 0, 1, 0)
-TapCheck.BackgroundTransparency = 1
-TapCheck.Text = "✓"
-TapCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-TapCheck.TextSize = 18
-TapCheck.Font = Enum.Font.GothamBold
-TapCheck.Visible = false
-TapCheck.Parent = TapButton
+local FarmCheck = Instance.new("TextLabel")
+FarmCheck.Size = UDim2.new(1, 0, 1, 0)
+FarmCheck.BackgroundTransparency = 1
+FarmCheck.Text = "✓"
+FarmCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+FarmCheck.TextSize = 18
+FarmCheck.Font = Enum.Font.GothamBold
+FarmCheck.Visible = false
+FarmCheck.Parent = FarmButton
 
-TapButton.MouseButton1Click:Connect(function()
-    if TapEnabled then
-        DisableTap()
-        TapCheck.Visible = false
-        TapButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        TapStroke.Color = Color3.fromRGB(200, 200, 220)
+FarmButton.MouseButton1Click:Connect(function()
+    if AutoFarmEnabled then
+        DisableAutoFarm()
+        FarmCheck.Visible = false
+        FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        FarmStroke.Color = Color3.fromRGB(200, 200, 220)
     else
-        EnableTap()
-        TapCheck.Visible = true
-        TapButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        TapStroke.Color = Color3.fromRGB(135, 120, 225)
-    end
-end)
-
--- Update Tap Count
-task.spawn(function()
-    while task.wait(0.5) do
-        if TapEnabled then
-            TapSub.Text = "Tap: " .. TapCount
-        end
+        EnableAutoFarm()
+        FarmCheck.Visible = true
+        FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        FarmStroke.Color = Color3.fromRGB(135, 120, 225)
     end
 end)
 
 -- ==================================================
 -- EXPORT
 -- ==================================================
-_G.YOKUDO_TapFarming = {
-    Enable = EnableTap,
-    Disable = DisableTap,
-    Toggle = ToggleTap,
-    IsEnabled = function() return TapEnabled end,
-    GetTapCount = function() return TapCount end,
-    SetTapSpeed = function(v) TAP_INTERVAL = math.clamp(v, 0.01, 1) end,
-    SetTapRange = function(v) TAP_RANGE = math.clamp(v, 5, 200) end,
-    FindNearestEgg = FindNearestEgg,
+_G.YOKUDO_AutoFarmStealEgg = {
+    Enable = EnableAutoFarm,
+    Disable = DisableAutoFarm,
+    Toggle = ToggleAutoFarm,
+    IsEnabled = function() return AutoFarmEnabled end,
     GetHumanoid = GetHumanoid
 }
 
-print("✅ Farming Tab (Start Steal Egg) Loaded")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "AutoFarmStealEgg",
+        Enable = EnableAutoFarm,
+        Disable = DisableAutoFarm,
+        IsEnabled = function() return AutoFarmEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            if AutoFarmEnabled then
+                task.wait(1)
+                if AutoFarmThread then
+                    pcall(function() task.cancel(AutoFarmThread) end)
+                    AutoFarmThread = nil
+                end
+                AutoFarmThread = task.spawn(function() AutoFarmLoop() end)
+                print("[AutoFarm] Restarted on new Character")
+            end
+        end
+    })
+end
+
+print("✅ Farming Tab (Auto AFK Farming Steal Egg) Loaded")
