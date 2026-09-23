@@ -1,9 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ Night: Check រាល់ 0.05s
--- ✅ Day: Check រាល់ 0.5s
+-- ✅ Night: Check 0.05s
+-- ✅ Day: Check 0.5s
 -- ✅ រង់ចាំដល់ Safe Zone ពិតប្រាកដ មុននឹង Day
--- ✅ Target Egg: Instant TP
+-- ✅ Stop TeleportSystem ពេល Night + Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,8 +14,8 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- FIXED SETTINGS
 -- ==================================================
-local NIGHT_CHECK_INTERVAL = 0.05  -- ✅ លឿនពេលយប់
-local DAY_CHECK_INTERVAL = 0.5     -- ✅ យឺតពេលថ្ងៃ
+local NIGHT_CHECK_INTERVAL = 0.05
+local DAY_CHECK_INTERVAL = 0.5
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 
@@ -87,36 +87,40 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- STOP AFK
+-- ✅ STOP ALL (AFK + TeleportSystem)
 -- ==================================================
-local function StopAFKOnly()
-    if not _G.YOKUDO_AFKSystem then return end
-    if not _G.YOKUDO_AFKSystem.IsEnabled() then return end
+local function StopAll()
+    -- Stop AFK
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+        local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+        if not TreadmillPos then
+            local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+            if Treadmill then
+                TreadmillPos = Treadmill.Position
+            end
+        end
 
-    print("[FarmingManager] Stop AFK → Jump Out")
-
-    local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
-    if not TreadmillPos then
-        local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
-        if Treadmill then
-            TreadmillPos = Treadmill.Position
+        if TreadmillPos then
+            _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+                _G.YOKUDO_AFKSystem.Disable()
+                AFKStarted = false
+                print("[FarmingManager] ✅ AFK Stopped + Jumped out!")
+            end)
+        else
+            _G.YOKUDO_AFKSystem.Disable()
+            AFKStarted = false
         end
     end
 
-    if not TreadmillPos then
-        _G.YOKUDO_AFKSystem.Disable()
-        return
+    -- ✅ Stop TeleportSystem (បើកំពុងដើរ)
+    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+        _G.YOKUDO_TeleportSystem.Disable()
+        print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
-
-    _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
-        _G.YOKUDO_AFKSystem.Disable()
-        AFKStarted = false
-        print("[FarmingManager] ✅ Jumped out!")
-    end)
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE (រង់ចាំដល់ពិតប្រាកដ)
+-- ✅ FLY TO SAFE ZONE AND WAIT
 -- ==================================================
 local function FlyToSafeZoneAndWait()
     local Hum, Root = GetHumanoid()
@@ -139,7 +143,7 @@ local function FlyToSafeZoneAndWait()
         end)
     end
 
-    -- ✅ រង់ចាំដល់ Safe Zone ពិតប្រាកដ
+    -- រង់ចាំដល់ Safe Zone ពិតប្រាកដ
     local WaitTime = 0
     while FarmingEnabled and WaitTime < 10 do
         local Hum2, Root2 = GetHumanoid()
@@ -160,7 +164,7 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- ✅ START TELEPORT
+-- START TELEPORT
 -- ==================================================
 local function StartTeleport(EggUid)
     if not _G.YOKUDO_TeleportSystem then
@@ -182,7 +186,7 @@ local function StartTeleport(EggUid)
 end
 
 -- ==================================================
--- ✅ NIGHT LOOP (Check រាល់ 0.05s)
+-- NIGHT LOOP (Check រាល់ 0.05s)
 -- ==================================================
 local function NightLoop()
     print("[FarmingManager] NightLoop Started (0.05s)")
@@ -192,29 +196,25 @@ local function NightLoop()
         local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
-        -- បើ Day → Break NightLoop
         if Phase == "Day" then
             print("[FarmingManager] Day Started → Break NightLoop")
             return
         end
 
-        -- Check Egg រាល់ 0.05s
         local BestEgg = FindBestEgg()
 
         if BestEgg then
-            print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop AFK → Safe Zone")
+            print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop All → Safe Zone")
 
-            -- 1. Stop AFK
-            if AFKStarted then
-                StopAFKOnly()
-                task.wait(0.5)
-            end
+            -- 1. Stop All (AFK + TeleportSystem)
+            StopAll()
+            task.wait(0.5)
 
-            -- 2. Fly TP ទៅ Safe Zone + រង់ចាំដល់ពិតប្រាកដ
+            -- 2. Fly TP ទៅ Safe Zone + រង់ចាំ
             local ReachedSafe = FlyToSafeZoneAndWait()
 
             if ReachedSafe then
-                -- 3. រង់ចាំ Day (Check រាល់ 0.5s)
+                -- 3. រង់ចាំ Day (Check 0.5s)
                 print("[FarmingManager] At Safe Zone → Waiting for Day (0.5s check)")
                 WaitingForDay = true
 
@@ -239,7 +239,6 @@ local function NightLoop()
 
             return
         else
-            -- គ្មាន Egg → បន្ត AFK
             if not AFKStarted then
                 if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                     _G.YOKUDO_AFKSystem.Enable()
@@ -254,7 +253,7 @@ local function NightLoop()
 end
 
 -- ==================================================
--- ✅ DAY LOOP (Check រាល់ 0.5s)
+-- DAY LOOP (Check រាល់ 0.5s)
 -- ==================================================
 local function DayLoop()
     print("[FarmingManager] DayLoop Started (0.5s)")
@@ -264,20 +263,18 @@ local function DayLoop()
         local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
-        -- បើ Night → Break DayLoop
         if Phase == "Night" then
             print("[FarmingManager] Night Started → Break DayLoop")
             return
         end
 
-        -- Check Egg រាល់ 0.5s
         local BestEgg = FindBestEgg()
 
         if BestEgg then
             print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem")
 
-            -- 1. Stop AFK
-            StopAFKOnly()
+            -- 1. Stop All (AFK + TeleportSystem)
+            StopAll()
             task.wait(0.5)
 
             -- 2. Fly TP ទៅ Safe Zone + រង់ចាំ
@@ -308,7 +305,7 @@ local function DayLoop()
 end
 
 -- ==================================================
--- MAIN LOOP (Day/Night Switch)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started")
@@ -358,12 +355,7 @@ local function Disable()
         FarmingThread = nil
     end
 
-    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-        _G.YOKUDO_TeleportSystem.Disable()
-    end
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-        _G.YOKUDO_AFKSystem.Disable()
-    end
+    StopAll()
 
     IsAtSafeZone = false
     WaitingForDay = false
@@ -403,4 +395,26 @@ _G.YOKUDO_FarmingManager = {
     METHOD = METHOD
 }
 
-print("✅ FarmingManager Feature Loaded (Night 0.05s | Day 0.5s)")
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
+if _G.YOKUDO_CharacterSystem then
+    _G.YOKUDO_CharacterSystem:RegisterFeature({
+        Name = "FarmingManager",
+        Enable = Enable,
+        Disable = Disable,
+        IsEnabled = function() return FarmingEnabled end,
+        OnCharacterAdded = function(Char, Hum, Root)
+            if FarmingEnabled then
+                task.wait(1)
+                -- Restart MainLoop
+                if FarmingThread then
+                    pcall(function() task.cancel(FarmingThread) end)
+                end
+                FarmingThread = task.spawn(function() MainLoop() end)
+            end
+        end
+    })
+end
+
+print("✅ FarmingManager Feature Loaded (Fixed Safe Zone Logic)")
