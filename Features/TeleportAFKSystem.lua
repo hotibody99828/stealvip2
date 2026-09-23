@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Teleport AFK System
--- First Egg: Fly TP (Offset 10, Speed 1000)
+-- First Egg: Fly TP (Shot 15, Offset 10, Speed 1000)
 -- Target Egg: Instant TP (Lock 1)
 -- Safe Zone: Fly TP (Offset 10, Speed 1000)
+-- ✅ ដាច់ពី TeleportSystem ចាស់ (មិនជាន់គ្នា)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,42 +35,87 @@ end
 print("[YOKUDO] TeleportAFKSystem: CollectEvent OK")
 
 -- ==================================================
--- SETTINGS
+-- ✅ SETTINGS (ដាច់ពី TeleportSystem ចាស់)
 -- ==================================================
-local TARGET_UID = nil
-local SAFE_ZONE = Vector3.new(533, 70, -366)
+local AFK_TARGET_UID = nil
+local AFK_SAFE_ZONE = Vector3.new(533, 70, -366)
 
 -- ✅ First Egg + Safe Zone: Fly TP (Offset 10, Speed 1000)
-local FLY_OFFSET = 10
-local FLY_SPEED = 1000
-local RETURN_SPEED = 1000
+local AFK_FLY_OFFSET = 10
+local AFK_FLY_SPEED = 1000
+local AFK_RETURN_SPEED = 1000
 
 -- ✅ Target Egg: Instant TP (Lock 1)
-local LOCK_ABOVE = 1
+local AFK_LOCK_ABOVE = 1
 
-local SHOT_DISTANCE = 15
+-- ✅ Shot TP: 15 distance
+local AFK_SHOT_DISTANCE = 15
 
-local ARRIVE_DISTANCE = 2
-local SAFE_LOCK_DISTANCE = 3
-local TIMEOUT_SECONDS = 30
+local AFK_ARRIVE_DISTANCE = 2
+local AFK_SAFE_LOCK_DISTANCE = 3
+local AFK_TIMEOUT_SECONDS = 30
 
-local COLLECT_INTERVAL = 0.2
-local SEARCH_PREFIX = "FirstAreaEgg"
-local POSITION_THRESHOLD = 1
+local AFK_COLLECT_INTERVAL = 0.2
+local AFK_SEARCH_PREFIX = "FirstAreaEgg"
+local AFK_POSITION_THRESHOLD = 1
 
-local LOCK_POSITION = Vector3.new(
+local AFK_LOCK_POSITION = Vector3.new(
     607.6259155273438,
     70.57420349121094,
     -326.8830261230469
 )
 
 -- ==================================================
+-- ✅ STATE (ដាច់ពី TeleportSystem ចាស់)
+-- ==================================================
+local AFK_RagdollEnabled = false
+local AFK_RagdollConnection = nil
+local AFK_ForceUpConnection = nil
+
+local AFK_Running = false
+local AFK_CurrentStep = "idle"
+local AFK_CurrentMode = "none"
+
+local AFK_FlyConnection = nil
+local AFK_BodyVelocity = nil
+local AFK_BodyGyro = nil
+local AFK_ActiveHeartbeat = nil
+local AFK_LockConnection = nil
+
+local AFK_FirstEggList = {}
+local AFK_FirstEggUid = nil
+local AFK_FirstEggSlotKey = nil
+
+local AFK_CollectAttempts = 0
+local AFK_CollectTime = 0
+
+local AFK_FlyTargetStarted = false
+local AFK_CollectDone = false
+local AFK_TargetCollected = false
+local AFK_RemotesFired = false
+
+local AFK_SavedTargetPosition = nil
+local AFK_TargetLockedCFrame = nil
+
+local AFK_SavedWalkSpeed = nil
+local AFK_SavedJumpPower = nil
+local AFK_SavedJumpHeight = nil
+local AFK_SavedUseJumpPower = nil
+
+-- ==================================================
+-- GET HUMANOID
+-- ==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    local Root = Char:FindFirstChild("HumanoidRootPart")
+    return Hum, Root
+end
+
+-- ==================================================
 -- RAGDOLL BYPASS
 -- ==================================================
-local RagdollEnabled = false
-local RagdollConnection = nil
-local ForceUpConnection = nil
-
 local function ForceUp()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
@@ -112,14 +158,14 @@ local function CleanupRagdollConstraints()
 end
 
 local function EnableRagdollBypass()
-    if RagdollEnabled then return end
-    RagdollEnabled = true
-    RagdollConnection = RunService.Heartbeat:Connect(function()
-        if not RagdollEnabled then return end
+    if AFK_RagdollEnabled then return end
+    AFK_RagdollEnabled = true
+    AFK_RagdollConnection = RunService.Heartbeat:Connect(function()
+        if not AFK_RagdollEnabled then return end
         ForceUp()
     end)
-    ForceUpConnection = task.spawn(function()
-        while RagdollEnabled do
+    AFK_ForceUpConnection = task.spawn(function()
+        while AFK_RagdollEnabled do
             task.wait(0.1)
             ForceUp()
             CleanupRagdollConstraints()
@@ -129,87 +175,65 @@ local function EnableRagdollBypass()
 end
 
 local function DisableRagdollBypass()
-    if not RagdollEnabled then return end
-    RagdollEnabled = false
-    if RagdollConnection then
-        RagdollConnection:Disconnect()
-        RagdollConnection = nil
+    if not AFK_RagdollEnabled then return end
+    AFK_RagdollEnabled = false
+    if AFK_RagdollConnection then
+        AFK_RagdollConnection:Disconnect()
+        AFK_RagdollConnection = nil
     end
     print("[YOKUDO] TeleportAFKSystem: Ragdoll Bypass OFF")
 end
 
 -- ==================================================
--- GET HUMANOID
--- ==================================================
-local function GetHumanoid()
-    local Char = Player.Character
-    if not Char then return nil, nil end
-    local Hum = Char:FindFirstChildOfClass("Humanoid")
-    local Root = Char:FindFirstChild("HumanoidRootPart")
-    return Hum, Root
-end
-
--- ==================================================
 -- SAVE / RESTORE STATS
 -- ==================================================
-local SavedWalkSpeed = nil
-local SavedJumpPower = nil
-local SavedJumpHeight = nil
-local SavedUseJumpPower = nil
-
 local function SaveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
-    if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
-    if SavedJumpPower == nil then SavedJumpPower = Hum.JumpPower end
-    if SavedJumpHeight == nil then SavedJumpHeight = Hum.JumpHeight end
-    if SavedUseJumpPower == nil then SavedUseJumpPower = Hum.UseJumpPower end
+    if AFK_SavedWalkSpeed == nil then AFK_SavedWalkSpeed = Hum.WalkSpeed end
+    if AFK_SavedJumpPower == nil then AFK_SavedJumpPower = Hum.JumpPower end
+    if AFK_SavedJumpHeight == nil then AFK_SavedJumpHeight = Hum.JumpHeight end
+    if AFK_SavedUseJumpPower == nil then AFK_SavedUseJumpPower = Hum.UseJumpPower end
 end
 
 local function RestoreStats()
     local Hum = GetHumanoid()
     if not Hum then return end
-    if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
-    if SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = SavedJumpPower end) end
-    if SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = SavedJumpHeight end) end
-    if SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedUseJumpPower end) end
+    if AFK_SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = AFK_SavedWalkSpeed end) end
+    if AFK_SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = AFK_SavedJumpPower end) end
+    if AFK_SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = AFK_SavedJumpHeight end) end
+    if AFK_SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = AFK_SavedUseJumpPower end) end
 end
 
 -- ==================================================
 -- CLEANUP
 -- ==================================================
-local FlyConnection = nil
-local BodyVelocity = nil
-local BodyGyro = nil
-local ActiveHeartbeat = nil
-local LockConnection = nil
-
 local function CleanupMovers()
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
+    if AFK_FlyConnection then
+        AFK_FlyConnection:Disconnect()
+        AFK_FlyConnection = nil
     end
-    if LockConnection then
-        LockConnection:Disconnect()
-        LockConnection = nil
+    if AFK_LockConnection then
+        AFK_LockConnection:Disconnect()
+        AFK_LockConnection = nil
     end
-    if BodyVelocity then
+    if AFK_BodyVelocity then
         pcall(function()
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
+            AFK_BodyVelocity.Velocity = Vector3.zero
+            AFK_BodyVelocity.MaxForce = Vector3.zero
         end)
-        BodyVelocity:Destroy()
-        BodyVelocity = nil
+        AFK_BodyVelocity:Destroy()
+        AFK_BodyVelocity = nil
     end
-    if BodyGyro then
-        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
-        BodyGyro:Destroy()
-        BodyGyro = nil
+    if AFK_BodyGyro then
+        pcall(function() AFK_BodyGyro.MaxTorque = Vector3.zero end)
+        AFK_BodyGyro:Destroy()
+        AFK_BodyGyro = nil
     end
     local Hum, Root = GetHumanoid()
     if Root then
         for _, Child in ipairs(Root:GetChildren()) do
-            if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
+            if Child.Name == "YokudoAFKBV" or Child.Name == "YokudoAFKBG" then
                 pcall(function() Child:Destroy() end)
             end
         end
@@ -229,24 +253,21 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- LOCK AT TARGET (Y+1 for Target Egg)
+-- LOCK AT TARGET (Y+1)
 -- ==================================================
-local TargetLockedCFrame = nil
-
 local function StartLock(TargetPosition)
-    -- ✅ Lock 1 distance for Target Egg
-    TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
-    if LockConnection then
-        LockConnection:Disconnect()
+    AFK_TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, AFK_LOCK_ABOVE, 0))
+    if AFK_LockConnection then
+        AFK_LockConnection:Disconnect()
     end
-    LockConnection = RunService.Heartbeat:Connect(function()
-        if not Running then
-            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
+    AFK_LockConnection = RunService.Heartbeat:Connect(function()
+        if not AFK_Running then
+            if AFK_LockConnection then AFK_LockConnection:Disconnect() AFK_LockConnection = nil end
             return
         end
         local Hum, Root = GetHumanoid()
         if not Root then return end
-        Root.CFrame = TargetLockedCFrame
+        Root.CFrame = AFK_TargetLockedCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
     end)
@@ -273,18 +294,14 @@ end
 -- ==================================================
 -- SEARCH FIRST EGGS
 -- ==================================================
-local FirstEggList = {}
-local FirstEggUid = nil
-local FirstEggSlotKey = nil
-
 local function SearchFirstEggs()
-    FirstEggList = {}
+    AFK_FirstEggList = {}
     if not Container then return end
     for _, Slot in ipairs(Container:GetChildren()) do
-        if string.find(Slot.Name, SEARCH_PREFIX) then
+        if string.find(Slot.Name, AFK_SEARCH_PREFIX) then
             local SlotNum = string.match(Slot.Name, "Slot_(%d+)")
             if SlotNum then
-                table.insert(FirstEggList, {
+                table.insert(AFK_FirstEggList, {
                     Slot = Slot,
                     Uid = Slot.Name,
                     SlotKey = "Forest:Slot_" .. SlotNum,
@@ -300,7 +317,7 @@ local function FindClosestEgg()
     if not Root then return nil end
     local Closest = nil
     local ClosestDistance = 9999
-    for _, Egg in ipairs(FirstEggList) do
+    for _, Egg in ipairs(AFK_FirstEggList) do
         local Pos = GetPosition(Egg.Slot)
         if Pos then
             local Dist = (Pos - Root.Position).Magnitude
@@ -311,8 +328,8 @@ local function FindClosestEgg()
         end
     end
     if Closest then
-        FirstEggUid = Closest.Uid
-        FirstEggSlotKey = Closest.SlotKey
+        AFK_FirstEggUid = Closest.Uid
+        AFK_FirstEggSlotKey = Closest.SlotKey
     end
     return Closest
 end
@@ -326,35 +343,35 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + AFK_FLY_OFFSET, Destination.Z)
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, AFK_LOCK_ABOVE, 0))
 
     Hum.PlatformStand = true
 
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
+    AFK_BodyVelocity = Instance.new("BodyVelocity")
+    AFK_BodyVelocity.Name = "YokudoAFKBV"
+    AFK_BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    AFK_BodyVelocity.P = 1250
+    AFK_BodyVelocity.Velocity = Vector3.zero
+    AFK_BodyVelocity.Parent = Root
 
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    AFK_BodyGyro = Instance.new("BodyGyro")
+    AFK_BodyGyro.Name = "YokudoAFKBG"
+    AFK_BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    AFK_BodyGyro.P = 3000
+    AFK_BodyGyro.D = 500
+    AFK_BodyGyro.CFrame = Root.CFrame
+    AFK_BodyGyro.Parent = Root
 
     local StartTime = tick()
     local ShotDone = false
 
-    FlyConnection = RunService.Heartbeat:Connect(function()
-        if not Running then CleanupMovers() return end
+    AFK_FlyConnection = RunService.Heartbeat:Connect(function()
+        if not AFK_Running then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 then CleanupMovers() return end
         if Hum2.Health <= 0 then return end
-        if not BodyVelocity or not BodyGyro then CleanupMovers() return end
+        if not AFK_BodyVelocity or not AFK_BodyGyro then CleanupMovers() return end
 
         local CurrentPos = Root2.Position
         local Direction = (FlyPos - CurrentPos)
@@ -363,7 +380,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local TotalDist = Direction.Magnitude
 
         if IsSafeZone then
-            if HorizDist <= SAFE_LOCK_DISTANCE then
+            if HorizDist <= AFK_SAFE_LOCK_DISTANCE then
                 CleanupMovers()
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
@@ -374,7 +391,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             end
         end
 
-        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+        -- ✅ Shot TP: 15 distance
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= AFK_SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
             Root2.CFrame = LockCFrame
@@ -385,7 +403,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
+        if HorizDist <= AFK_ARRIVE_DISTANCE and VertDist <= 2 then
             CleanupMovers()
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
@@ -395,18 +413,18 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        if tick() - StartTime > TIMEOUT_SECONDS then
+        if tick() - StartTime > AFK_TIMEOUT_SECONDS then
             CleanupMovers()
             if Callback then Callback() end
             return
         end
 
         if TotalDist > 1 then
-            BodyVelocity.Velocity = Direction.Unit * Speed
+            AFK_BodyVelocity.Velocity = Direction.Unit * Speed
         else
-            BodyVelocity.Velocity = Vector3.zero
+            AFK_BodyVelocity.Velocity = Vector3.zero
         end
-        BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
+        AFK_BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
     end)
 end
 
@@ -419,8 +437,7 @@ local function InstantTP(Destination, Callback)
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    -- ✅ Lock 1 distance for Target Egg
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, AFK_LOCK_ABOVE, 0))
     Root.CFrame = LockCFrame
     Root.AssemblyLinearVelocity = Vector3.zero
     Root.AssemblyAngularVelocity = Vector3.zero
@@ -433,20 +450,20 @@ end
 -- REMOTE COLLECT
 -- ==================================================
 local function RemoteCollectFirst()
-    if not CollectEvent or not FirstEggSlotKey or not FirstEggUid then return false end
+    if not CollectEvent or not AFK_FirstEggSlotKey or not AFK_FirstEggUid then return false end
     return pcall(function()
         return CollectEvent:InvokeServer({
-            FirstAreaSlotKey = FirstEggSlotKey,
-            Uid = FirstEggUid
+            FirstAreaSlotKey = AFK_FirstEggSlotKey,
+            Uid = AFK_FirstEggUid
         })
     end)
 end
 
 local function RemoteCollectTarget()
-    if not CollectEvent or not TARGET_UID then return false end
+    if not CollectEvent or not AFK_TARGET_UID then return false end
     return pcall(function()
         return CollectEvent:InvokeServer({
-            Uid = TARGET_UID
+            Uid = AFK_TARGET_UID
         })
     end)
 end
@@ -454,16 +471,14 @@ end
 -- ==================================================
 -- FIRE FOREST STRIKE
 -- ==================================================
-local RemotesFired = false
-
 local function FireForestStrike()
-    if RemotesFired then return end
-    RemotesFired = true
+    if AFK_RemotesFired then return end
+    AFK_RemotesFired = true
     EnableRagdollBypass()
     pcall(function()
         ForestStrike:FireServer({
-            EggUid = FirstEggUid,
-            GuardCFrame = CFrame.new(LOCK_POSITION)
+            EggUid = AFK_FirstEggUid,
+            GuardCFrame = CFrame.new(AFK_LOCK_POSITION)
         })
     end)
     task.spawn(function()
@@ -480,45 +495,32 @@ end
 -- CHECK EGG
 -- ==================================================
 local function IsFirstEggInWorkspace()
-    if not FirstEggUid then return false end
-    return workspace:FindFirstChild(FirstEggUid) ~= nil
+    if not AFK_FirstEggUid then return false end
+    return workspace:FindFirstChild(AFK_FirstEggUid) ~= nil
 end
 
 local function IsFirstEggInContainer()
-    if not FirstEggUid then return false end
+    if not AFK_FirstEggUid then return false end
     if not Container then return false end
-    return Container:FindFirstChild(FirstEggUid) ~= nil
+    return Container:FindFirstChild(AFK_FirstEggUid) ~= nil
 end
 
 local function IsTargetInContainer()
-    if not TARGET_UID or not Container then return false end
-    return Container:FindFirstChild(TARGET_UID) ~= nil
+    if not AFK_TARGET_UID or not Container then return false end
+    return Container:FindFirstChild(AFK_TARGET_UID) ~= nil
 end
 
 local function IsTargetInWorkspace()
-    if not TARGET_UID then return false end
-    return workspace:FindFirstChild(TARGET_UID) ~= nil
+    if not AFK_TARGET_UID then return false end
+    return workspace:FindFirstChild(AFK_TARGET_UID) ~= nil
 end
-
--- ==================================================
--- STATE
--- ==================================================
-local Running = false
-local CurrentStep = "idle"
-local CurrentMode = "none"
-local CollectAttempts = 0
-local CollectTime = 0
-local FlyTargetStarted = false
-local CollectDone = false
-local TargetCollected = false
-local SavedTargetPosition = nil
 
 -- ==================================================
 -- AUTO STOP
 -- ==================================================
 local function AutoStop()
-    Running = false
-    CurrentStep = "done"
+    AFK_Running = false
+    AFK_CurrentStep = "done"
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -527,36 +529,35 @@ local function AutoStop()
 end
 
 -- ==================================================
--- START FLY TO TARGET (Instant TP)
+-- FLY TO TARGET (Instant TP)
 -- ==================================================
 function StartFlyToTarget()
-    if FlyTargetStarted then return end
-    FlyTargetStarted = true
-    CurrentStep = "to_target"
+    if AFK_FlyTargetStarted then return end
+    AFK_FlyTargetStarted = true
+    AFK_CurrentStep = "to_target"
 
     local TargetPos = nil
-    if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
+    if AFK_CurrentMode == "spawn" then
+        local TargetEgg = Container and Container:FindFirstChild(AFK_TARGET_UID)
         if TargetEgg then
             TargetPos = GetPosition(TargetEgg)
         end
-    elseif CurrentMode == "workspace" then
-        if SavedTargetPosition then
-            TargetPos = SavedTargetPosition
+    elseif AFK_CurrentMode == "workspace" then
+        if AFK_SavedTargetPosition then
+            TargetPos = AFK_SavedTargetPosition
         else
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
+            local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
             if WSEgg then
                 TargetPos = GetPosition(WSEgg)
-                SavedTargetPosition = TargetPos
+                AFK_SavedTargetPosition = TargetPos
             end
         end
     end
 
     if not TargetPos then AutoStop() return end
 
-    -- ✅ Target Egg: Instant TP only
     InstantTP(TargetPos, function()
-        CurrentStep = "collect_target"
+        AFK_CurrentStep = "collect_target"
     end)
 end
 
@@ -564,9 +565,9 @@ end
 -- FLY TO SAFE
 -- ==================================================
 local function FlyToSafeZone()
-    CurrentStep = "to_safe"
+    AFK_CurrentStep = "to_safe"
     print("[YOKUDO] TeleportAFKSystem: Fly to Safe Zone")
-    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
+    FlyTP(AFK_SAFE_ZONE, AFK_RETURN_SPEED, false, true, function()
         AutoStop()
     end)
 end
@@ -575,60 +576,60 @@ end
 -- HEARTBEAT
 -- ==================================================
 function StartActiveHeartbeat()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
+    if AFK_ActiveHeartbeat then
+        AFK_ActiveHeartbeat:Disconnect()
+        AFK_ActiveHeartbeat = nil
     end
-    ActiveHeartbeat = RunService.Heartbeat:Connect(function()
-        if not Running then return end
+    AFK_ActiveHeartbeat = RunService.Heartbeat:Connect(function()
+        if not AFK_Running then return end
         local Hum, Root = GetHumanoid()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
-        if CurrentStep == "collect_first" and not CollectDone then
+        if AFK_CurrentStep == "collect_first" and not AFK_CollectDone then
             if IsFirstEggInWorkspace() then
-                CollectDone = true
+                AFK_CollectDone = true
                 FireForestStrike()
-                CurrentStep = "wait_spawn_back"
+                AFK_CurrentStep = "wait_spawn_back"
                 return
             end
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
+            if tick() - AFK_CollectTime > AFK_COLLECT_INTERVAL then
+                AFK_CollectTime = tick()
                 if IsFirstEggInContainer() then
                     RemoteCollectFirst()
-                    CollectAttempts = CollectAttempts + 1
+                    AFK_CollectAttempts = AFK_CollectAttempts + 1
                 else
                     if IsFirstEggInWorkspace() then
-                        CollectDone = true
+                        AFK_CollectDone = true
                         FireForestStrike()
-                        CurrentStep = "wait_spawn_back"
+                        AFK_CurrentStep = "wait_spawn_back"
                     end
                 end
             end
         end
 
-        if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
+        if AFK_CurrentStep == "wait_spawn_back" and not AFK_FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
-        if CurrentStep == "collect_target" and not TargetCollected then
-            if CurrentMode == "spawn" then
-                if workspace:FindFirstChild(TARGET_UID) then
-                    TargetCollected = true
+        if AFK_CurrentStep == "collect_target" and not AFK_TargetCollected then
+            if AFK_CurrentMode == "spawn" then
+                if workspace:FindFirstChild(AFK_TARGET_UID) then
+                    AFK_TargetCollected = true
                     task.spawn(function() FlyToSafeZone() end)
                     return
                 end
-            elseif CurrentMode == "workspace" then
-                if SavedTargetPosition then
-                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
+            elseif AFK_CurrentMode == "workspace" then
+                if AFK_SavedTargetPosition then
+                    local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
                     if WSEgg then
                         local CurrentPos = GetPosition(WSEgg)
                         if CurrentPos then
-                            local Dist = (CurrentPos - SavedTargetPosition).Magnitude
-                            if Dist >= POSITION_THRESHOLD then
-                                TargetCollected = true
+                            local Dist = (CurrentPos - AFK_SavedTargetPosition).Magnitude
+                            if Dist >= AFK_POSITION_THRESHOLD then
+                                AFK_TargetCollected = true
                                 task.spawn(function() FlyToSafeZone() end)
                                 return
                             end
@@ -636,19 +637,19 @@ function StartActiveHeartbeat()
                     end
                 end
             end
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
+            if tick() - AFK_CollectTime > AFK_COLLECT_INTERVAL then
+                AFK_CollectTime = tick()
                 RemoteCollectTarget()
-                CollectAttempts = CollectAttempts + 1
+                AFK_CollectAttempts = AFK_CollectAttempts + 1
             end
         end
     end)
 end
 
 function StopActiveHeartbeat()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
+    if AFK_ActiveHeartbeat then
+        AFK_ActiveHeartbeat:Disconnect()
+        AFK_ActiveHeartbeat = nil
     end
 end
 
@@ -656,49 +657,37 @@ end
 -- MAIN PROCESS
 -- ==================================================
 local function StartProcess()
-    Running = true
-    CurrentStep = "search"
+    AFK_Running = true
+    AFK_CurrentStep = "search"
 
-    CollectAttempts = 0
-    CollectTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
+    AFK_CollectAttempts = 0
+    AFK_CollectTime = 0
+    AFK_FlyTargetStarted = false
+    AFK_CollectDone = false
+    AFK_TargetCollected = false
+    AFK_RemotesFired = false
+    AFK_SavedTargetPosition = nil
+    AFK_TargetLockedCFrame = nil
 
     SaveStats()
     EnableRagdollBypass()
 
     if IsTargetInContainer() then
-        CurrentMode = "spawn"
+        AFK_CurrentMode = "spawn"
     elseif IsTargetInWorkspace() then
-        CurrentMode = "workspace"
-        local WSEgg = workspace:FindFirstChild(TARGET_UID)
+        AFK_CurrentMode = "workspace"
+        local WSEgg = workspace:FindFirstChild(AFK_TARGET_UID)
         if WSEgg then
-            SavedTargetPosition = GetPosition(WSEgg)
+            AFK_SavedTargetPosition = GetPosition(WSEgg)
         end
     else
-        local WaitTime = 0
-        while Running and not IsTargetInContainer() and not IsTargetInWorkspace() do
-            task.wait(0.5)
-            WaitTime = WaitTime + 0.5
-            if WaitTime > 60 then AutoStop() return end
-        end
-        if IsTargetInContainer() then
-            CurrentMode = "spawn"
-        elseif IsTargetInWorkspace() then
-            CurrentMode = "workspace"
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
-            if WSEgg then
-                SavedTargetPosition = GetPosition(WSEgg)
-            end
-        end
+        print("[YOKUDO] TeleportAFKSystem: Target not found → AutoStop")
+        AutoStop()
+        return
     end
 
     SearchFirstEggs()
-    if #FirstEggList == 0 then AutoStop() return end
+    if #AFK_FirstEggList == 0 then AutoStop() return end
 
     local Closest = FindClosestEgg()
     if not Closest then AutoStop() return end
@@ -706,13 +695,12 @@ local function StartProcess()
     local EggPos = GetPosition(Closest.Slot)
     if not EggPos then AutoStop() return end
 
-    CurrentStep = "fly_first"
+    AFK_CurrentStep = "fly_first"
     StartActiveHeartbeat()
 
-    -- ✅ First Egg: Fly TP (Shot TP, Offset 10, Speed 1000)
-    print("[YOKUDO] TeleportAFKSystem: Fly to First Egg")
-    FlyTP(EggPos, FLY_SPEED, true, false, function()
-        CurrentStep = "collect_first"
+    print("[YOKUDO] TeleportAFKSystem: Fly to First Egg (Shot 15)")
+    FlyTP(EggPos, AFK_FLY_SPEED, true, false, function()
+        AFK_CurrentStep = "collect_first"
     end)
 end
 
@@ -720,21 +708,21 @@ end
 -- FULL RESET
 -- ==================================================
 local function FullReset()
-    Running = false
-    CurrentStep = "idle"
-    CurrentMode = "none"
+    AFK_Running = false
+    AFK_CurrentStep = "idle"
+    AFK_CurrentMode = "none"
 
-    FirstEggList = {}
-    FirstEggUid = nil
-    FirstEggSlotKey = nil
-    CollectAttempts = 0
-    CollectTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
+    AFK_FirstEggList = {}
+    AFK_FirstEggUid = nil
+    AFK_FirstEggSlotKey = nil
+    AFK_CollectAttempts = 0
+    AFK_CollectTime = 0
+    AFK_FlyTargetStarted = false
+    AFK_CollectDone = false
+    AFK_TargetCollected = false
+    AFK_RemotesFired = false
+    AFK_SavedTargetPosition = nil
+    AFK_TargetLockedCFrame = nil
 
     CleanupMovers()
     DisableRagdollBypass()
@@ -747,9 +735,9 @@ end
 -- ENABLE / DISABLE / SET
 -- ==================================================
 local function Enable()
-    if Running then return end
+    if AFK_Running then return end
     if not CollectEvent then warn("[YOKUDO] TeleportAFKSystem: CollectEvent not found") return end
-    if not TARGET_UID then warn("[YOKUDO] TeleportAFKSystem: No Target ID") return end
+    if not AFK_TARGET_UID then warn("[YOKUDO] TeleportAFKSystem: No Target ID") return end
 
     FullReset()
     StartProcess()
@@ -762,7 +750,7 @@ local function Disable()
 end
 
 local function SetTargetId(Id)
-    TARGET_UID = Id
+    AFK_TARGET_UID = Id
     print("[YOKUDO] TeleportAFKSystem Target ID: " .. tostring(Id))
 end
 
@@ -773,8 +761,8 @@ _G.YOKUDO_TeleportAFKSystem = {
     Enable = Enable,
     Disable = Disable,
     SetTargetId = SetTargetId,
-    IsEnabled = function() return Running end,
-    GetTargetId = function() return TARGET_UID end
+    IsEnabled = function() return AFK_Running end,
+    GetTargetId = function() return AFK_TARGET_UID end
 }
 
-print("✅ TeleportAFKSystem Loaded (First: Fly TP | Target: Instant TP | Safe: Fly TP)")
+print("✅ TeleportAFKSystem Loaded (ដាច់ពី TeleportSystem ចាស់)")
