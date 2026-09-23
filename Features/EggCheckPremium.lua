@@ -1,8 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Egg Check Premium
--- ✅ ប្រើ RarityNumber ពី Module ពិតប្រាកដ
--- ✅ Check Name Pet + $/s + Type
--- ✅ RarityNumber ខ្ពស់ = កម្រជាង
+-- ជ្រើសរើស Egg តាម Rarity (Divine > Eternal > Secret) និង $/s
+-- ✅ Logic ចាស់ទាំងស្រុង
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,7 +13,6 @@ local Player = Players.LocalPlayer
 -- STATE
 -- ==================================================
 local SelectedRarities = {}
-local RarityCache = {}
 
 -- ==================================================
 -- MESHID MAP
@@ -22,42 +20,24 @@ local RarityCache = {}
 local MeshIdMap = {}
 local MeshIdMapBuilt = false
 
--- ==================================================
--- PARSE RARITY VALUE (1 in X)
--- ==================================================
-local function ParseRarityValue(ValueStr)
-    if not ValueStr then return 0 end
-    local NumStr = string.match(ValueStr, "1 in ([%d,]+)")
-    if not NumStr then return 0 end
-    NumStr = string.gsub(NumStr, ",", "")
-    return tonumber(NumStr) or 0
-end
-
--- ==================================================
--- BUILD MESHID MAP
--- ==================================================
 local function BuildMeshIdMap()
     if MeshIdMapBuilt then return end
-
-    -- ✅ Rarity Configs Path ពិតប្រាកដ
-    local Rarity = ReplicatedStorage:FindFirstChild("Data")
-    if Rarity then Rarity = Rarity:FindFirstChild("Rarity") end
-    if Rarity then Rarity = Rarity:FindFirstChild("Configs") end
-    if not Rarity then
-        warn("[EggCheckPremium] Rarity Configs not found")
-        return
-    end
-
-    -- ✅ Egg Models Path ពិតប្រាកដ
+    
+    local Assets = ReplicatedStorage:FindFirstChild("Data")
+    if not Assets then return end
+    Assets = Assets:FindFirstChild("Assets")
+    if not Assets then return end
+    local Configs = Assets:FindFirstChild("Configs")
     local EggModels = ReplicatedStorage:FindFirstChild("Assets")
     if EggModels then EggModels = EggModels:FindFirstChild("Models") end
     if EggModels then EggModels = EggModels:FindFirstChild("Eggs") end
+    if not Configs or not EggModels then return end
 
-    for _, Config in ipairs(Rarity:GetChildren()) do
+    for _, Config in ipairs(Configs:GetChildren()) do
         local Success, Module = pcall(function() return require(Config) end)
         if Success and Module and Module.Egg then
             local ModelName = Module.Egg.ModelName or Config.Name
-            local Template = EggModels and EggModels:FindFirstChild(ModelName)
+            local Template = EggModels:FindFirstChild(ModelName)
             if Template then
                 for _, Desc in ipairs(Template:GetDescendants()) do
                     if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
@@ -68,56 +48,34 @@ local function BuildMeshIdMap()
                     end
                 end
             end
-
-            -- ✅ Cache Rarity Data
-            local RarityId = Module._id or Config.Name
-            RarityCache[RarityId] = {
-                Id = RarityId,
-                DisplayName = Module.DisplayName,
-                RarityNumber = Module.RarityNumber or 0,
-                RarityValue = ParseRarityValue(Module.DefaultRarityValue),
-                Color = Module.Color,
-                Announce = Module.Announce
-            }
         end
     end
-
+    
     MeshIdMapBuilt = true
-    print("[EggCheckPremium] MeshId Map Built: " .. tostring(#Rarity:GetChildren()) .. " Configs")
+    print("[EggCheckPremium] MeshId Map Built: " .. tostring(#Configs:GetChildren()) .. " Configs")
 end
 
 -- ==================================================
 -- GET PET DATA
 -- ==================================================
 local function GetPetData(AssetCategory)
-    if RarityCache[AssetCategory] then
-        local Data = RarityCache[AssetCategory]
-        return {
-            Rarity = Data.Id,
-            RarityNumber = Data.RarityNumber,
-            RarityValue = Data.RarityValue,
-            DisplayName = Data.DisplayName,
-            Color = Data.Color
-        }
-    end
+    local Assets = ReplicatedStorage:FindFirstChild("Data")
+    if not Assets then return nil end
+    Assets = Assets:FindFirstChild("Assets")
+    if not Assets then return nil end
+    local Configs = Assets:FindFirstChild("Configs")
+    if not Configs then return nil end
 
-    local Rarity = ReplicatedStorage:FindFirstChild("Data")
-    if Rarity then Rarity = Rarity:FindFirstChild("Rarity") end
-    if Rarity then Rarity = Rarity:FindFirstChild("Configs") end
-    if not Rarity then return nil end
-
-    local Config = Rarity:FindFirstChild(AssetCategory)
+    local Config = Configs:FindFirstChild(AssetCategory)
     if not Config then return nil end
 
     local Success, Module = pcall(function() return require(Config) end)
     if not Success or not Module then return nil end
 
     return {
-        Rarity = Module._id or AssetCategory,
-        RarityNumber = Module.RarityNumber or 0,
-        RarityValue = ParseRarityValue(Module.DefaultRarityValue),
-        DisplayName = Module.DisplayName,
-        Color = Module.Color
+        Rarity = Module.Rarity and (Module.Rarity._id or Module.Rarity.RarityId) or nil,
+        EarningRate = Module.EarningRate or 0,
+        DisplayName = Module.DisplayName or AssetCategory
     }
 end
 
@@ -126,7 +84,7 @@ end
 -- ==================================================
 local function FindAssetCategory(EggModel)
     if not MeshIdMapBuilt then BuildMeshIdMap() end
-
+    
     for _, Desc in ipairs(EggModel:GetDescendants()) do
         if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
             local Cat = MeshIdMap[Desc.MeshId]
@@ -141,13 +99,19 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGG (RarityNumber ខ្ពស់ = កម្រជាង)
+-- SORT EGG (Divine > Eternal > Secret > $/s)
 -- ==================================================
+local RARITY_PRIORITY = {
+    Divine = 1,
+    Eternal = 2,
+    Secret = 3
+}
+
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
-        local Pa = a.RarityNumber or 0
-        local Pb = b.RarityNumber or 0
-        if Pa ~= Pb then return Pa > Pb end
+        local Pa = RARITY_PRIORITY[a.Rarity] or 999
+        local Pb = RARITY_PRIORITY[b.Rarity] or 999
+        if Pa ~= Pb then return Pa < Pb end
         return a.EarningRate > b.EarningRate
     end)
 end
@@ -166,16 +130,13 @@ local function FindBestEgg()
             local Category = FindAssetCategory(Slot)
             if Category then
                 local Data = GetPetData(Category)
-                if Data and (next(SelectedRarities) == nil or SelectedRarities[Data.Rarity]) then
+                if Data and SelectedRarities[Data.Rarity] then
                     table.insert(EggList, {
                         Slot = Slot,
                         Uid = Slot.Name,
                         Rarity = Data.Rarity,
-                        RarityNumber = Data.RarityNumber,
-                        RarityValue = Data.RarityValue,
-                        DisplayName = Data.DisplayName,
-                        EarningRate = Data.EarningRate or 0,
-                        Color = Data.Color
+                        EarningRate = Data.EarningRate,
+                        DisplayName = Data.DisplayName
                     })
                 end
             end
@@ -201,16 +162,13 @@ local function FindAllEggs()
             local Category = FindAssetCategory(Slot)
             if Category then
                 local Data = GetPetData(Category)
-                if Data and (next(SelectedRarities) == nil or SelectedRarities[Data.Rarity]) then
+                if Data and SelectedRarities[Data.Rarity] then
                     table.insert(EggList, {
                         Slot = Slot,
                         Uid = Slot.Name,
                         Rarity = Data.Rarity,
-                        RarityNumber = Data.RarityNumber,
-                        RarityValue = Data.RarityValue,
-                        DisplayName = Data.DisplayName,
-                        EarningRate = Data.EarningRate or 0,
-                        Color = Data.Color
+                        EarningRate = Data.EarningRate,
+                        DisplayName = Data.DisplayName
                     })
                 end
             end
@@ -222,18 +180,18 @@ local function FindAllEggs()
 end
 
 -- ==================================================
--- GET EGGS BY RARITY
+-- CHECK EGG BY RARITY
 -- ==================================================
 local function GetEggsByRarity(Rarity)
     local AllEggs = FindAllEggs()
     local Filtered = {}
-
+    
     for _, Egg in ipairs(AllEggs) do
         if Egg.Rarity == Rarity then
             table.insert(Filtered, Egg)
         end
     end
-
+    
     return Filtered
 end
 
@@ -257,18 +215,6 @@ local function GetRarities()
 end
 
 -- ==================================================
--- GET ALL RARITY NAMES
--- ==================================================
-local function GetAllRarityNames()
-    if not MeshIdMapBuilt then BuildMeshIdMap() end
-    local List = {}
-    for name, _ in pairs(RarityCache) do
-        table.insert(List, name)
-    end
-    return List
-end
-
--- ==================================================
 -- BUILD MESHID MAP ON LOAD
 -- ==================================================
 task.spawn(function()
@@ -282,7 +228,6 @@ end)
 _G.YOKUDO_EggCheckPremium = {
     SetRarities = SetRarities,
     GetRarities = GetRarities,
-    GetAllRarityNames = GetAllRarityNames,
     FindBestEgg = FindBestEgg,
     FindAllEggs = FindAllEggs,
     GetEggsByRarity = GetEggsByRarity,
@@ -290,7 +235,7 @@ _G.YOKUDO_EggCheckPremium = {
     GetPetData = GetPetData,
     FindAssetCategory = FindAssetCategory,
     BuildMeshIdMap = BuildMeshIdMap,
-    RarityCache = RarityCache
+    RARITY_PRIORITY = RARITY_PRIORITY
 }
 
-print("✅ EggCheckPremium Feature Loaded (RarityNumber ពិតប្រាកដ)")
+print("✅ EggCheckPremium Feature Loaded (Logic ចាស់)")
