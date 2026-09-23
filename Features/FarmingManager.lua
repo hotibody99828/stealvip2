@@ -1,7 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
--- ✅ មិនចាប់ផ្តើម MainLoop ពេល Load
--- ✅ ចាប់ផ្តើមតែពេល Enable()
+-- ប្រើ TeleportSystem (ដើម) ជាមួយ InstantTeleport
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -193,18 +192,14 @@ local function StopAFKAndGoSafe()
     end
 
     if not TreadmillPos then
-        print("[FarmingManager] No Treadmill → Just Disable AFK")
         _G.YOKUDO_AFKSystem.Disable()
         return
     end
 
     _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
-        print("[FarmingManager] ✅ Jumped out!")
         _G.YOKUDO_AFKSystem.Disable()
-
         local Hum, Root = GetHumanoid()
         if Root then
-            print("[FarmingManager] Fly to Safe Zone...")
             _G.YOKUDO_AFKSystem.FlyTP(SAFE_ZONE, function()
                 print("[FarmingManager] ✅ At Safe Zone")
             end)
@@ -226,22 +221,24 @@ local function MainLoop()
         print("[FarmingManager] Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec) .. " | Egg: " .. (BestEgg and BestEgg.DisplayName or "None"))
 
         if IsValid and Sec > 10 and BestEgg then
-            print("[FarmingManager] ✅ Day + Egg → TeleportAFKSystem")
+            print("[FarmingManager] ✅ Day + Egg → TeleportSystem (Instant)")
 
             StopAFKAndGoSafe()
             task.wait(1)
 
-            if _G.YOKUDO_TeleportAFKSystem then
-                _G.YOKUDO_TeleportAFKSystem.SetTargetId(BestEgg.Uid)
-                _G.YOKUDO_TeleportAFKSystem.Enable()
+            -- ✅ ប្រើ TeleportSystem ដើម + InstantTeleport
+            if _G.YOKUDO_TeleportSystem then
+                _G.YOKUDO_TeleportSystem.SetMethod("InstantTeleport")
+                _G.YOKUDO_TeleportSystem.SetTargetId(BestEgg.Uid)
+                _G.YOKUDO_TeleportSystem.Enable()
             end
 
-            while _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() do
+            while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
                 task.wait(0.5)
                 if not FarmingEnabled then break end
             end
 
-            print("[FarmingManager] TeleportAFKSystem Done → Loop Again")
+            print("[FarmingManager] TeleportSystem Done → Loop Again")
         else
             print("[FarmingManager] Night or No Egg → AFKSystem")
 
@@ -258,7 +255,7 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ✅ ENABLE (ចាប់ផ្តើមតែពេល User ធីក)
+-- ENABLE / DISABLE
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
@@ -274,9 +271,6 @@ local function Enable()
     print("[YOKUDO] FarmingManager: ON")
 end
 
--- ==================================================
--- ✅ DISABLE (Reset State ទាំងអស់)
--- ==================================================
 local function Disable()
     if not FarmingEnabled then return end
     FarmingEnabled = false
@@ -286,9 +280,8 @@ local function Disable()
         FarmingThread = nil
     end
 
-    -- Stop ទាំងអស់
-    if _G.YOKUDO_TeleportAFKSystem and _G.YOKUDO_TeleportAFKSystem.IsEnabled() then
-        _G.YOKUDO_TeleportAFKSystem.Disable()
+    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+        _G.YOKUDO_TeleportSystem.Disable()
     end
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         _G.YOKUDO_AFKSystem.Disable()
@@ -322,5 +315,4 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end
 }
 
--- ✅ មិនចាប់ផ្តើម MainLoop ពេល Load
-print("✅ FarmingManager Feature Loaded (រង់ចាំ User ធីក)")
+print("✅ FarmingManager Feature Loaded (ប្រើ TeleportSystem ដើម)")
