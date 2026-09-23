@@ -1,9 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager
+-- ✅ Logic ចាស់ទាំងស្រុង
 -- ✅ Night: Check Egg រាល់ 0.05s
 -- ✅ Day: Check Egg រាល់ 0.5s
 -- ✅ រង់ចាំ Fly TP ដល់ Safe Zone មុននឹងបន្ត
--- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Player = Players.LocalPlayer
 
 -- ==================================================
--- SETTINGS
+-- SETTINGS (Logic ចាស់)
 -- ==================================================
 local NIGHT_CHECK_INTERVAL = 0.05
 local DAY_CHECK_INTERVAL = 0.5
@@ -68,7 +68,7 @@ local function ParseNightTimer(Text)
 end
 
 -- ==================================================
--- GET PHASE
+-- GET PHASE (Logic ចាស់)
 -- ==================================================
 local function GetPhase(Text)
     local Sec, IsValid = ParseNightTimer(Text)
@@ -81,7 +81,7 @@ local function GetPhase(Text)
 end
 
 -- ==================================================
--- FIND BEST EGG
+-- FIND BEST EGG (Logic ចាស់)
 -- ==================================================
 local function FindBestEgg()
     if _G.YOKUDO_EggCheckPremium then
@@ -91,7 +91,7 @@ local function FindBestEgg()
 end
 
 -- ==================================================
--- STOP AFK (Jump Out)
+-- STOP AFK (Jump Out) — Logic ចាស់
 -- ==================================================
 local function StopAFKOnly()
     if not _G.YOKUDO_AFKSystem then return end
@@ -120,7 +120,7 @@ local function StopAFKOnly()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE
+-- FLY TO SAFE ZONE — Logic ចាស់
 -- ==================================================
 local function FlyToSafeZone()
     local Hum, Root = GetHumanoid()
@@ -147,11 +147,12 @@ local function FlyToSafeZone()
         end
     else
         IsAtSafeZone = true
+        print("[FarmingManager] ✅ Already at Safe Zone")
     end
 end
 
 -- ==================================================
--- START TELEPORT
+-- START TELEPORT — Logic ចាស់
 -- ==================================================
 local function StartTeleport(EggUid)
     if not _G.YOKUDO_TeleportSystem then
@@ -159,7 +160,9 @@ local function StartTeleport(EggUid)
         return
     end
 
-    print("[FarmingManager] Start Teleport | Target: " .. tostring(EggUid))
+    print("[FarmingManager] Starting Teleport:")
+    print("  - Target UID: " .. tostring(EggUid))
+    print("  - Method: " .. METHOD)
 
     _G.YOKUDO_TeleportSystem.SetMethod(METHOD)
     _G.YOKUDO_TeleportSystem.SetSpeed(FLY_SPEED)
@@ -168,7 +171,7 @@ local function StartTeleport(EggUid)
 end
 
 -- ==================================================
--- MAIN LOOP
+-- MAIN LOOP — Logic ចាស់ទាំងស្រុង
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started")
@@ -178,25 +181,38 @@ local function MainLoop()
         local Phase, Sec = GetPhase(Text)
         CurrentPhase = Phase
 
+        -- ==========================================
+        -- DAY: Sec > 10 → Check Egg រាល់ 0.5s
+        -- ==========================================
         if Phase == "Day" then
+            print("[FarmingManager] Day | Time: " .. tostring(Text) .. " | Sec: " .. tostring(Sec))
+
             if WaitingForDay then
                 WaitingForDay = false
+                print("[FarmingManager] ✅ Day Started → Stop Waiting")
             end
 
             local BestEgg = FindBestEgg()
 
             if BestEgg then
+                print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName .. " → TeleportSystem")
+
                 StopAFKOnly()
                 task.wait(0.5)
                 FlyToSafeZone()
                 task.wait(0.5)
+
                 StartTeleport(BestEgg.Uid)
 
                 while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
                     task.wait(0.5)
                     if not FarmingEnabled then break end
                 end
+
+                print("[FarmingManager] TeleportSystem Done → Loop Again")
             else
+                print("[FarmingManager] Day but No Egg → AFK")
+
                 if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                     _G.YOKUDO_AFKSystem.Enable()
                     AFKStarted = true
@@ -205,17 +221,24 @@ local function MainLoop()
 
             task.wait(DAY_CHECK_INTERVAL)
 
+        -- ==========================================
+        -- NIGHT: Sec <= 10 → Check Egg រាល់ 0.05s
+        -- ==========================================
         else
             local BestEgg = FindBestEgg()
 
             if BestEgg then
+                print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName .. " → Stop AFK → Safe Zone")
+
                 if AFKStarted then
                     StopAFKOnly()
                     task.wait(0.5)
                 end
 
                 FlyToSafeZone()
+
                 WaitingForDay = true
+                print("[FarmingManager] Waiting at Safe Zone until Day...")
 
                 while FarmingEnabled and WaitingForDay do
                     local Text2 = GetNightTimerText()
@@ -223,6 +246,7 @@ local function MainLoop()
                     CurrentPhase = Phase2
 
                     if Phase2 == "Day" then
+                        print("[FarmingManager] Day Started → Break Wait")
                         WaitingForDay = false
                         break
                     end
@@ -234,6 +258,7 @@ local function MainLoop()
                     if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
                         _G.YOKUDO_AFKSystem.Enable()
                         AFKStarted = true
+                        print("[FarmingManager] AFK Started")
                     end
                 end
             end
@@ -245,7 +270,7 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE
+-- ENABLE / DISABLE — Logic ចាស់
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
@@ -298,7 +323,7 @@ local function SetRarities(List)
 end
 
 -- ==================================================
--- EXPORT
+-- EXPORT (Logic ចាស់)
 -- ==================================================
 _G.YOKUDO_FarmingManager = {
     Enable = Enable,
@@ -314,27 +339,4 @@ _G.YOKUDO_FarmingManager = {
     METHOD = METHOD
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "FarmingManager",
-        Enable = Enable,
-        Disable = Disable,
-        IsEnabled = function() return FarmingEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if FarmingEnabled then
-                task.wait(1)
-                if FarmingThread then
-                    pcall(function() task.cancel(FarmingThread) end)
-                    FarmingThread = nil
-                end
-                FarmingThread = task.spawn(function() MainLoop() end)
-                print("[FarmingManager] Restarted on new Character")
-            end
-        end
-    })
-end
-
-print("✅ FarmingManager Feature Loaded (Night 0.05s | Day 0.5s + Register)")
+print("✅ FarmingManager Feature Loaded (Logic ចាស់)")
