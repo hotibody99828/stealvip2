@@ -4,6 +4,7 @@
 -- ✅ Event ចេញ → Stop AFK → Jump Out → Call Attack
 -- ✅ Event Sec <= 10 → Stop Attack → Call AFK
 -- ✅ Stop ពេល Disable
+-- ✅ Guard: បើ FarmingManager ដំណើរការ → មិនហៅ AFKSystem
 -- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
@@ -27,6 +28,16 @@ local ManagerEnabled = false
 local LastEventSec = 0
 local LastEventText = ""
 local ManagerThread = nil
+
+-- ==================================================
+-- ✅ CHECK FARMING MANAGER
+-- ==================================================
+local function IsFarmingManagerActive()
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
+        return true
+    end
+    return false
+end
 
 -- ==================================================
 -- GET EVENT INFO
@@ -67,10 +78,32 @@ local function ForceStopAll()
 end
 
 -- ==================================================
+-- ✅ ENABLE AFK SYSTEM (មាន Guard)
+-- ==================================================
+local function EnableAFKSystem()
+    -- ✅ បើ FarmingManager ដំណើរការ → មិនហៅ AFKSystem
+    if IsFarmingManagerActive() then
+        print("[ManagerDrone] Skip AFK (FarmingManager active)")
+        return
+    end
+
+    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+        _G.YOKUDO_AFKSystem.Enable()
+        print("[ManagerDrone] AFK System Enabled")
+    end
+end
+
+-- ==================================================
 -- SWITCH FROM AFK TO ATTACK
 -- ==================================================
 local function SwitchAFKToAttack()
     print("[ManagerDrone] Event Detected → Switch AFK to Attack")
+
+    -- ✅ បើ FarmingManager ដំណើរការ → មិនធ្វើអ្វីទេ
+    if IsFarmingManagerActive() then
+        print("[ManagerDrone] Skip Switch (FarmingManager active)")
+        return
+    end
 
     local TreadmillPos = nil
     if _G.YOKUDO_AFKSystem then
@@ -118,6 +151,20 @@ end
 -- ==================================================
 local function MainLoop()
     while ManagerEnabled do
+        -- ✅ បើ FarmingManager ដំណើរការ → Stop AttackDrone
+        if IsFarmingManagerActive() then
+            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
+                print("[ManagerDrone] FarmingManager active → Stop AttackDrone")
+                _G.YOKUDO_AttackDrone.Stop()
+            end
+
+            -- ✅ មិនហៅ AFKSystem (ទុកឲ្យ FarmingManager គ្រប់គ្រង)
+            LastEventSec = 0
+            LastEventText = ""
+            task.wait(EVENT_CHECK_INTERVAL)
+            continue
+        end
+
         local EventSec, EventText, IsEventActive = GetEventInfo()
 
         local EventNotActive = not IsEventActive
@@ -132,19 +179,16 @@ local function MainLoop()
                 _G.YOKUDO_AttackDrone.Stop()
             end
 
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[ManagerDrone] Event Not Active → AFK System")
-                _G.YOKUDO_AFKSystem.Enable()
-            end
+            -- ✅ ប្រើ Function ថ្មី EnableAFKSystem() ដែលមាន Guard
+            EnableAFKSystem()
         elseif EventStopAttack then
             if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
                 print("[ManagerDrone] Event <= 10s → Stop Attack → AFK System")
                 _G.YOKUDO_AttackDrone.Stop()
             end
 
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-            end
+            -- ✅ ប្រើ Function ថ្មី EnableAFKSystem() ដែលមាន Guard
+            EnableAFKSystem()
         elseif EventActive then
             if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
                 print("[ManagerDrone] Event Active → Switch AFK to Attack")
@@ -216,30 +260,5 @@ _G.YOKUDO_ManagerDrone = {
     SwitchAFKToAttack = SwitchAFKToAttack,
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "ManagerDrone",
-        Enable = EnableManager,
-        Disable = DisableManager,
-        IsEnabled = function() return ManagerEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if ManagerEnabled then
-                task.wait(1)
-                LastEventSec = 0
-                LastEventText = ""
 
-                if ManagerThread then
-                    pcall(function() task.cancel(ManagerThread) end)
-                    ManagerThread = nil
-                end
-
-                ManagerThread = task.spawn(function() MainLoop() end)
-            end
-        end
-    })
-end
-
-print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack + Register)")
+print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack + Guard + Register)")
