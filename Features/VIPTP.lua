@@ -604,7 +604,7 @@ end
 -- ==================================================
 -- ✅ AUTO FLY BACK LOGIC
 -- ==================================================
-local function StartAutoFlyBack()
+local function StartAutoFlyBackTask()
     if AutoFlyBackActive then return end
 
     local EggInWS = workspace:FindFirstChild(TARGET_UID)
@@ -820,7 +820,7 @@ local function StartActiveHeartbeat()
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
                     -- ✅ Egg ចូល workspace → Auto Fly Back Check
-                    local ShouldFlyBack = StartAutoFlyBack()
+                    local ShouldFlyBack = StartAutoFlyBackTask()
 
                     if not ShouldFlyBack then
                         -- ✅ Distance ≤ 6 → Fly to Safe Zone
