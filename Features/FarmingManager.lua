@@ -5,6 +5,7 @@
 -- ហៅ AFKSystem ពេលអត់ឃើញ Egg
 -- ហៅ VIPTP ពេលឃើញ Egg + Day
 -- Night Check: 0.05s | Day Check: 0.5s
+-- ✅ Callback ពី VIPTP ពេល AutoStop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -182,6 +183,7 @@ local CurrentPhase = "UNKNOWN"
 local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
+local WaitingForVIPTP = false
 
 local FlyConnection = nil
 local BodyVelocity = nil
@@ -431,8 +433,44 @@ local function StartVIPTP(EggUid)
     print("[FarmingManager] Starting VIPTP:")
     print("  - Target UID: " .. tostring(EggUid))
 
+    WaitingForVIPTP = true
     _G.YOKUDO_VIPTP.SetTargetId(EggUid)
     _G.YOKUDO_VIPTP.Enable()
+end
+
+-- ==================================================
+-- ✅ CALLBACK ពី VIPTP (ពេល AutoStop)
+-- ==================================================
+local function OnVIPTPComplete()
+    if not FarmingEnabled then return end
+    if not WaitingForVIPTP then return end
+
+    WaitingForVIPTP = false
+    print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
+
+    -- ពិនិត្យ Egg ថ្មីភ្លាមៗ
+    local BestEgg = FindBestEgg()
+
+    if BestEgg then
+        print("[FarmingManager] New Egg Found: " .. BestEgg.DisplayName)
+        PendingEggUid = BestEgg.Uid
+
+        -- ហោះទៅ Safe Zone ជាមុន រួចចាប់ផ្តើម VIPTP
+        task.spawn(function()
+            local ReachedSafe = FlyToSafeZoneAndWait()
+            if ReachedSafe and PendingEggUid then
+                task.wait(SAFE_WAIT_AFTER_REACH)
+                StartVIPTP(PendingEggUid)
+                PendingEggUid = nil
+            end
+        end)
+    else
+        print("[FarmingManager] No New Egg → AFK")
+        if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+            _G.YOKUDO_AFKSystem.Enable()
+            AFKStarted = true
+        end
+    end
 end
 
 -- ==================================================
@@ -492,13 +530,12 @@ local function NightLoop()
                 if IsDay and PendingEggUid then
                     print("[FarmingManager] ✅ Day Reached → Start VIPTP")
                     StartVIPTP(PendingEggUid)
-
-                    while _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() do
-                        task.wait(0.5)
-                        if not FarmingEnabled then break end
-                    end
-
                     PendingEggUid = nil
+
+                    -- រង់ចាំ VIPTP ចប់ (Callback នឹងហៅ OnVIPTPComplete)
+                    while WaitingForVIPTP and FarmingEnabled do
+                        task.wait(0.5)
+                    end
                 end
             end
 
@@ -545,9 +582,9 @@ local function DayLoop()
 
             StartVIPTP(BestEgg.Uid)
 
-            while _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() do
+            -- រង់ចាំ VIPTP ចប់ (Callback នឹងហៅ OnVIPTPComplete)
+            while WaitingForVIPTP and FarmingEnabled do
                 task.wait(0.5)
-                if not FarmingEnabled then break end
             end
         else
             if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -593,6 +630,7 @@ local function Enable()
     CurrentState = "CHECK_TIME"
     AFKStarted = false
     PendingEggUid = nil
+    WaitingForVIPTP = false
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -616,6 +654,7 @@ local function Disable()
 
     AFKStarted = false
     PendingEggUid = nil
+    WaitingForVIPTP = false
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -643,7 +682,9 @@ _G.YOKUDO_FarmingManager = {
     SAFE_FLY_SPEED = SAFE_FLY_SPEED,
     RETURN_SPEED = RETURN_SPEED,
     FLY_OFFSET = FLY_OFFSET,
-    METHOD = METHOD
+    METHOD = METHOD,
+    -- ✅ Callback សម្រាប់ VIPTP
+    OnVIPTPComplete = OnVIPTPComplete,
 }
 
 -- ==================================================
@@ -675,4 +716,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback)")
