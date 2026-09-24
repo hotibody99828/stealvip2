@@ -9,8 +9,8 @@
 --    2. Fly TP ទៅ Target Egg → Collect → Wait workspace
 --    3. Egg ចូល workspace → Fly to Safe Zone + Auto Check Distance (0.05s)
 --    4. Distance > 6 → Stop → Auto Fly Back ទៅ Target Egg
---    5. Lock ពីលើ 2 studs → Save Y → Auto Collect រហូតដល់ Y ផ្លាស់ប្តូរ
---    6. Y ផ្លាស់ប្តូរ = Confirm → Fly TP ទៅ Safe Zone
+--    5. Lock ពីលើ 2 studs → រង់ចាំ Y ថេរ → Save Y → Auto Collect
+--    6. Y ឡើង = Confirm → Fly TP ទៅ Safe Zone
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -67,6 +67,8 @@ local POSITION_THRESHOLD = 1
 
 local AUTO_FLY_BACK_DISTANCE_THRESHOLD = 6
 local AUTO_FLY_BACK_MAX_ATTEMPTS = 999
+local STABLE_Y_REQUIRED = 3  -- ✅ 3 × 0.05s = 0.15s
+local STABLE_Y_THRESHOLD = 0.1
 
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -607,7 +609,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- ✅ AUTO FLY BACK LOGIC (កែរួច)
+-- ✅ AUTO FLY BACK LOGIC (កែរួច — រង់ចាំ Y ថេរ និង Check Y Up)
 -- ==================================================
 local function StartAutoFlyBackTask()
     if AutoFlyBackActive then return end
@@ -635,27 +637,57 @@ local function StartAutoFlyBackTask()
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         print("[VIPTP] Auto Fly Back: Locked at Egg")
 
-        -- ✅ Save Y របស់ Egg
-        local EggInWS2 = workspace:FindFirstChild(TARGET_UID)
-        if EggInWS2 then
-            local EggPos2 = GetPosition(EggInWS2)
-            if EggPos2 then
-                SavedEggY = EggPos2.Y
-                print("[VIPTP] Auto Fly Back: Saved Egg Y = " .. tostring(SavedEggY))
-            end
-        end
-
-        -- ✅ Auto Collect ជាប់ៗ រហូតដល់ Y ផ្លាស់ប្តូរ
+        -- ✅ រង់ចាំ Y ថេរ សិន រួច Save Y
         task.spawn(function()
+            local LastY = nil
+            local StableCount = 0
+
+            while AutoFlyBackActive and Running do
+                task.wait(0.05)
+
+                local EggInWS2 = workspace:FindFirstChild(TARGET_UID)
+                if not EggInWS2 then
+                    print("[VIPTP] Auto Fly Back: Egg gone → Done!")
+                    AutoFlyBackActive = false
+                    if Running then
+                        task.spawn(function()
+                            task.wait(0.1)
+                            FlyToSafeZone()
+                        end)
+                    end
+                    return
+                end
+
+                local EggPos2 = GetPosition(EggInWS2)
+                if EggPos2 then
+                    -- ✅ ពិនិត្យ Y ថេរ
+                    if LastY and math.abs(EggPos2.Y - LastY) < STABLE_Y_THRESHOLD then
+                        StableCount = StableCount + 1
+                        if StableCount >= STABLE_Y_REQUIRED then
+                            -- ✅ Y ថេរ → Save Y
+                            SavedEggY = EggPos2.Y
+                            print("[VIPTP] Auto Fly Back: Y Stable = " .. tostring(SavedEggY))
+                            break
+                        end
+                    else
+                        StableCount = 0
+                    end
+                    LastY = EggPos2.Y
+                end
+            end
+
+            if not AutoFlyBackActive or not Running then return end
+
+            print("[VIPTP] Auto Fly Back: Starting Auto Collect...")
+
+            -- ✅ Auto Collect ជាប់ៗ រហូតដល់ Y ឡើង
             while AutoFlyBackActive and Running do
                 task.wait(COLLECT_INTERVAL_AUTO_FLY_BACK)
 
                 local EggInWS3 = workspace:FindFirstChild(TARGET_UID)
                 if not EggInWS3 then
-                    print("[VIPTP] Auto Fly Back: Egg gone from workspace → Done!")
+                    print("[VIPTP] Auto Fly Back: Egg gone → Done!")
                     AutoFlyBackActive = false
-
-                    -- ✅ ហៅ Fly to Safe Zone ភ្លាម
                     if Running then
                         task.spawn(function()
                             task.wait(0.1)
@@ -667,11 +699,10 @@ local function StartAutoFlyBackTask()
 
                 local EggPos3 = GetPosition(EggInWS3)
                 if EggPos3 then
-                    if SavedEggY and EggPos3.Y ~= SavedEggY then
-                        print("[VIPTP] Auto Fly Back: Egg Y changed! " .. tostring(SavedEggY) .. " → " .. tostring(EggPos3.Y) .. " → Done!")
+                    -- ✅ ពិនិត្យ Y ឡើង (មិនមែនខុសគ្នា)
+                    if SavedEggY and EggPos3.Y > SavedEggY + 0.1 then
+                        print("[VIPTP] Auto Fly Back: Y Up! " .. tostring(SavedEggY) .. " → " .. tostring(EggPos3.Y) .. " → Done!")
                         AutoFlyBackActive = false
-
-                        -- ✅ ហៅ Fly to Safe Zone ភ្លាម
                         if Running then
                             task.spawn(function()
                                 task.wait(0.1)
