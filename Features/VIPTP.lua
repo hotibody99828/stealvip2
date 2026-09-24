@@ -67,7 +67,7 @@ local POSITION_THRESHOLD = 1
 
 local AUTO_FLY_BACK_DISTANCE_THRESHOLD = 6
 local AUTO_FLY_BACK_MAX_ATTEMPTS = 999
-local STABLE_Y_REQUIRED = 3  -- ✅ 3 × 0.05s = 0.15s
+local STABLE_Y_REQUIRED = 3
 local STABLE_Y_THRESHOLD = 0.1
 
 local LOCK_POSITION = Vector3.new(
@@ -123,6 +123,14 @@ local SavedEggY = nil
 local AutoFlyBackTargetUid = nil
 local AutoFlyBackCheckStarted = false
 local FlyToSafeZoneActive = false
+local FlyToSafeZoneRequested = false  -- ✅ ថ្មី
+
+-- ==================================================
+-- FORWARD DECLARATIONS
+-- ==================================================
+local FlyToSafeZone  -- ✅ Forward declaration
+local AutoStop       -- ✅ Forward declaration
+local StartAutoFlyBackTask  -- ✅ Forward declaration
 
 -- ==================================================
 -- GET HUMANOID
@@ -295,7 +303,7 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- LOCK AT TARGET (Y+1 ឬ Y+2)
+-- LOCK AT TARGET
 -- ==================================================
 local function StartLock(TargetPosition, LockAbove)
     LockAbove = LockAbove or LOCK_ABOVE
@@ -516,7 +524,7 @@ local function InstantFlyTP(Destination, Callback, LockAbove)
 end
 
 -- ==================================================
--- TELEPORT TO TARGET (Instant Only)
+-- TELEPORT TO TARGET
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
     print("[VIPTP] Instant TP to Target")
@@ -609,9 +617,64 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- ✅ AUTO FLY BACK LOGIC (កែរួច — រង់ចាំ Y ថេរ និង Check Y Up)
+-- AUTO STOP (Forward Declaration Implementation)
 -- ==================================================
-local function StartAutoFlyBackTask()
+function AutoStop()
+    if not Running then return end  -- ✅ ការពារកុំឲ្យហៅស្ទួន
+    Running = false
+    CurrentStep = "done"
+
+    CleanupMovers()
+    DisableRagdollBypass()
+    StopActiveHeartbeat()
+    RestoreStats()
+
+    AutoFlyBackActive = false
+    AutoFlyBackAttempts = 0
+    SavedEggY = nil
+    AutoFlyBackTargetUid = nil
+    AutoFlyBackCheckStarted = false
+    FlyToSafeZoneActive = false
+    FlyToSafeZoneRequested = false
+
+    print("[VIPTP] Auto Stop")
+
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
+        task.spawn(function()
+            task.wait(0.5)
+            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+        end)
+    end
+end
+
+-- ==================================================
+-- FLY TO SAFE (Forward Declaration Implementation)
+-- ==================================================
+function FlyToSafeZone()
+    if FlyToSafeZoneActive then return end
+    if FlyToSafeZoneRequested then return end
+    FlyToSafeZoneActive = true
+    FlyToSafeZoneRequested = true
+
+    CurrentStep = "to_safe"
+
+    print("[VIPTP] FlyTP to Safe Zone")
+
+    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
+        FlyToSafeZoneActive = false
+        TargetCollected = true
+        -- ✅ រង់ចាំ 0.5s រួច AutoStop
+        task.spawn(function()
+            task.wait(0.5)
+            AutoStop()
+        end)
+    end)
+end
+
+-- ==================================================
+-- ✅ AUTO FLY BACK LOGIC
+-- ==================================================
+function StartAutoFlyBackTask()
     if AutoFlyBackActive then return end
     AutoFlyBackCheckStarted = false
 
@@ -650,10 +713,7 @@ local function StartAutoFlyBackTask()
                     print("[VIPTP] Auto Fly Back: Egg gone → Done!")
                     AutoFlyBackActive = false
                     if Running then
-                        task.spawn(function()
-                            task.wait(0.1)
-                            FlyToSafeZone()
-                        end)
+                        FlyToSafeZone()
                     end
                     return
                 end
@@ -689,25 +749,19 @@ local function StartAutoFlyBackTask()
                     print("[VIPTP] Auto Fly Back: Egg gone → Done!")
                     AutoFlyBackActive = false
                     if Running then
-                        task.spawn(function()
-                            task.wait(0.1)
-                            FlyToSafeZone()
-                        end)
+                        FlyToSafeZone()
                     end
                     return
                 end
 
                 local EggPos3 = GetPosition(EggInWS3)
                 if EggPos3 then
-                    -- ✅ ពិនិត្យ Y ឡើង (មិនមែនខុសគ្នា)
+                    -- ✅ ពិនិត្យ Y ឡើង
                     if SavedEggY and EggPos3.Y > SavedEggY + 0.1 then
                         print("[VIPTP] Auto Fly Back: Y Up! " .. tostring(SavedEggY) .. " → " .. tostring(EggPos3.Y) .. " → Done!")
                         AutoFlyBackActive = false
                         if Running then
-                            task.spawn(function()
-                                task.wait(0.1)
-                                FlyToSafeZone()
-                            end)
+                            FlyToSafeZone()
                         end
                         return
                     end
@@ -717,35 +771,6 @@ local function StartAutoFlyBackTask()
             end
         end)
     end, LOCK_ABOVE_AUTO_FLY_BACK)
-end
-
--- ==================================================
--- AUTO STOP
--- ==================================================
-local function AutoStop()
-    Running = false
-    CurrentStep = "done"
-
-    CleanupMovers()
-    DisableRagdollBypass()
-    StopActiveHeartbeat()
-    RestoreStats()
-
-    AutoFlyBackActive = false
-    AutoFlyBackAttempts = 0
-    SavedEggY = nil
-    AutoFlyBackTargetUid = nil
-    AutoFlyBackCheckStarted = false
-    FlyToSafeZoneActive = false
-
-    print("[VIPTP] Auto Stop")
-
-    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
-        task.spawn(function()
-            task.wait(0.5)
-            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
-        end)
-    end
 end
 
 -- ==================================================
@@ -783,24 +808,6 @@ local function StartFlyToTarget()
 
     TeleportToTarget(TargetPos, function()
         CurrentStep = "collect_target"
-    end)
-end
-
--- ==================================================
--- FLY TO SAFE (NO SHOT TP)
--- ==================================================
-local function FlyToSafeZone()
-    if FlyToSafeZoneActive then return end
-    FlyToSafeZoneActive = true
-
-    CurrentStep = "to_safe"
-
-    print("[VIPTP] FlyTP to Safe Zone")
-
-    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        FlyToSafeZoneActive = false
-        TargetCollected = true
-        AutoStop()
     end)
 end
 
@@ -868,7 +875,6 @@ local function StartActiveHeartbeat()
                         CollectTime = tick()
                         RemoteCollectTarget()
                         CollectAttempts = CollectAttempts + 1
-                        print("[VIPTP] Collecting Target Egg from Container...")
                     end
                     return
                 end
@@ -905,9 +911,12 @@ local function StartActiveHeartbeat()
                                 if Dist > AUTO_FLY_BACK_DISTANCE_THRESHOLD then
                                     print("[VIPTP] Distance > 6 (" .. math.floor(Dist) .. ") → Stop Fly + Auto Fly Back!")
 
-                                    CleanupMovers()
+                                    -- ✅ Stop Fly to Safe Zone
                                     FlyToSafeZoneActive = false
+                                    FlyToSafeZoneRequested = false
+                                    CleanupMovers()
 
+                                    -- ✅ Start Auto Fly Back
                                     StartAutoFlyBackTask()
 
                                     AutoFlyBackCheckStarted = false
@@ -977,6 +986,7 @@ local function StartProcess()
     AutoFlyBackTargetUid = nil
     AutoFlyBackCheckStarted = false
     FlyToSafeZoneActive = false
+    FlyToSafeZoneRequested = false
 
     SaveStats()
     EnableRagdollBypass()
@@ -1069,6 +1079,7 @@ local function FullReset()
     AutoFlyBackTargetUid = nil
     AutoFlyBackCheckStarted = false
     FlyToSafeZoneActive = false
+    FlyToSafeZoneRequested = false
 
     CleanupMovers()
     DisableRagdollBypass()
