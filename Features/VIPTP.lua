@@ -607,7 +607,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- ✅ AUTO FLY BACK LOGIC
+-- ✅ AUTO FLY BACK LOGIC (កែរួច)
 -- ==================================================
 local function StartAutoFlyBackTask()
     if AutoFlyBackActive then return end
@@ -654,6 +654,14 @@ local function StartAutoFlyBackTask()
                 if not EggInWS3 then
                     print("[VIPTP] Auto Fly Back: Egg gone from workspace → Done!")
                     AutoFlyBackActive = false
+
+                    -- ✅ ហៅ Fly to Safe Zone ភ្លាម
+                    if Running then
+                        task.spawn(function()
+                            task.wait(0.1)
+                            FlyToSafeZone()
+                        end)
+                    end
                     return
                 end
 
@@ -662,6 +670,14 @@ local function StartAutoFlyBackTask()
                     if SavedEggY and EggPos3.Y ~= SavedEggY then
                         print("[VIPTP] Auto Fly Back: Egg Y changed! " .. tostring(SavedEggY) .. " → " .. tostring(EggPos3.Y) .. " → Done!")
                         AutoFlyBackActive = false
+
+                        -- ✅ ហៅ Fly to Safe Zone ភ្លាម
+                        if Running then
+                            task.spawn(function()
+                                task.wait(0.1)
+                                FlyToSafeZone()
+                            end)
+                        end
                         return
                     end
 
@@ -810,21 +826,20 @@ local function StartActiveHeartbeat()
         end
 
         -- ==================================================
-        -- STEP: collect_target (Logic ថ្មី)
+        -- STEP: collect_target
         -- ==================================================
         if CurrentStep == "collect_target" and not TargetCollected then
             if CurrentMode == "spawn" then
                 -- ✅ Step 1: Collect Target Egg ពី Container មុន
                 local TargetInContainer = Container:FindFirstChild(TARGET_UID)
                 if TargetInContainer then
-                    -- ✅ Remote Collect
                     if tick() - CollectTime > COLLECT_INTERVAL_AUTO_FLY_BACK then
                         CollectTime = tick()
                         RemoteCollectTarget()
                         CollectAttempts = CollectAttempts + 1
                         print("[VIPTP] Collecting Target Egg from Container...")
                     end
-                    return  -- ✅ រង់ចាំ Egg ចូល workspace
+                    return
                 end
 
                 -- ✅ Step 2: Egg ចូល workspace → Fly to Safe Zone + Auto Check Distance
@@ -833,14 +848,12 @@ local function StartActiveHeartbeat()
                     AutoFlyBackCheckStarted = true
                     print("[VIPTP] Egg entered workspace → Fly to Safe Zone + Auto Check Distance")
 
-                    -- ✅ Fly TP ទៅ Safe Zone ភ្លាម
                     task.spawn(function()
                         if Running then
                             FlyToSafeZone()
                         end
                     end)
 
-                    -- ✅ Auto Check Distance Thread (រាល់ 0.05s)
                     task.spawn(function()
                         while Running and not TargetCollected do
                             task.wait(COLLECT_INTERVAL_AUTO_FLY_BACK)
@@ -875,19 +888,16 @@ local function StartActiveHeartbeat()
                     end)
                 end
 
-                -- ✅ បើ Auto Fly Back Active → រង់ចាំរហូតចប់
                 if AutoFlyBackActive then
                     return
                 end
 
-                -- ✅ បើ TargetCollected = true → AutoStop
                 if TargetCollected then
                     AutoStop()
                     return
                 end
 
             elseif CurrentMode == "workspace" then
-                -- ✅ Logic សម្រាប់ Target Egg នៅ workspace តាំងពីដើម
                 if SavedTargetPosition then
                     local WSEgg = workspace:FindFirstChild(TARGET_UID)
                     if WSEgg then
