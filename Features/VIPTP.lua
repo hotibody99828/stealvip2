@@ -5,6 +5,7 @@
 -- Method: InstantTeleport (Fixed)
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ✅ Register ជាមួយ CharacterSystem
+-- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -575,7 +576,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (កែ — បន្ថែម Callback)
 -- ==================================================
 local function AutoStop()
     Running = false
@@ -587,6 +588,14 @@ local function AutoStop()
     RestoreStats()
 
     print("[VIPTP] Auto Stop")
+
+    -- ✅ ហៅ Callback ទៅ FarmingManager
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
+        task.spawn(function()
+            task.wait(0.5)
+            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+        end)
+    end
 end
 
 -- ==================================================
@@ -902,4 +911,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (AFK Farm Only | Instant | Speed 1000/800 | Offset 15)")
+print("✅ VIPTP Loaded (AFK Farm Only | Instant | Speed 1000/800 | Offset 15 | Callback)")
