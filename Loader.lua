@@ -1,13 +1,12 @@
 -- ==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader
--- ✅ ដក CharacterSystem ចេញ
--- ✅ VIPTP ជំនួស EggCheckPremium
--- ✅ AntiRagdoll (ថ្មី)
+-- ✅ Load CharacterSystem មុន Features
+-- ✅ ដក VIPTP ចេញ (FarmingManager ប្រើ TeleportSystem វិញ)
 -- ==================================================
 
-local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
+local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
 
-_G.YOKUDO_EnablePrint = true
+_G.YOKUDO_EnablePrint = false
 
 local oldPrint = print
 print = function(...)
@@ -188,9 +187,6 @@ loadstring(GetScript("Features/WalkSpeed.lua"))()
 Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
 
-Loading.Update(35)
-loadstring(GetScript("Features/AntiRagdoll.lua"))()  -- ✅ AntiRagdoll ថ្មី
-
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
@@ -206,9 +202,7 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ VIPTP (AFK Farm Only) — ជំនួស EggCheckPremium
-Loading.Update(50)
-loadstring(GetScript("Features/VIPTP.lua"))()
+-- ❌ ដក VIPTP ចេញ (FarmingManager ប្រើ TeleportSystem វិញ)
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
@@ -219,7 +213,7 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ FarmingManager (ប្រើ VIPTP + EggCheck Logic ខាងក្នុង)
+-- ✅ FarmingManager (ប្រើ TeleportSystem + AFK Mode)
 Loading.Update(59)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
