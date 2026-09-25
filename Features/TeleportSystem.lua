@@ -7,6 +7,7 @@
 -- ✅ Auto Recovery (Egg Drop តាមផ្លូវ)
 -- ✅ Callback ទៅ FarmingManager
 -- ✅ Register ជាមួយ CharacterSystem
+-- ✅ Fixed: Recovery ចូល Collect ម្តងទៀតបានត្រឹមត្រូវ
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -120,21 +121,30 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
--- GET HUMANOID
+-- GET CHARACTER
 -- ==================================================
-local function GetHumanoid()
-    local Char = Player.Character
-    if not Char then return nil, nil end
-    local Hum = Char:FindFirstChildOfClass("Humanoid")
-    local Root = Char:FindFirstChild("HumanoidRootPart")
-    return Hum, Root
+local function GetChar()
+    return Player.Character
+end
+
+local function GetRoot()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHum()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChildOfClass("Humanoid")
 end
 
 -- ==================================================
 -- RAGDOLL BYPASS
 -- ==================================================
 local function ForceUp()
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
 
     pcall(function()
@@ -161,7 +171,7 @@ local function ForceUp()
 end
 
 local function CleanupRagdollConstraints()
-    local Char = Player.Character
+    local Char = GetChar()
     if not Char then return end
 
     pcall(function()
@@ -218,7 +228,7 @@ end
 -- SAVE / RESTORE STATS
 -- ==================================================
 local function SaveStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
@@ -228,7 +238,7 @@ local function SaveStats()
 end
 
 local function RestoreStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
@@ -265,7 +275,7 @@ local function CleanupMovers()
         BodyGyro = nil
     end
 
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if Root then
         for _, Child in ipairs(Root:GetChildren()) do
             if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
@@ -274,6 +284,7 @@ local function CleanupMovers()
         end
     end
 
+    local Hum = GetHum()
     if Hum then
         pcall(function()
             Hum.PlatformStand = false
@@ -307,7 +318,7 @@ local function StartLock(TargetPosition)
             return
         end
 
-        local Hum, Root = GetHumanoid()
+        local Root = GetRoot()
         if not Root then return end
 
         Root.CFrame = TargetLockedCFrame
@@ -435,7 +446,7 @@ local function SearchFirstEggs()
 end
 
 local function FindClosestEgg()
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if not Root then return nil end
 
     local Closest = nil
@@ -466,7 +477,8 @@ end
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
@@ -506,7 +518,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        local Hum2, Root2 = GetHumanoid()
+        local Hum2 = GetHum()
+        local Root2 = GetRoot()
         if not Hum2 or not Root2 then
             CleanupMovers()
             return
@@ -574,7 +587,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 -- ==================================================
--- INSTANT FLY TP (FOR TARGET EGG)
+-- INSTANT FLY TP
 -- ==================================================
 local function InstantFlyTP(Destination, Callback)
     if not Destination then
@@ -584,7 +597,8 @@ local function InstantFlyTP(Destination, Callback)
 
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
@@ -600,7 +614,7 @@ local function InstantFlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- TELEPORT TO TARGET (Option Specific)
+-- TELEPORT TO TARGET
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
@@ -692,7 +706,7 @@ local function IsTargetStillExists()
 end
 
 -- ==================================================
--- AUTO STOP (កែ — Reset CFrame ទៅដី)
+-- AUTO STOP
 -- ==================================================
 local function AutoStop()
     Running = false
@@ -731,7 +745,7 @@ local function AutoStop()
 
     print("[YOKUDO] TeleportSystem: Auto Stop")
 
-    -- ✅ Callback ទៅ FarmingManager (ប្រើ pcall ការពារ Error)
+    -- ✅ Callback ជាមួយ pcall
     task.spawn(function()
         task.wait(0.5)
         if _G.YOKUDO_FarmingManager then
@@ -778,15 +792,22 @@ local function StartFlyToTarget()
     end
 
     TeleportToTarget(TargetPos, function()
+        print("[YOKUDO] ✅ StartFlyToTarget Arrived → collect_target")
+
+        -- ✅ Reset State ច្បាស់លាស់
         TargetCollected = false
         CollectTime = 0
+        CollectAttempts = 0
         RecoveryTriggered = false
+
         CurrentStep = "collect_target"
+
+        print("[YOKUDO] Step =", CurrentStep, "| TargetCollected =", TargetCollected)
     end)
 end
 
 -- ==================================================
--- FLY TO TARGET AGAIN (Recovery)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Reset ច្បាស់លាស់)
 -- ==================================================
 local function FlyToTargetAgain()
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
@@ -824,14 +845,18 @@ local function FlyToTargetAgain()
     end
 
     TeleportToTarget(TargetPos, function()
-        print("[YOKUDO] ✅ Recovery Arrived → Collect Target")
+        print("[YOKUDO] ✅ Recovery Arrived → collect_target")
 
+        -- ✅ Reset State ច្បាស់លាស់
         TargetCollected = false
         CollectTime = 0
         CollectAttempts = 0
         RecoveryTriggered = false
+        RemotesFired = false
 
         CurrentStep = "collect_target"
+
+        print("[YOKUDO] Recovery: Step =", CurrentStep, "| TargetCollected =", TargetCollected)
     end)
 end
 
@@ -845,7 +870,7 @@ local function FlyToSafeZone()
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
-        AutoStop()  -- ✅ Stop ភ្លាម ដូចដើម
+        AutoStop()
     end)
 end
 
@@ -861,7 +886,8 @@ local function StartActiveHeartbeat()
     ActiveHeartbeat = RunService.Heartbeat:Connect(function()
         if not Running then return end
 
-        local Hum, Root = GetHumanoid()
+        local Hum = GetHum()
+        local Root = GetRoot()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
@@ -932,6 +958,7 @@ local function StartActiveHeartbeat()
                 end
             end
 
+            -- បន្ត Collect
             if tick() - CollectTime > COLLECT_INTERVAL then
                 CollectTime = tick()
                 RemoteCollectTarget()
@@ -1046,6 +1073,8 @@ local function StartProcess()
 
     print("[YOKUDO] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
+        print("[YOKUDO] ✅ First Egg Arrived → collect_first")
+
         CollectDone = false
         CollectTime = 0
         CurrentStep = "collect_first"
@@ -1090,7 +1119,7 @@ local function FullReset()
 end
 
 -- ==================================================
--- ENABLE / DISABLE / SET (API ដើម — មិនប្តូរ)
+-- ENABLE / DISABLE / SET (API ដើម)
 -- ==================================================
 local function Enable()
     if Running then return end
@@ -1138,7 +1167,7 @@ local function GetSpeed()
 end
 
 -- ==================================================
--- EXPORT (API ដើម — មិនប្តូរ)
+-- EXPORT
 -- ==================================================
 _G.YOKUDO_TeleportSystem = {
     Enable = Enable,
@@ -1182,4 +1211,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery Fixed)")
