@@ -2,6 +2,7 @@
 -- YOKUDO HUB | STEAL AN EGG | Loader
 -- ✅ ដក CharacterSystem ចេញ
 -- ✅ VIPTP ជំនួស EggCheckPremium
+-- ✅ AntiRagdoll (ថ្មី)
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -186,6 +187,9 @@ loadstring(GetScript("Features/WalkSpeed.lua"))()
 
 Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
+
+Loading.Update(35)
+loadstring(GetScript("Features/AntiRagdoll.lua"))()  -- ✅ AntiRagdoll ថ្មី
 
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
