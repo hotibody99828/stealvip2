@@ -2,7 +2,7 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP 25, Offset 15, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
--- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset State + Uncheck)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset + Uncheck)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
 -- ✅ Fly Offset = 15
 -- ✅ Safe Zone → Stop + Reset + Uncheck Checkbox
@@ -742,7 +742,6 @@ AutoStop = function()
     StopActiveHeartbeat()
     RestoreStats()
 
-    -- ✅ Reset State ទាំងអស់
     FirstEggList = {}
     FirstEggUid = nil
     FirstEggSlotKey = nil
@@ -769,11 +768,7 @@ AutoStop = function()
             if _G.YOKUDO_AutoFarm.Disable then
                 _G.YOKUDO_AutoFarm.Disable()
             end
-        end
-
-        -- ✅ ហៅ Refresh UI ដើម្បីដកធីក Checkbox ភ្លាមៗ
-        if _G.YOKUDO_RefreshAutoFarmingUI then
-            _G.YOKUDO_RefreshAutoFarmingUI()
+            print("[YOKUDO] AutoFarm Disabled from TeleportSystem")
         end
     end)
 end
