@@ -8,6 +8,7 @@
 -- ✅ Auto Recovery ពេល Egg Drop (No Shot TP)
 -- ✅ Safe Zone: Reset State + AutoStop
 -- ✅ គ្មាន Callback ទៅ FarmingManager
+-- ✅ Fixed: Load Order (Forward Declaration)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -129,6 +130,20 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
+-- ✅ FORWARD DECLARATIONS (ដោះស្រាយ Load Order)
+-- ==================================================
+local CleanupMovers
+local DisableRagdollBypass
+local StopActiveHeartbeat
+local RestoreStats
+local AutoStop
+local FlyToTargetAgain
+local FlyToSafeZone
+local StartFlyToTarget
+local StartActiveHeartbeat
+local StartProcess
+
+-- ==================================================
 -- GET HUMANOID
 -- ==================================================
 local function GetHumanoid()
@@ -211,7 +226,7 @@ local function EnableRagdollBypass()
     print("[YOKUDO] Ragdoll Bypass: ON")
 end
 
-local function DisableRagdollBypass()
+DisableRagdollBypass = function()
     if not RagdollEnabled then return end
     RagdollEnabled = false
 
@@ -236,7 +251,7 @@ local function SaveStats()
     if SavedUseJumpPower == nil then SavedUseJumpPower = Hum.UseJumpPower end
 end
 
-local function RestoreStats()
+RestoreStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
 
@@ -249,7 +264,7 @@ end
 -- ==================================================
 -- CLEANUP
 -- ==================================================
-local function CleanupMovers()
+CleanupMovers = function()
     if FlyConnection then
         FlyConnection:Disconnect()
         FlyConnection = nil
@@ -619,7 +634,7 @@ local function InstantFlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- TELEPORT TO TARGET (Option Specific)
+-- TELEPORT TO TARGET
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
@@ -707,9 +722,9 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (គ្មាន Callback)
+-- AUTO STOP (គ្មាន Callback — Fixed Load Order)
 -- ==================================================
-local function AutoStop()
+AutoStop = function()
     Running = false
     CurrentStep = "done"
 
@@ -737,6 +752,7 @@ local function AutoStop()
 
     task.wait(0.2)
 
+    -- ✅ ហៅ Function តាម Forward Declaration
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -761,9 +777,9 @@ local function AutoStop()
 end
 
 -- ==================================================
--- FLY TO TARGET
+-- START FLY TO TARGET
 -- ==================================================
-local function StartFlyToTarget()
+StartFlyToTarget = function()
     if FlyTargetStarted then return end
     FlyTargetStarted = true
 
@@ -806,7 +822,7 @@ end
 -- ==================================================
 -- ✅ FLY TO TARGET AGAIN (Recovery — No Shot TP)
 -- ==================================================
-local function FlyToTargetAgain()
+FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
 
     if RecoveryAttempts > MAX_RECOVERY_ATTEMPTS then
@@ -845,7 +861,6 @@ local function FlyToTargetAgain()
         return
     end
 
-    -- ✅ FlyTP ធម្មតា (No Shot TP)
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
 
@@ -863,7 +878,7 @@ end
 -- ==================================================
 -- FLY TO SAFE ZONE
 -- ==================================================
-local function FlyToSafeZone()
+FlyToSafeZone = function()
     CurrentStep = "to_safe"
 
     print("[YOKUDO] FlyTP to Safe Zone")
@@ -888,9 +903,19 @@ local function FlyToSafeZone()
 end
 
 -- ==================================================
+-- ✅ STOP ACTIVE HEARTBEAT (Forward Declaration)
+-- ==================================================
+StopActiveHeartbeat = function()
+    if ActiveHeartbeat then
+        ActiveHeartbeat:Disconnect()
+        ActiveHeartbeat = nil
+    end
+end
+
+-- ==================================================
 -- HEARTBEAT (Check លឿន + Recovery)
 -- ==================================================
-local function StartActiveHeartbeat()
+StartActiveHeartbeat = function()
     if ActiveHeartbeat then
         ActiveHeartbeat:Disconnect()
         ActiveHeartbeat = nil
@@ -938,7 +963,7 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- Step 3: Collect Target Egg (DropHeldEgg + Mode ដើម)
+        -- Step 3: Collect Target Egg
         if CurrentStep == "collect_target" and not TargetCollected then
 
             -- ✅ DropHeldEgg Check
@@ -1022,17 +1047,10 @@ local function StartActiveHeartbeat()
     end)
 end
 
-local function StopActiveHeartbeat()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
-    end
-end
-
 -- ==================================================
 -- MAIN PROCESS
 -- ==================================================
-local function StartProcess()
+StartProcess = function()
     Running = true
     CurrentStep = "search"
 
@@ -1149,10 +1167,10 @@ local function FullReset()
     DropHeldEgg = nil
     PlayerGui = nil
 
-    CleanupMovers()
-    DisableRagdollBypass()
-    StopActiveHeartbeat()
-    RestoreStats()
+    if CleanupMovers then CleanupMovers() end
+    if DisableRagdollBypass then DisableRagdollBypass() end
+    if StopActiveHeartbeat then StopActiveHeartbeat() end
+    if RestoreStats then RestoreStats() end
 
     print("[YOKUDO] TeleportSystem: Full Reset")
 end
@@ -1220,4 +1238,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Logic ចាស់ + កែកន្រាក់ + DropHeldEgg + Recovery + Offset 5 + Shot TP 25)")
+print("✅ TeleportSystem Loaded (Logic ចាស់ + កែកន្រាក់ + DropHeldEgg + Recovery + Fixed Load Order)")
