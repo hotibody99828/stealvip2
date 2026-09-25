@@ -219,7 +219,6 @@ SpeedStroke.Thickness = 1
 SpeedStroke.Transparency = 0.3
 SpeedStroke.Parent = SpeedTextBox
 
--- ✅ Flag: User កំពុង Edit
 local IsEditingSpeed = false
 
 SpeedTextBox.Focused:Connect(function()
@@ -459,12 +458,96 @@ AntiTrapCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 5: GOD MODE
+-- FEATURE 5: ANTI RAGDOLL (ថ្មី)
+--==================================================
+local AntiRagdollHolder = Instance.new("Frame")
+AntiRagdollHolder.Size = UDim2.new(1, 0, 0, 52)
+AntiRagdollHolder.BackgroundTransparency = 1
+AntiRagdollHolder.LayoutOrder = 6
+AntiRagdollHolder.Parent = SettingPage
+
+local AntiRagdollLabel = Instance.new("TextLabel")
+AntiRagdollLabel.Size = UDim2.new(1, -50, 0, 20)
+AntiRagdollLabel.Position = UDim2.new(0, 0, 0, 2)
+AntiRagdollLabel.BackgroundTransparency = 1
+AntiRagdollLabel.Text = "Anti Ragdoll"
+AntiRagdollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiRagdollLabel.TextSize = 13
+AntiRagdollLabel.TextXAlignment = Enum.TextXAlignment.Left
+AntiRagdollLabel.TextYAlignment = Enum.TextYAlignment.Center
+AntiRagdollLabel.Font = Enum.Font.GothamBold
+AntiRagdollLabel.Parent = AntiRagdollHolder
+
+local AntiRagdollTitle = Instance.new("TextLabel")
+AntiRagdollTitle.Size = UDim2.new(1, -50, 0, 18)
+AntiRagdollTitle.Position = UDim2.new(0, 0, 0, 24)
+AntiRagdollTitle.BackgroundTransparency = 1
+AntiRagdollTitle.Text = "Prevent Knockback / Ragdoll"
+AntiRagdollTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+AntiRagdollTitle.TextSize = 10
+AntiRagdollTitle.TextXAlignment = Enum.TextXAlignment.Left
+AntiRagdollTitle.Font = Enum.Font.Gotham
+AntiRagdollTitle.Parent = AntiRagdollHolder
+
+local AntiRagdollCheckButton = Instance.new("TextButton")
+AntiRagdollCheckButton.Size = UDim2.new(0, 26, 0, 26)
+AntiRagdollCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
+AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+AntiRagdollCheckButton.BorderSizePixel = 0
+AntiRagdollCheckButton.Text = ""
+AntiRagdollCheckButton.AutoButtonColor = false
+AntiRagdollCheckButton.Parent = AntiRagdollHolder
+
+local AntiRagdollCorner = Instance.new("UICorner")
+AntiRagdollCorner.CornerRadius = UDim.new(0, 6)
+AntiRagdollCorner.Parent = AntiRagdollCheckButton
+
+local AntiRagdollStroke = Instance.new("UIStroke")
+AntiRagdollStroke.Color = Color3.fromRGB(200, 200, 220)
+AntiRagdollStroke.Thickness = 1.5
+AntiRagdollStroke.Parent = AntiRagdollCheckButton
+
+local AntiRagdollCheck = Instance.new("TextLabel")
+AntiRagdollCheck.Size = UDim2.new(1, 0, 1, 0)
+AntiRagdollCheck.BackgroundTransparency = 1
+AntiRagdollCheck.Text = "✓"
+AntiRagdollCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiRagdollCheck.TextSize = 18
+AntiRagdollCheck.Font = Enum.Font.GothamBold
+AntiRagdollCheck.Visible = false
+AntiRagdollCheck.Parent = AntiRagdollCheckButton
+
+local AntiRagdollEnabled = false
+
+local function ToggleAntiRagdoll()
+    AntiRagdollEnabled = not AntiRagdollEnabled
+    AntiRagdollCheck.Visible = AntiRagdollEnabled
+    if AntiRagdollEnabled then
+        AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        AntiRagdollStroke.Color = Color3.fromRGB(135, 120, 225)
+        if _G.YOKUDO_AntiRagdoll then
+            _G.YOKUDO_AntiRagdoll.Enable()
+        end
+    else
+        AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        AntiRagdollStroke.Color = Color3.fromRGB(200, 200, 220)
+        if _G.YOKUDO_AntiRagdoll then
+            _G.YOKUDO_AntiRagdoll.Disable()
+        end
+    end
+end
+
+AntiRagdollCheckButton.MouseButton1Click:Connect(function()
+    ToggleAntiRagdoll()
+end)
+
+--==================================================
+-- FEATURE 6: GOD MODE
 --==================================================
 local GodModeHolder = Instance.new("Frame")
 GodModeHolder.Size = UDim2.new(1, 0, 0, 52)
 GodModeHolder.BackgroundTransparency = 1
-GodModeHolder.LayoutOrder = 6
+GodModeHolder.LayoutOrder = 7
 GodModeHolder.Parent = SettingPage
 
 local GodModeLabel = Instance.new("TextLabel")
@@ -609,12 +692,12 @@ GodModeButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 6: MANUAL FAST CLICK
+-- FEATURE 7: MANUAL FAST CLICK
 --==================================================
 local FastClickHolder = Instance.new("Frame")
 FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
 FastClickHolder.BackgroundTransparency = 1
-FastClickHolder.LayoutOrder = 7
+FastClickHolder.LayoutOrder = 8
 FastClickHolder.Parent = SettingPage
 
 local FastClickLabel = Instance.new("TextLabel")
@@ -716,12 +799,12 @@ task.spawn(function()
 end)
 
 --==================================================
--- FEATURE 7: ANTI AFK
+-- FEATURE 8: ANTI AFK
 --==================================================
 local AntiAFKHolder = Instance.new("Frame")
 AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiAFKHolder.BackgroundTransparency = 1
-AntiAFKHolder.LayoutOrder = 8
+AntiAFKHolder.LayoutOrder = 9
 AntiAFKHolder.Parent = SettingPage
 
 local AntiAFKLabel = Instance.new("TextLabel")
@@ -800,7 +883,7 @@ AntiAFKCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- ✅ SYNC ON LOAD (Only Once - After Setting Load)
+-- ✅ SYNC ON LOAD
 --==================================================
 task.spawn(function()
     task.wait(0.5)
@@ -823,6 +906,16 @@ task.spawn(function()
             AntiAFKCheck.Visible = true
             AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
             AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
+    end
+
+    -- ✅ Sync Anti Ragdoll
+    if _G.YOKUDO_AntiRagdoll then
+        if _G.YOKUDO_AntiRagdoll.IsEnabled() then
+            AntiRagdollEnabled = true
+            AntiRagdollCheck.Visible = true
+            AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            AntiRagdollStroke.Color = Color3.fromRGB(135, 120, 225)
         end
     end
 end)
