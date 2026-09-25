@@ -1,10 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
 -- ប្រើ TeleportSystem + AFK Mode (ដាច់ដោយឡែក)
--- បញ្ចូល Egg Check Logic ពី EggCheckPremium
--- ពិនិត្យ Egg ជាប់ៗ ទាំង Day ទាំង Night
--- ពេលឃើញ Egg → ចេញ AFK → Safe Zone
--- បើ Day → TeleportSystem ភ្លាមៗ | បើ Night → រង់ចាំ Day
+-- ✅ Callback ពី TeleportSystem ពេល AutoStop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -366,7 +363,6 @@ local function StopAll()
         end
     end
 
-    -- ✅ បិទ TeleportSystem (AFK Mode)
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
         print("[FarmingManager] ✅ TeleportSystem Stopped")
@@ -435,7 +431,7 @@ local function WaitForDay()
 end
 
 -- ==================================================
--- ✅ START TELEPORT SYSTEM (AFK Mode)
+-- START TELEPORT SYSTEM (AFK Mode)
 -- ==================================================
 local function StartTeleportSystem(EggUid)
     if not _G.YOKUDO_TeleportSystem then
@@ -447,26 +443,21 @@ local function StartTeleportSystem(EggUid)
     print("  - Target UID: " .. tostring(EggUid))
 
     WaitingForTeleport = true
-    
-    -- ✅ Enable AFK Mode (Offset 5, Return Speed 1000, Instant TP)
     _G.YOKUDO_TeleportSystem.EnableAFKMode()
     _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
     _G.YOKUDO_TeleportSystem.Enable()
 end
 
 -- ==================================================
--- ✅ WAIT FOR TELEPORT COMPLETE (While Loop)
+-- ✅ CALLBACK ពី TeleportSystem
 -- ==================================================
-local function WaitForTeleportComplete()
-    while _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() do
-        task.wait(0.5)
-        if not FarmingEnabled then break end
-    end
+local function OnTeleportComplete()
+    if not FarmingEnabled then return end
+    if not WaitingForTeleport then return end
 
     WaitingForTeleport = false
     print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
-    -- ពិនិត្យ Egg ថ្មីភ្លាមៗ
     local BestEgg = FindBestEgg()
 
     if BestEgg then
@@ -485,7 +476,6 @@ local function WaitForTeleportComplete()
                     print("[FarmingManager] ✅ Day → Start TeleportSystem Immediately")
                     StartTeleportSystem(PendingEggUid)
                     PendingEggUid = nil
-                    WaitForTeleportComplete()
                 else
                     print("[FarmingManager] Night → Wait for Day")
                     local IsDay = WaitForDay()
@@ -493,7 +483,6 @@ local function WaitForTeleportComplete()
                         print("[FarmingManager] ✅ Day Reached → Start TeleportSystem")
                         StartTeleportSystem(PendingEggUid)
                         PendingEggUid = nil
-                        WaitForTeleportComplete()
                     end
                 end
             end
@@ -536,10 +525,6 @@ local function MainLoop()
                     print("[FarmingManager] ✅ Day → Start TeleportSystem Immediately")
                     StartTeleportSystem(PendingEggUid)
                     PendingEggUid = nil
-
-                    while WaitingForTeleport and FarmingEnabled do
-                        task.wait(0.1)
-                    end
                 else
                     print("[FarmingManager] Night → Wait for Day")
                     local IsDay = WaitForDay()
@@ -547,10 +532,6 @@ local function MainLoop()
                         print("[FarmingManager] ✅ Day Reached → Start TeleportSystem")
                         StartTeleportSystem(PendingEggUid)
                         PendingEggUid = nil
-
-                        while WaitingForTeleport and FarmingEnabled do
-                            task.wait(0.1)
-                        end
                     end
                 end
             end
@@ -629,6 +610,8 @@ _G.YOKUDO_FarmingManager = {
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     FLY_SPEED = FLY_SPEED,
     SAFE_FLY_SPEED = SAFE_FLY_SPEED,
+    -- ✅ Callback សម្រាប់ TeleportSystem
+    OnTeleportComplete = OnTeleportComplete,
 }
 
 -- ==================================================
@@ -639,4 +622,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + TeleportSystem AFK Mode)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + TeleportSystem + Callback)")
