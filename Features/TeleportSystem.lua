@@ -3,10 +3,9 @@
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
 -- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
--- Recovery: FlyTP ធម្មតា (No Shot TP) — Stop + Lock + FlyTP
--- ✅ Sequence Number: ការពារ Race Condition (Stop 100%)
--- ✅ PlatformStand: រក្សាទុកពេល Recovery (មិនកន្រាក់)
--- ✅ Safe Zone: Stop + Reset ភ្លាមៗ
+-- Recovery: FlyTP ភ្លាមៗ (No Shot TP, No task.wait)
+-- ✅ Safe Zone: Disconnect ភ្លាម + Stop + Reset ភ្លាមៗ
+-- ✅ Recovery: FlyTP ភ្លាមៗ ដោយមិន task.wait (មិនកន្រាក់)
 -- ✅ DropHeldEgg Check
 -- ✅ Logic ចាស់ | គ្មាន Callback
 -- ==================================================
@@ -267,9 +266,9 @@ RestoreStats = function()
 end
 
 -- ==================================================
--- ✅ CLEANUP (មាន Parameter KeepPlatformStand)
+-- CLEANUP
 -- ==================================================
-CleanupMovers = function(KeepPlatformStand)
+CleanupMovers = function()
     if FlyConnection then
         FlyConnection:Disconnect()
         FlyConnection = nil
@@ -301,14 +300,6 @@ CleanupMovers = function(KeepPlatformStand)
                 pcall(function() Child:Destroy() end)
             end
         end
-    end
-
-    -- ✅ បើ KeepPlatformStand = true → មិន Set PlatformStand = false
-    if Hum and not KeepPlatformStand then
-        pcall(function()
-            Hum.PlatformStand = false
-            Hum.Sit = false
-        end)
     end
 
     if Root then
@@ -492,7 +483,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     local ShotDone = false
 
     FlyConnection = RunService.Heartbeat:Connect(function()
-        -- ✅ ពិនិត្យ Sequence (ការពារ Race Condition)
+        -- ✅ ពិនិត្យ Sequence
         if CurrentSequence ~= FlySequence then
             if FlyConnection then
                 FlyConnection:Disconnect()
@@ -542,19 +533,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                     FlyConnection = nil
                 end
 
-                -- ✅ ៣. task.spawn ក្រោយ Disconnect
-                task.spawn(function()
-                    task.wait(0.1)
+                -- ✅ ៣. TP CFrame ភ្លាម
+                Root2.CFrame = CFrame.new(Destination)
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
 
-                    CleanupMovers(true)  -- ✅ KeepPlatformStand = true
-                    Root2.CFrame = CFrame.new(Destination)
-                    Root2.AssemblyLinearVelocity = Vector3.zero
-                    Root2.AssemblyAngularVelocity = Vector3.zero
-
-                    task.wait(0.1)
-
-                    if Callback then Callback() end
-                end)
+                -- ✅ ៤. Callback ភ្លាម
+                if Callback then Callback() end
                 return
             end
         end
@@ -571,25 +556,17 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 BodyGyro.MaxTorque = Vector3.zero
             end
 
-            -- ✅ Disconnect FlyConnection ភ្លាម
             if FlyConnection then
                 FlyConnection:Disconnect()
                 FlyConnection = nil
             end
 
-            task.spawn(function()
-                task.wait(0.1)
+            Root2.CFrame = LockCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
 
-                CleanupMovers(true)  -- ✅ KeepPlatformStand = true
-                Root2.CFrame = LockCFrame
-                Root2.AssemblyLinearVelocity = Vector3.zero
-                Root2.AssemblyAngularVelocity = Vector3.zero
-
-                task.wait(0.1)
-
-                StartLock(Destination)
-                if Callback then Callback() end
-            end)
+            StartLock(Destination)
+            if Callback then Callback() end
             return
         end
 
@@ -603,25 +580,17 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 BodyGyro.MaxTorque = Vector3.zero
             end
 
-            -- ✅ Disconnect FlyConnection ភ្លាម
             if FlyConnection then
                 FlyConnection:Disconnect()
                 FlyConnection = nil
             end
 
-            task.spawn(function()
-                task.wait(0.1)
+            Root2.CFrame = LockCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
 
-                CleanupMovers(true)  -- ✅ KeepPlatformStand = true
-                Root2.CFrame = LockCFrame
-                Root2.AssemblyLinearVelocity = Vector3.zero
-                Root2.AssemblyAngularVelocity = Vector3.zero
-
-                task.wait(0.1)
-
-                StartLock(Destination)
-                if Callback then Callback() end
-            end)
+            StartLock(Destination)
+            if Callback then Callback() end
             return
         end
 
@@ -652,7 +621,6 @@ local function InstantFlyTP(Destination, Callback)
         return
     end
 
-    -- ✅ បង្កើន Sequence
     FlySequence = FlySequence + 1
 
     CleanupMovers()
@@ -665,16 +633,12 @@ local function InstantFlyTP(Destination, Callback)
 
     Hum.PlatformStand = true
 
-    task.spawn(function()
-        Root.CFrame = LockCFrame
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
+    Root.CFrame = LockCFrame
+    Root.AssemblyLinearVelocity = Vector3.zero
+    Root.AssemblyAngularVelocity = Vector3.zero
 
-        task.wait(0.1)
-
-        StartLock(Destination)
-        if Callback then Callback() end
-    end)
+    StartLock(Destination)
+    if Callback then Callback() end
 end
 
 -- ==================================================
@@ -772,7 +736,6 @@ AutoStop = function()
     Running = false
     CurrentStep = "done"
 
-    -- ✅ បង្កើន Sequence ដើម្បីបញ្ឈប់ FlyConnection ទាំងអស់
     FlySequence = FlySequence + 1
 
     if LockConnection then
@@ -796,8 +759,6 @@ AutoStop = function()
             Hum.Sit = false
         end)
     end
-
-    task.wait(0.1)
 
     CleanupMovers()
     DisableRagdollBypass()
@@ -865,7 +826,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Lock + FlyTP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — FlyTP ភ្លាមៗ)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -879,7 +840,7 @@ FlyToTargetAgain = function()
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (No Shot TP)")
     CurrentStep = "recovery"
 
-    -- ✅ ១. Stop FlyTP ដើម ភ្លាម (Sequence + Disconnect)
+    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
     FlySequence = FlySequence + 1
 
     if FlyConnection then
@@ -894,24 +855,7 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
-    -- ✅ ២. Lock Player នៅកន្លែងបច្ចុប្បន្ន (កុំឲ្យធ្លាក់)
-    local Hum, Root = GetHumanoid()
-    if Hum then
-        Hum.PlatformStand = true  -- ✅ កុំឲ្យ Physics Update
-    end
-    if Root then
-        Root.CFrame = Root.CFrame  -- Lock នៅកន្លែងបច្ចុប្បន្ន
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    -- ✅ ៣. រង់ចាំ 0.2 វិនាទី
-    task.wait(0.2)
-
-    -- ✅ ៤. Cleanup (KeepPlatformStand = true)
-    CleanupMovers(true)
-
-    -- ✅ ៥. រក TargetPos
+    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -939,11 +883,11 @@ FlyToTargetAgain = function()
         return
     end
 
-    -- ✅ ៦. Reset RecoveryTriggered មុនពេល FlyTP
+    -- ✅ ៣. Reset RecoveryTriggered មុនពេល FlyTP
     RecoveryTriggered = false
     TargetCollected = false
 
-    -- ✅ ៧. FlyTP ធម្មតា (No Shot TP) ទៅ Target Egg
+    -- ✅ ៤. FlyTP ភ្លាមៗ (ដោយមិន task.wait — មិនកន្រាក់)
     print("[YOKUDO] Recovery FlyTP (No Shot) to Target")
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
@@ -960,12 +904,11 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE (មិន Shot TP + Stop + Reset ភ្លាមៗ)
+-- ✅ FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
 
-    -- ✅ Reset RecoveryTriggered មុនពេល FlyTP
     RecoveryTriggered = false
     TargetCollected = false
 
@@ -984,10 +927,7 @@ FlyToSafeZone = function()
         RecoveryAttempts = 0
         SavedTargetPosition = nil
 
-        task.spawn(function()
-            task.wait(0.2)
-            AutoStop()
-        end)
+        AutoStop()
     end)
 end
 
@@ -1060,7 +1000,6 @@ StartActiveHeartbeat = function()
                 TargetCollected = true
                 RecoveryTriggered = false
                 task.spawn(function()
-                    task.wait(0.1)
                     FlyToSafeZone()
                 end)
                 return
@@ -1071,13 +1010,13 @@ StartActiveHeartbeat = function()
                     TargetCollected = true
                     RecoveryTriggered = false
                     task.spawn(function()
-                        task.wait(0.1)
                         FlyToSafeZone()
                     end)
                     return
                 end
             elseif CurrentMode == "workspace" then
-                if SavedTargetPosition then                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
+                if SavedTargetPosition then
+                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
                     if WSEgg then
                         local CurrentPos = GetPosition(WSEgg)
                         if CurrentPos then
@@ -1086,7 +1025,6 @@ StartActiveHeartbeat = function()
                                 TargetCollected = true
                                 RecoveryTriggered = false
                                 task.spawn(function()
-                                    task.wait(0.1)
                                     FlyToSafeZone()
                                 end)
                                 return
@@ -1107,7 +1045,6 @@ StartActiveHeartbeat = function()
                 if not RecoveryTriggered then
                     RecoveryTriggered = true
                     task.spawn(function()
-                        task.wait(0.1)
                         FlyToTargetAgain()
                     end)
                 end
@@ -1122,7 +1059,6 @@ StartActiveHeartbeat = function()
                     RecoveryTriggered = true
                     print("[YOKUDO] ⚠️ Egg Dropped on Way → Recovery!")
                     task.spawn(function()
-                        task.wait(0.1)
                         FlyToTargetAgain()
                     end)
                 end
@@ -1141,7 +1077,6 @@ StartProcess = function()
     Running = true
     CurrentStep = "search"
 
-    -- ✅ Reset Sequence
     FlySequence = 0
 
     CollectAttempts = 0
@@ -1234,7 +1169,7 @@ local function FullReset()
     CurrentStep = "idle"
     CurrentMode = "none"
 
-    FlySequence = FlySequence + 1  -- ✅ Stop FlyConnection ទាំងអស់
+    FlySequence = FlySequence + 1
 
     FirstEggList = {}
     FirstEggUid = nil
@@ -1330,4 +1265,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Sequence + PlatformStand + No Lag + Safe Zone Stop + Reset)")
+print("✅ TeleportSystem Loaded (Sequence + No Lag Recovery + Safe Zone Stop + Reset)")
