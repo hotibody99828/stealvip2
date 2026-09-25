@@ -2,10 +2,10 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP 25, Offset 15, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
--- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset + Uncheck)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset State)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
 -- ✅ Fly Offset = 15
--- ✅ Safe Zone → Stop + Reset + Uncheck Checkbox
+-- ✅ Safe Zone → Reset + Stop ភ្លាមៗ (No Lock)
 -- ✅ មិន Heartbeat — ប្រើ task.spawn
 -- ✅ DropHeldEgg Check
 -- ==================================================
@@ -457,7 +457,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (Safe Zone → Stop + Reset + Uncheck)
+-- ✅ FLY TP (Safe Zone → Reset + Stop ភ្លាមៗ)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -518,9 +518,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Direction.Y)
             local TotalDist = Direction.Magnitude
 
-            -- ✅ Safe Zone (Stop + Reset ភ្លាមៗ — មិន Lock)
+            -- ✅ Safe Zone (Reset + Stop ភ្លាមៗ — មិន Lock)
             if IsSafeZone then
                 if HorizDist <= SAFE_STOP_DISTANCE then
+                    -- Stop BodyV/G
                     if BodyVelocity then
                         BodyVelocity.Velocity = Vector3.zero
                         BodyVelocity.MaxForce = Vector3.zero
@@ -529,8 +530,41 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                         BodyGyro.MaxTorque = Vector3.zero
                     end
 
+                    -- ✅ Cleanup ភ្លាម
                     CleanupMovers(true)
 
+                    -- ✅ Reset State ទាំងអស់ភ្លាមៗ
+                    Running = false
+                    CurrentStep = "done"
+                    FlySequence = FlySequence + 1
+
+                    if LockConnection then
+                        LockConnection:Disconnect()
+                        LockConnection = nil
+                    end
+                    TargetLockedCFrame = nil
+
+                    FirstEggList = {}
+                    FirstEggUid = nil
+                    FirstEggSlotKey = nil
+                    CollectAttempts = 0
+                    CollectTime = 0
+                    TargetCollectStartTime = 0
+                    FlyTargetStarted = false
+                    CollectDone = false
+                    TargetCollected = false
+                    RemotesFired = false
+                    RecoveryTriggered = false
+                    RecoveryAttempts = 0
+                    SavedTargetPosition = nil
+
+                    -- Disable Ragdoll
+                    DisableRagdollBypass()
+                    RestoreStats()
+
+                    print("[YOKUDO] ✅ Safe Zone → Reset + Stop ភ្លាមៗ")
+
+                    -- ✅ Callback (បើមាន)
                     if Callback then Callback() end
                     return
                 end
@@ -723,7 +757,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (Stop + Reset + Uncheck)
+-- AUTO STOP (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 AutoStop = function()
     Running = false
@@ -742,6 +776,7 @@ AutoStop = function()
     StopActiveHeartbeat()
     RestoreStats()
 
+    -- ✅ Reset State ទាំងអស់
     FirstEggList = {}
     FirstEggUid = nil
     FirstEggSlotKey = nil
@@ -757,20 +792,6 @@ AutoStop = function()
     SavedTargetPosition = nil
 
     print("[YOKUDO] TeleportSystem: Auto Stop + Reset State")
-
-    -- ✅ Disable AutoFarm (ដកធីក Checkbox)
-    task.spawn(function()
-        task.wait(0.3)
-        if _G.YOKUDO_AutoFarm then
-            if _G.YOKUDO_AutoFarm.StopTeleport then
-                _G.YOKUDO_AutoFarm.StopTeleport()
-            end
-            if _G.YOKUDO_AutoFarm.Disable then
-                _G.YOKUDO_AutoFarm.Disable()
-            end
-            print("[YOKUDO] AutoFarm Disabled from TeleportSystem")
-        end
-    end)
 end
 
 -- ==================================================
@@ -831,6 +852,7 @@ FlyToTargetAgain = function()
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween + FlyTP)")
     CurrentStep = "recovery"
 
+    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
     FlySequence = FlySequence + 1
     if BodyVelocity then
         BodyVelocity.Velocity = Vector3.zero
@@ -840,6 +862,7 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
+    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -867,6 +890,7 @@ FlyToTargetAgain = function()
         return
     end
 
+    -- ✅ ៣. Tween Player ទៅ Near Position
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
         AutoStop()
@@ -886,6 +910,7 @@ FlyToTargetAgain = function()
     Tween:Play()
     Tween.Completed:Wait()
 
+    -- ✅ ៤. FlyTP ទៅ Target
     RecoveryTriggered = false
     TargetCollected = false
 
@@ -905,7 +930,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Stop + Reset + Uncheck)
+-- FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -916,7 +941,7 @@ FlyToSafeZone = function()
     print("[YOKUDO] FlyTP to Safe Zone (No Shot TP, No Lock, Stop at 5)")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop + Uncheck")
+        print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
 
         TargetCollected = false
         CollectDone = false
@@ -1257,4 +1282,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Stop + Reset + Uncheck)")
+print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Reset + Stop ភ្លាមៗ + No Lock)")
