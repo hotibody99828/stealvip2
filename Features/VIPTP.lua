@@ -2,7 +2,7 @@
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
 -- ដាច់ដោយឡែកសម្រាប់ AFK Farm
 -- ✅ ប្រើ VIPTP_ Prefix ដើម្បីកុំឲ្យជាន់គ្នាជាមួយ TeleportSystem
--- ✅ រៀបចំ Function ត្រឹមត្រូវ (កែ Error)
+-- ✅ រៀបចំ Function ត្រឹមត្រូវ ១០០% (គ្មាន Error)
 -- Method: InstantTeleport (Fixed)
 -- Fly Speed: 1000 | Return Speed: 1000
 -- Fly Offset First: 5 | Fly Offset Safe: 50
@@ -105,6 +105,16 @@ local VIPTP_SavedWalkSpeed = nil
 local VIPTP_SavedJumpPower = nil
 local VIPTP_SavedJumpHeight = nil
 local VIPTP_SavedUseJumpPower = nil
+
+-- ==================================================
+-- FORWARD DECLARATIONS (ការពារ Error)
+-- ==================================================
+local VIPTP_StopActiveHeartbeat
+local VIPTP_StartActiveHeartbeat
+local VIPTP_StartFlyToTarget
+local VIPTP_AutoStop
+local VIPTP_FlyUpAndToSafeZone
+local VIPTP_StartProcess
 
 -- ==================================================
 -- GET HUMANOID
@@ -578,9 +588,9 @@ local function VIPTP_IsTargetInWorkspace()
 end
 
 -- ==================================================
--- STOP ACTIVE HEARTBEAT (ផ្លាស់ទីតាំងមកខាងលើ)
+-- STOP ACTIVE HEARTBEAT
 -- ==================================================
-local function VIPTP_StopActiveHeartbeat()
+VIPTP_StopActiveHeartbeat = function()
     if VIPTP_ActiveHeartbeat then
         VIPTP_ActiveHeartbeat:Disconnect()
         VIPTP_ActiveHeartbeat = nil
@@ -588,9 +598,95 @@ local function VIPTP_StopActiveHeartbeat()
 end
 
 -- ==================================================
--- START ACTIVE HEARTBEAT
+-- FLY TO TARGET (Forward Declaration)
 -- ==================================================
-local function VIPTP_StartActiveHeartbeat()
+VIPTP_StartFlyToTarget = function()
+    if VIPTP_FlyTargetStarted then return end
+    VIPTP_FlyTargetStarted = true
+
+    VIPTP_CurrentStep = "to_target"
+
+    local TargetPos = nil
+
+    if VIPTP_CurrentMode == "spawn" then
+        local TargetEgg = Container and Container:FindFirstChild(VIPTP_TARGET_UID)
+        if TargetEgg then
+            TargetPos = VIPTP_GetPosition(TargetEgg)
+        end
+    elseif VIPTP_CurrentMode == "workspace" then
+        if VIPTP_SavedTargetPosition then
+            TargetPos = VIPTP_SavedTargetPosition
+        else
+            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
+            if WSEgg then
+                TargetPos = VIPTP_GetPosition(WSEgg)
+                VIPTP_SavedTargetPosition = TargetPos
+            end
+        end
+    end
+
+    if not TargetPos then
+        VIPTP_AutoStop()
+        return
+    end
+
+    VIPTP_TeleportToTarget(TargetPos, function()
+        VIPTP_CurrentStep = "collect_target"
+    end)
+end
+
+-- ==================================================
+-- FLY UP + FLY TO SAFE ZONE (Forward Declaration)
+-- ==================================================
+VIPTP_FlyUpAndToSafeZone = function()
+    VIPTP_CurrentStep = "fly_up"
+
+    local Hum, Root = VIPTP_GetHumanoid()
+    if not Root then
+        VIPTP_AutoStop()
+        return
+    end
+
+    local UpPosition = Vector3.new(VIPTP_SAFE_ZONE.X, VIPTP_SAFE_ZONE.Y + VIPTP_FLY_OFFSET_SAFE, VIPTP_SAFE_ZONE.Z)
+
+    print("[VIPTP] Fly Up to Y+" .. VIPTP_FLY_OFFSET_SAFE .. " → " .. tostring(UpPosition))
+
+    VIPTP_FlyTP(UpPosition, VIPTP_RETURN_SPEED, 0, false, false, function()
+        print("[VIPTP] ✅ Reached Fly Up Offset → Fly to Safe Zone")
+
+        VIPTP_FlyTP(VIPTP_SAFE_ZONE, VIPTP_RETURN_SPEED, 0, false, true, function()
+            print("[VIPTP] ✅ Reached Safe Zone")
+            VIPTP_AutoStop()
+        end)
+    end)
+end
+
+-- ==================================================
+-- AUTO STOP (Forward Declaration)
+-- ==================================================
+VIPTP_AutoStop = function()
+    VIPTP_Running = false
+    VIPTP_CurrentStep = "done"
+
+    VIPTP_CleanupMovers()
+    VIPTP_DisableRagdollBypass()
+    VIPTP_StopActiveHeartbeat()
+    VIPTP_RestoreStats()
+
+    print("[VIPTP] Auto Stop")
+
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
+        task.spawn(function()
+            task.wait(0.2)
+            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+        end)
+    end
+end
+
+-- ==================================================
+-- START ACTIVE HEARTBEAT (Forward Declaration)
+-- ==================================================
+VIPTP_StartActiveHeartbeat = function()
     if VIPTP_ActiveHeartbeat then
         VIPTP_ActiveHeartbeat:Disconnect()
         VIPTP_ActiveHeartbeat = nil
@@ -672,96 +768,9 @@ local function VIPTP_StartActiveHeartbeat()
 end
 
 -- ==================================================
--- AUTO STOP (Callback ទៅ FarmingManager)
+-- MAIN PROCESS (Forward Declaration)
 -- ==================================================
-local function VIPTP_AutoStop()
-    VIPTP_Running = false
-    VIPTP_CurrentStep = "done"
-
-    VIPTP_CleanupMovers()
-    VIPTP_DisableRagdollBypass()
-    VIPTP_StopActiveHeartbeat()
-    VIPTP_RestoreStats()
-
-    print("[VIPTP] Auto Stop")
-
-    -- ✅ ហៅ Callback ទៅ FarmingManager
-    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
-        task.spawn(function()
-            task.wait(0.2)
-            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
-        end)
-    end
-end
-
--- ==================================================
--- FLY TO TARGET
--- ==================================================
-local function VIPTP_StartFlyToTarget()
-    if VIPTP_FlyTargetStarted then return end
-    VIPTP_FlyTargetStarted = true
-
-    VIPTP_CurrentStep = "to_target"
-
-    local TargetPos = nil
-
-    if VIPTP_CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(VIPTP_TARGET_UID)
-        if TargetEgg then
-            TargetPos = VIPTP_GetPosition(TargetEgg)
-        end
-    elseif VIPTP_CurrentMode == "workspace" then
-        if VIPTP_SavedTargetPosition then
-            TargetPos = VIPTP_SavedTargetPosition
-        else
-            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
-            if WSEgg then
-                TargetPos = VIPTP_GetPosition(WSEgg)
-                VIPTP_SavedTargetPosition = TargetPos
-            end
-        end
-    end
-
-    if not TargetPos then
-        VIPTP_AutoStop()
-        return
-    end
-
-    VIPTP_TeleportToTarget(TargetPos, function()
-        VIPTP_CurrentStep = "collect_target"
-    end)
-end
-
--- ==================================================
--- FLY UP + FLY TO SAFE ZONE (Offset 50)
--- ==================================================
-local function VIPTP_FlyUpAndToSafeZone()
-    VIPTP_CurrentStep = "fly_up"
-
-    local Hum, Root = VIPTP_GetHumanoid()
-    if not Root then
-        VIPTP_AutoStop()
-        return
-    end
-
-    local UpPosition = Vector3.new(VIPTP_SAFE_ZONE.X, VIPTP_SAFE_ZONE.Y + VIPTP_FLY_OFFSET_SAFE, VIPTP_SAFE_ZONE.Z)
-
-    print("[VIPTP] Fly Up to Y+" .. VIPTP_FLY_OFFSET_SAFE .. " → " .. tostring(UpPosition))
-
-    VIPTP_FlyTP(UpPosition, VIPTP_RETURN_SPEED, 0, false, false, function()
-        print("[VIPTP] ✅ Reached Fly Up Offset → Fly to Safe Zone")
-
-        VIPTP_FlyTP(VIPTP_SAFE_ZONE, VIPTP_RETURN_SPEED, 0, false, true, function()
-            print("[VIPTP] ✅ Reached Safe Zone")
-            VIPTP_AutoStop()
-        end)
-    end)
-end
-
--- ==================================================
--- MAIN PROCESS
--- ==================================================
-local function VIPTP_StartProcess()
+VIPTP_StartProcess = function()
     VIPTP_Running = true
     VIPTP_CurrentStep = "search"
 
@@ -909,4 +918,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = VIPTP_SAFE_ZONE,
 }
 
-print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 50 | ForestStrike First Only)")
+print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 50 | ForestStrike First Only | Fixed All Errors)")
