@@ -4,7 +4,7 @@
 -- ✅ Instant TP ទៅ Target Egg
 -- ✅ Auto Detect: spawn / workspace
 -- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
--- ✅ Auto Recovery Egg ពេល Egg Drop តាមផ្លូវ (FlyTP Speed 1000)
+-- ✅ Auto Recovery: ពិនិត្យ TARGET_UID ទាំង Container + Workspace
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
@@ -82,7 +82,7 @@ local RagdollConnection = nil
 local ForceUpConnection = nil
 
 -- ==================================================
--- DROPHELDEGG (Signal)
+-- DROPHELDEGG
 -- ==================================================
 local PlayerGui = nil
 local DropHeldEgg = nil
@@ -113,7 +113,7 @@ local FlyTargetStarted = false
 local CollectDone = false
 local TargetCollected = false
 local RemotesFired = false
-local RecoveryTriggered = false  -- ✅ ការពារកុំឲ្យហៅ Recovery ស្ទួន
+local RecoveryTriggered = false
 
 local SavedTargetPosition = nil
 local TargetLockedCFrame = nil
@@ -124,7 +124,7 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
--- GET CHARACTER (ដក GetHumanoid ចេញ)
+-- GET CHARACTER
 -- ==================================================
 local function GetChar()
     return Player.Character
@@ -713,7 +713,6 @@ local function AutoStop()
 
     print("[VIPTP] Auto Stop")
 
-    -- ✅ Callback ទៅ FarmingManager
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
         task.spawn(function()
             task.wait(0.3)
@@ -762,38 +761,46 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery ពេល Egg Drop — Speed 1000)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Check Both)
 -- ==================================================
 local function FlyToTargetAgain()
-    print("[VIPTP] ⚠️ Egg Dropped → Recovery! Fly TP to Target Again (Speed 1000)")
+    print("[VIPTP] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
     CurrentStep = "recovery"
 
     local TargetPos = nil
 
-    if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
+    -- ✅ ពិនិត្យទាំង Container និង Workspace
+    if IsTargetInContainer() then
+        CurrentMode = "spawn"
+        local TargetEgg = Container:FindFirstChild(TARGET_UID)
         if TargetEgg then
             TargetPos = GetPosition(TargetEgg)
         end
-    elseif CurrentMode == "workspace" then
-        if SavedTargetPosition then
-            TargetPos = SavedTargetPosition
-        else
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
-            if WSEgg then
-                TargetPos = GetPosition(WSEgg)
-                SavedTargetPosition = TargetPos
-            end
-        end
-    end
+        print("[VIPTP] Target found in Container → spawn mode")
 
-    if not TargetPos then
-        print("[VIPTP] Target not found → Go Safe Zone")
-        FlyToSafeZone()
+    elseif IsTargetInWorkspace() then
+        CurrentMode = "workspace"
+        local WSEgg = workspace:FindFirstChild(TARGET_UID)
+        if WSEgg then
+            TargetPos = GetPosition(WSEgg)
+            SavedTargetPosition = TargetPos
+        end
+        print("[VIPTP] Target found in Workspace → workspace mode")
+
+    else
+        -- ✅ អត់ឃើញទាំងពីរ → Done
+        print("[VIPTP] ✅ Target Gone (Both) → Done")
+        AutoStop()
         return
     end
 
-    -- ✅ Fly TP ដោយ FLY_SPEED (1000) ដូច First Egg
+    if not TargetPos then
+        print("[VIPTP] Target Pos not found → Done")
+        AutoStop()
+        return
+    end
+
+    -- ✅ Fly TP ដោយ FLY_SPEED (1000)
     FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[VIPTP] ✅ Recovery Arrived → Collect Target")
         RecoveryTriggered = false
@@ -812,16 +819,29 @@ local function FlyToSafeZone()
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[VIPTP] ✅ Arrived Safe Zone → Check Egg")
 
-        -- ✅ Check Egg ម្តងទៀត
+        -- ✅ Check Egg ម្តងទៀត (Both Paths)
         if IsTargetStillExists() then
             print("[VIPTP] Egg Still Exists → Go Collect Again")
+
+            -- Auto Detect CurrentMode
+            if IsTargetInContainer() then
+                CurrentMode = "spawn"
+            elseif IsTargetInWorkspace() then
+                CurrentMode = "workspace"
+                local WSEgg = workspace:FindFirstChild(TARGET_UID)
+                if WSEgg then
+                    SavedTargetPosition = GetPosition(WSEgg)
+                end
+            end
+
             CurrentStep = "to_target"
             FlyTargetStarted = false
+            RecoveryTriggered = false
 
             task.wait(0.3)
             StartFlyToTarget()
         else
-            print("[VIPTP] ✅ Egg Gone → Done")
+            print("[VIPTP] ✅ Egg Gone (Both) → Done")
             AutoStop()
         end
     end)
@@ -880,7 +900,6 @@ local function StartActiveHeartbeat()
         -- Step 3: Collect Target Egg
         if CurrentStep == "collect_target" and not TargetCollected then
 
-            -- ✅ ពិនិត្យ DropHeldEgg ជាមុន
             if IsTargetCollectedByDropHeldEgg() then
                 print("[VIPTP] ✅ DropHeldEgg.Enabled = true → Target Collected!")
                 TargetCollected = true
@@ -888,7 +907,6 @@ local function StartActiveHeartbeat()
                 return
             end
 
-            -- បន្ត Collect តាម Remote
             if tick() - CollectTime > COLLECT_INTERVAL then
                 CollectTime = tick()
                 RemoteCollectTarget()
@@ -896,7 +914,7 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- ✅ Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ ខណៈ Fly ទៅ Safe Zone)
+        -- Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ)
         if CurrentStep == "to_safe" then
             if not IsTargetCollectedByDropHeldEgg() then
                 if not RecoveryTriggered then
@@ -939,13 +957,12 @@ local function StartProcess()
     TargetLockedCFrame = nil
     LastDropState = false
 
-    -- ✅ Setup DropHeldEgg
     SetupDropHeldEgg()
 
     SaveStats()
     EnableRagdollBypass()
 
-    -- ✅ Auto Detect Option
+    -- ✅ Auto Detect
     if IsTargetInContainer() then
         CurrentMode = "spawn"
         print("[VIPTP] Target found in Container → spawn mode")
@@ -1030,7 +1047,6 @@ local function FullReset()
     TargetLockedCFrame = nil
     LastDropState = false
 
-    -- ✅ Reset DropHeldEgg Connection
     if DropHeldEggConnection then
         DropHeldEggConnection:Disconnect()
         DropHeldEggConnection = nil
@@ -1113,4 +1129,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Auto Recovery Speed 1000)")
+print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery Check Both)")
