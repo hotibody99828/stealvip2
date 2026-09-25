@@ -2,6 +2,7 @@
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
 -- ប្រើ TeleportSystem + AFK Mode (ដាច់ដោយឡែក)
 -- ✅ Callback ពី TeleportSystem ពេល AutoStop
+-- ✅ StopAll() រង់ចាំ JumpOutTreadmill ចប់
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -339,7 +340,7 @@ local function GetPhase()
 end
 
 -- ==================================================
--- STOP ALL
+-- STOP ALL (✅ កែ — រង់ចាំ JumpOutTreadmill ចប់)
 -- ==================================================
 local function StopAll()
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -352,11 +353,27 @@ local function StopAll()
         end
 
         if TreadmillPos then
+            -- ✅ រង់ចាំ JumpOutTreadmill ចប់
+            local JumpDone = false
             _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
                 _G.YOKUDO_AFKSystem.Disable()
                 AFKStarted = false
+                JumpDone = true
                 print("[FarmingManager] ✅ AFK Stopped + Jumped out!")
             end)
+            
+            -- ✅ រង់ចាំរហូតដល់ JumpOut ចប់ (ឬ 5s timeout)
+            local WaitTime = 0
+            while not JumpDone and WaitTime < 5 do
+                task.wait(0.1)
+                WaitTime = WaitTime + 0.1
+            end
+            
+            if not JumpDone then
+                print("[FarmingManager] ⚠️ JumpOut Timeout → Force Disable")
+                _G.YOKUDO_AFKSystem.Disable()
+                AFKStarted = false
+            end
         else
             _G.YOKUDO_AFKSystem.Disable()
             AFKStarted = false
@@ -513,8 +530,9 @@ local function MainLoop()
 
             PendingEggUid = BestEgg.Uid
 
+            -- ✅ StopAll() រង់ចាំ JumpOut ចប់
             StopAll()
-            task.wait(0.5)
+            task.wait(1)  -- ← បង្កើនពី 0.5 → 1
 
             local ReachedSafe = FlyToSafeZoneAndWait()
 
@@ -622,4 +640,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + TeleportSystem + Callback)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + TeleportSystem + Callback + StopAll Fixed)")
