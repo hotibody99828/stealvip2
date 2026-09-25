@@ -1,7 +1,11 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ✅ AutoStop: Reset CFrame ទៅដី (Y = 70) មុន PlatformStand = false
--- ✅ FlyTP Safe Zone: Lock នៅ Y = Destination.Y (មិន + LOCK_ABOVE)
+-- ✅ Fixed: Argument 1 missing or nil (StartFlyToTarget)
+-- ✅ Fixed: TargetPos nil Check
+-- ✅ Fixed: Safe Zone Lock (Y = 70)
+-- ✅ Fixed: AutoStop Reset CFrame
+-- ✅ Added: Debug Log ច្រើន
+-- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -303,6 +307,11 @@ end
 -- LOCK AT TARGET
 -- ==================================================
 local function StartLock(TargetPosition)
+    if not TargetPosition then
+        warn("[VIPTP] StartLock: TargetPosition is nil!")
+        return
+    end
+
     TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
 
     if LockConnection then
@@ -487,7 +496,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (កែ Safe Zone Lock)
+-- FLY TP
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -499,10 +508,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
 
-    -- ✅ បើ Safe Zone → Lock នៅ Y ដី (មិន + LOCK_ABOVE)
     local LockCFrame
     if IsSafeZone then
-        LockCFrame = CFrame.new(Destination)  -- Y = 70 (ដី)
+        LockCFrame = CFrame.new(Destination)
     else
         LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
     end
@@ -555,10 +563,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                Root2.CFrame = LockCFrame  -- ✅ Y = 70 (ដី)
+                Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)  -- StartLock បន្ថែម LOCK_ABOVE
+                StartLock(Destination)
                 if Callback then Callback() end
                 return
             end
@@ -605,6 +613,12 @@ end
 -- INSTANT FLY TP
 -- ==================================================
 local function InstantFlyTP(Destination, Callback)
+    if not Destination then
+        warn("[VIPTP] InstantFlyTP: Destination is nil!")
+        if Callback then Callback() end
+        return
+    end
+
     CleanupMovers()
 
     local Hum = GetHum()
@@ -703,30 +717,27 @@ local function IsTargetStillExists()
 end
 
 -- ==================================================
--- ✅ AUTO STOP (កែ — Reset CFrame ទៅដី មុន PlatformStand)
+-- AUTO STOP
 -- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
 
-    -- ✅ Disconnect Lock មុន
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
     end
     TargetLockedCFrame = nil
 
-    -- ✅ Reset CFrame ទៅ Safe Zone (ដី Y = 70) មុន
     local Root = GetRoot()
     if Root then
         pcall(function()
-            Root.CFrame = CFrame.new(SAFE_ZONE)  -- Y = 70 (ដី)
+            Root.CFrame = CFrame.new(SAFE_ZONE)
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
         end)
     end
 
-    -- ✅ Reset Humanoid State (បន្ទាប់ពី CFrame)
     local Hum = GetHum()
     if Hum then
         pcall(function()
@@ -736,7 +747,6 @@ local function AutoStop()
         end)
     end
 
-    -- ✅ Cleanup (បន្ទាប់ពី Reset)
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -744,7 +754,6 @@ local function AutoStop()
 
     print("[VIPTP] Auto Stop")
 
-    -- ✅ Callback ទៅ FarmingManager
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
         task.spawn(function()
             task.wait(0.5)
@@ -754,7 +763,7 @@ local function AutoStop()
 end
 
 -- ==================================================
--- START FLY TO TARGET (Instant)
+-- ✅ START FLY TO TARGET (Fixed — TargetPos nil Check)
 -- ==================================================
 local function StartFlyToTarget()
     if FlyTargetStarted then return end
@@ -762,12 +771,17 @@ local function StartFlyToTarget()
 
     CurrentStep = "to_target"
 
+    -- ✅ Debug Log
+    print("[VIPTP] StartFlyToTarget | Mode:", CurrentMode, "| UID:", tostring(TARGET_UID))
+
     local TargetPos = nil
 
     if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
-        if TargetEgg then
-            TargetPos = GetPosition(TargetEgg)
+        if Container then
+            local TargetEgg = Container:FindFirstChild(TARGET_UID)
+            if TargetEgg then
+                TargetPos = GetPosition(TargetEgg)
+            end
         end
     elseif CurrentMode == "workspace" then
         if SavedTargetPosition then
@@ -781,12 +795,14 @@ local function StartFlyToTarget()
         end
     end
 
+    -- ✅ Check TargetPos nil
     if not TargetPos then
+        warn("[VIPTP] StartFlyToTarget: TargetPos is nil! Mode:", CurrentMode, "UID:", tostring(TARGET_UID))
         AutoStop()
         return
     end
 
-    print("[VIPTP] Instant TP to Target")
+    print("[VIPTP] Instant TP to Target | Pos:", tostring(TargetPos))
     InstantFlyTP(TargetPos, function()
         TargetCollected = false
         CollectTime = 0
@@ -796,7 +812,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Fixed)
 -- ==================================================
 local function FlyToTargetAgain()
     print("[VIPTP] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
@@ -1174,4 +1190,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Safe Zone Lock Fix + AutoStop Reset CFrame)")
+print("✅ VIPTP Loaded (Fixed: Argument 1 missing | TargetPos nil Check | Debug)")
