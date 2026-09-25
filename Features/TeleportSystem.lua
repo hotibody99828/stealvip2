@@ -47,7 +47,7 @@ local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000
-local RETURN_SPEED = 800
+local RETURN_SPEED = 1000
 
 local CurrentMethod = "TeleportFly"
 
