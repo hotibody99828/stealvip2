@@ -3,18 +3,18 @@
 -- First Egg: FlyTP (Shot TP)
 -- Target Egg: FlyTP (Shot TP) / Instant
 -- Safe Zone: FlyTP (No Shot TP) → Reset State + Stop (No Lock)
--- Recovery: Tween Teleport ពេល Egg Drop
+-- Recovery: FlyTP (No Shot TP)
 -- Teleport Speed: 50 - 1100
 -- ForestStrike: Fire only when First Egg collected
 -- ✅ DropHeldEgg Check
--- ✅ Auto Recovery (Tween)
+-- ✅ Auto Recovery (No Tween)
 -- ✅ Safe Zone: Reset State + Stop (គ្មាន Lock)
+-- ✅ FLY_OFFSET = 10
 --==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
@@ -53,7 +53,7 @@ local RETURN_SPEED = 300
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 25
+local FLY_OFFSET = 10  -- ✅ កែពី 25 → 10
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
 
@@ -65,9 +65,6 @@ local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
 
--- ✅ Recovery Settings
-local TWEEN_DURATION = 0.50
-local NEAR_OFFSET = 20
 local MAX_RECOVERY_ATTEMPTS = 10
 local TARGET_COLLECT_TIMEOUT = 15
 
@@ -522,16 +519,15 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                Root2.CFrame = CFrame.new(Destination)  -- ✅ Set CFrame នៅដី
+                Root2.CFrame = CFrame.new(Destination)
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                -- ✅ មិន StartLock() ពេល IsSafeZone
                 if Callback then Callback() end
                 return
             end
         end
 
-        -- ✅ Target Egg: Shot TP
+        -- ✅ Shot TP (First + Target)
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
             CleanupMovers()
@@ -591,33 +587,6 @@ local function InstantFlyTP(Destination, Callback)
     StartLock(Destination)
 
     if Callback then Callback() end
-end
-
---==================================================
--- ✅ TWEEN TELEPORT (សម្រាប់ RECOVERY)
---==================================================
-
-local function TweenTP(Destination, Callback)
-    CleanupMovers()
-
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then return end
-    if Hum.Health <= 0 then return end
-
-    Hum.PlatformStand = true
-
-    local Direction = (Destination - Root.Position).Unit
-    local NearPos = Destination - (Direction * NEAR_OFFSET)
-
-    local TweenInfoObj = TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    local Tween = TweenService:Create(Root, TweenInfoObj, {
-        CFrame = CFrame.new(NearPos, Destination)
-    })
-
-    Tween:Play()
-    Tween.Completed:Wait()
-
-    FlyTP(Destination, FLY_SPEED, true, false, Callback)
 end
 
 --==================================================
@@ -773,7 +742,7 @@ StartFlyToTarget = function()
 end
 
 --==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Tween Teleport)
+-- ✅ FLY TO TARGET AGAIN (Recovery — FlyTP No Shot TP)
 --==================================================
 
 FlyToTargetAgain = function()
@@ -785,9 +754,10 @@ FlyToTargetAgain = function()
         return
     end
 
-    print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween Teleport)")
+    print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (FlyTP No Shot TP)")
     CurrentStep = "recovery"
 
+    -- ✅ ១. Stop BodyV/G ភ្លាម
     if BodyVelocity then
         BodyVelocity.Velocity = Vector3.zero
         BodyVelocity.MaxForce = Vector3.zero
@@ -796,6 +766,7 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
+    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -826,8 +797,10 @@ FlyToTargetAgain = function()
     RecoveryTriggered = false
     TargetCollected = false
 
-    print("[YOKUDO] Recovery Tween → FlyTP to Target")
-    TweenTP(TargetPos, function()
+    print("[YOKUDO] Recovery FlyTP (No Shot TP) → Target")
+
+    -- ✅ ៣. FlyTP ធម្មតា (No Shot TP) ទៅ Target
+    FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
 
         TargetCollected = false
@@ -878,7 +851,7 @@ FlyToSafeZone = function()
             FlyConnection = nil
         end
 
-        -- ✅ ៤. Disconnect LockConnection ភ្លាម (កុំឲ Lock ពីលើ Safe Zone)
+        -- ✅ ៤. Disconnect LockConnection ភ្លាម
         if LockConnection then
             LockConnection:Disconnect()
             LockConnection = nil
@@ -894,7 +867,7 @@ FlyToSafeZone = function()
         -- ✅ ៧. Restore Stats
         RestoreStats()
 
-        -- ✅ ៨. Reset Humanoid PlatformStand
+        -- ✅ ៨. Reset Humanoid
         local Hum = GetHumanoid()
         if Hum then
             pcall(function()
@@ -1255,4 +1228,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Tween + Safe Zone No Lock)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Fly Offset 10 + No Tween + Safe Zone No Lock)")
