@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
--- ✅ Method + Speed ពី Tab Setting
+-- ✅ Method + Speed ពី Tab Setting (SetMethod/SetSpeed)
 -- ✅ Shot TP = 25 (First + Target Egg)
 -- ✅ Recovery = No Shot TP
 -- ✅ Safe Zone = Stop + Reset State + Destroy ទាំងអស់
@@ -38,21 +38,12 @@ end
 print("[YOKUDO] TeleportSystem: CollectEvent OK")
 
 -- ==================================================
--- ✅ SETTINGS ពី Tab Setting
+-- SETTINGS
 -- ==================================================
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
--- ✅ ទាញពី _G (Tab Setting)
-local function GetMethod()
-    return _G.YOKUDO_SelectedMethod or "TeleportFly"
-end
-
-local function GetSpeed()
-    return _G.YOKUDO_TeleportSpeed or 300
-end
-
--- តម្លៃ Default
+-- ✅ Method + Speed ពី Setting
 local FLY_SPEED = 1000
 local RETURN_SPEED = 800
 
@@ -129,6 +120,17 @@ local SavedWalkSpeed = nil
 local SavedJumpPower = nil
 local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
+
+-- ==================================================
+-- ✅ GET METHOD + SPEED ពី Setting
+-- ==================================================
+local function GetMethod()
+    return _G.YOKUDO_SelectedMethod or "TeleportFly"
+end
+
+local function GetSpeed()
+    return _G.YOKUDO_TeleportSpeed or 300
+end
 
 -- ==================================================
 -- GET CHARACTER (No GetHumanoid)
@@ -458,7 +460,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     -- ✅ Speed ពី Setting
     local RealSpeed = GetSpeed()
-    if RealSpeed > 0 then
+    if RealSpeed and RealSpeed > 0 then
         Speed = RealSpeed
     end
 
@@ -745,14 +747,12 @@ local function AutoStop()
     Running = false
     CurrentStep = "done"
 
-    -- ✅ Disconnect Lock មុន
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
     end
     TargetLockedCFrame = nil
 
-    -- ✅ Stop + Destroy BodyV/G
     if BodyVelocity then
         pcall(function()
             BodyVelocity.Velocity = Vector3.zero
@@ -769,7 +769,6 @@ local function AutoStop()
         BodyGyro = nil
     end
 
-    -- ✅ Reset CFrame ទៅ Safe Zone (ដី)
     local Root = GetRoot()
     if Root then
         pcall(function()
@@ -779,7 +778,6 @@ local function AutoStop()
         end)
     end
 
-    -- ✅ Reset Humanoid
     local Hum = GetHum()
     if Hum then
         pcall(function()
@@ -791,7 +789,6 @@ local function AutoStop()
 
     task.wait(0.2)
 
-    -- ✅ Cleanup ទាំងអស់
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
@@ -812,7 +809,6 @@ local function AutoStop()
 
     print("[YOKUDO] TeleportSystem: Auto Stop + Reset State")
 
-    -- ✅ Callback ទៅ FarmingManager
     task.spawn(function()
         task.wait(0.3)
         if _G.YOKUDO_FarmingManager then
@@ -934,7 +930,6 @@ local function FlyToSafeZone()
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
 
-        -- ✅ Reset State ទាំងអស់
         TargetCollected = false
         CollectDone = false
         CollectTime = 0
@@ -1223,6 +1218,16 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end,
     GetMethod = GetMethod,
     GetSpeed = GetSpeed,
+
+    -- ✅ បន្ថែមត្រឡប់វិញ ដើម្បីកុំឲ្យ AutoFarm ខូច
+    SetMethod = function(Method)
+        _G.YOKUDO_SelectedMethod = Method
+        print("[YOKUDO] TeleportSystem SetMethod: " .. tostring(Method))
+    end,
+    SetSpeed = function(Speed)
+        _G.YOKUDO_TeleportSpeed = Speed
+        print("[YOKUDO] TeleportSystem SetSpeed: " .. tostring(Speed))
+    end,
 }
 
-print("✅ TeleportSystem Loaded (Method + Speed ពី Setting + Shot TP 25 + Recovery No Shot + No Loop)")
+print("✅ TeleportSystem Loaded (Method + Speed ពី Setting + Shot TP 25 + Recovery No Shot + No Loop + SetMethod/SetSpeed)")
