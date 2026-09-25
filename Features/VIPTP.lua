@@ -4,7 +4,7 @@
 -- ✅ Instant TP ទៅ Target Egg
 -- ✅ Auto Detect: spawn / workspace
 -- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
--- ✅ Auto Recovery Egg ពេល Egg Drop តាមផ្លូវ
+-- ✅ Auto Recovery Egg ពេល Egg Drop តាមផ្លូវ (FlyTP Speed 1000)
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
@@ -113,6 +113,7 @@ local FlyTargetStarted = false
 local CollectDone = false
 local TargetCollected = false
 local RemotesFired = false
+local RecoveryTriggered = false  -- ✅ ការពារកុំឲ្យហៅ Recovery ស្ទួន
 
 local SavedTargetPosition = nil
 local TargetLockedCFrame = nil
@@ -123,7 +124,7 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
--- ✅ GET CHARACTER (ដក GetHumanoid ចេញ)
+-- GET CHARACTER (ដក GetHumanoid ចេញ)
 -- ==================================================
 local function GetChar()
     return Player.Character
@@ -694,9 +695,6 @@ local function IsTargetInWorkspace()
     return workspace:FindFirstChild(TARGET_UID) ~= nil
 end
 
--- ==================================================
--- ✅ CHECK TARGET STILL EXISTS (ក្នុង Spawn + Workspace)
--- ==================================================
 local function IsTargetStillExists()
     return IsTargetInContainer() or IsTargetInWorkspace()
 end
@@ -725,7 +723,7 @@ local function AutoStop()
 end
 
 -- ==================================================
--- START FLY TO TARGET
+-- START FLY TO TARGET (Instant)
 -- ==================================================
 local function StartFlyToTarget()
     if FlyTargetStarted then return end
@@ -764,39 +762,10 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE (មាន Auto Recovery Egg)
--- ==================================================
-local function FlyToSafeZone()
-    CurrentStep = "to_safe"
-
-    print("[VIPTP] FlyTP to Safe Zone")
-
-    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        -- ពេលមកដល់ Safe Zone
-        print("[VIPTP] ✅ Arrived Safe Zone → Check Egg")
-
-        -- ✅ Check Egg ម្តងទៀត
-        if IsTargetStillExists() then
-            print("[VIPTP] Egg Still Exists → Go Collect Again")
-            CurrentStep = "to_target"
-            FlyTargetStarted = false
-
-            -- Fly TP ទៅ Target Egg ម្តងទៀត
-            task.wait(0.3)
-            StartFlyToTarget()
-        else
-            print("[VIPTP] ✅ Egg Gone → Done")
-            AutoStop()
-        end
-    end)
-end
-
--- ==================================================
--- ✅ FLY TO TARGET AGAIN (Auto Recovery ពេល Egg Drop)
+-- ✅ FLY TO TARGET AGAIN (Recovery ពេល Egg Drop — Speed 1000)
 -- ==================================================
 local function FlyToTargetAgain()
-    print("[VIPTP] Egg Dropped → Fly TP to Target Again")
-
+    print("[VIPTP] ⚠️ Egg Dropped → Recovery! Fly TP to Target Again (Speed 1000)")
     CurrentStep = "recovery"
 
     local TargetPos = nil
@@ -824,10 +793,37 @@ local function FlyToTargetAgain()
         return
     end
 
-    -- ✅ Fly TP (No Instant) ទៅ Target Egg
+    -- ✅ Fly TP ដោយ FLY_SPEED (1000) ដូច First Egg
     FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[VIPTP] ✅ Recovery Arrived → Collect Target")
+        RecoveryTriggered = false
         CurrentStep = "collect_target"
+    end)
+end
+
+-- ==================================================
+-- FLY TO SAFE ZONE
+-- ==================================================
+local function FlyToSafeZone()
+    CurrentStep = "to_safe"
+
+    print("[VIPTP] FlyTP to Safe Zone")
+
+    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
+        print("[VIPTP] ✅ Arrived Safe Zone → Check Egg")
+
+        -- ✅ Check Egg ម្តងទៀត
+        if IsTargetStillExists() then
+            print("[VIPTP] Egg Still Exists → Go Collect Again")
+            CurrentStep = "to_target"
+            FlyTargetStarted = false
+
+            task.wait(0.3)
+            StartFlyToTarget()
+        else
+            print("[VIPTP] ✅ Egg Gone → Done")
+            AutoStop()
+        end
     end)
 end
 
@@ -900,13 +896,19 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- ✅ Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ)
+        -- ✅ Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ ខណៈ Fly ទៅ Safe Zone)
         if CurrentStep == "to_safe" then
-            -- បើ Egg ធ្លាក់តាមផ្លូវ → DropHeldEgg.Enabled = false
             if not IsTargetCollectedByDropHeldEgg() then
-                print("[VIPTP] ⚠️ Egg Dropped → Recovery!")
-                task.spawn(function() FlyToTargetAgain() end)
+                if not RecoveryTriggered then
+                    RecoveryTriggered = true
+                    print("[VIPTP] ⚠️ Egg Dropped on Way → Recovery!")
+                    task.spawn(function()
+                        FlyToTargetAgain()
+                    end)
+                end
                 return
+            else
+                RecoveryTriggered = false
             end
         end
     end)
@@ -932,6 +934,7 @@ local function StartProcess()
     CollectDone = false
     TargetCollected = false
     RemotesFired = false
+    RecoveryTriggered = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
     LastDropState = false
@@ -1022,6 +1025,7 @@ local function FullReset()
     CollectDone = false
     TargetCollected = false
     RemotesFired = false
+    RecoveryTriggered = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
     LastDropState = false
@@ -1109,4 +1113,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Auto Recovery)")
+print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Auto Recovery Speed 1000)")
