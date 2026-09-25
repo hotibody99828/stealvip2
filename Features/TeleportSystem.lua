@@ -3,12 +3,11 @@
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
 -- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
--- Recovery: FlyTP ធម្មតា (No Shot TP) — Stop FlyTP ដើម មុនចាប់ផ្តើម
--- ✅ Disconnect FlyConnection ភ្លាម → Stop 100% ទៀងទាត់
--- ✅ Safe Zone: មិន Shot TP + Stop + Reset ភ្លាមៗ
--- ✅ Recovery: Stop FlyTP ដើម មុនចាប់ផ្តើម (កុំឲ្យជាន់គ្នា)
+-- Recovery: FlyTP ធម្មតា (No Shot TP) — Stop FlyTP ដើម + Disconnect
+-- ✅ Safe Zone: Stop + Reset ភ្លាមៗ (ទាំងធម្មតា + Recovery)
+-- ✅ Recovery: កុំកន្រាក់ — Stop BodyV/G + Disconnect + task.wait(0.1) ពីរដង
 -- ✅ DropHeldEgg Check
--- ✅ Logic ចាស់ | គ្មាន Callback ទៅ FarmingManager
+-- ✅ Logic ចាស់ | គ្មាន Callback
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -449,7 +448,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (Disconnect FlyConnection ភ្លាម + IsRecovering Check)
+-- ✅ FLY TP (Disconnect FlyConnection ភ្លាម)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -625,7 +624,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 -- ==================================================
--- INSTANT FLY TP (FOR TARGET EGG)
+-- INSTANT FLY TP
 -- ==================================================
 local function InstantFlyTP(Destination, Callback)
     if not Destination then
@@ -838,7 +837,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Stop FlyTP ដើម មុនចាប់ផ្តើម)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Stop FlyTP ដើម ភ្លាម)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -865,8 +864,8 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
-    -- ✅ ២. រង់ចាំ 0.1 វិនាទី
-    task.wait(0.1)
+    -- ✅ ២. រង់ចាំ 0.2 វិនាទី
+    task.wait(0.2)
 
     -- ✅ ៣. Cleanup
     CleanupMovers()
@@ -899,7 +898,11 @@ FlyToTargetAgain = function()
         return
     end
 
-    -- ✅ ៥. FlyTP ធម្មតា (No Shot TP) ទៅ Target Egg
+    -- ✅ ៥. Reset RecoveryTriggered មុនពេល FlyTP
+    RecoveryTriggered = false
+    TargetCollected = false
+
+    -- ✅ ៦. FlyTP ធម្មតា (No Shot TP) ទៅ Target Egg
     print("[YOKUDO] Recovery FlyTP (No Shot) to Target")
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
@@ -920,6 +923,10 @@ end
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
+
+    -- ✅ Reset RecoveryTriggered មុនពេល FlyTP
+    RecoveryTriggered = false
+    TargetCollected = false
 
     print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
 
@@ -1010,6 +1017,7 @@ StartActiveHeartbeat = function()
             if IsTargetCollectedByDropHeldEgg() then
                 print("[YOKUDO] ✅ DropHeldEgg.Enabled = true → Target Collected!")
                 TargetCollected = true
+                RecoveryTriggered = false  -- ✅ Reset
                 task.spawn(function()
                     task.wait(0.1)
                     FlyToSafeZone()
@@ -1020,6 +1028,7 @@ StartActiveHeartbeat = function()
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
                     TargetCollected = true
+                    RecoveryTriggered = false
                     task.spawn(function()
                         task.wait(0.1)
                         FlyToSafeZone()
@@ -1035,6 +1044,7 @@ StartActiveHeartbeat = function()
                             local Dist = (CurrentPos - SavedTargetPosition).Magnitude
                             if Dist >= POSITION_THRESHOLD then
                                 TargetCollected = true
+                                RecoveryTriggered = false
                                 task.spawn(function()
                                     task.wait(0.1)
                                     FlyToSafeZone()
@@ -1275,4 +1285,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Disconnect FlyConnection ភ្លាម + Recovery Stop ដើម + Stop 100% ទៀងទាត់)")
+print("✅ TeleportSystem Loaded (Fixed Recovery + No Lag + Safe Zone Stop + Reset)")
