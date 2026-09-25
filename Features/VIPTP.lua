@@ -9,7 +9,7 @@
 -- ✅ ដក Heartbeat — ប្រើ task.spawn + task.wait
 -- ✅ Auto Recovery — ពេល Egg Drop (Tween + FlyTP)
 -- ✅ Check Collect — DropHeldEgg Signal
--- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop (មាន pcall)
+-- ✅ Fixed: Recovery Trigger ក្នុង FlyTP ខ្លួនឯង
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -463,7 +463,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (No Heartbeat — ប្រើ task.spawn)
+-- ✅ FLY TP (មាន Recovery Trigger ខាងក្នុង)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -496,7 +496,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     local StartTime = tick()
     local ShotDone = false
 
-    -- ✅ ប្រើ task.spawn ជំនួស Heartbeat
     ActiveTask = task.spawn(function()
         while Running do
             task.wait(0.01)
@@ -512,6 +511,19 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             if not BodyVelocity or not BodyGyro then
                 CleanupMovers()
                 return
+            end
+
+            -- ✅ Safe Zone: Check Egg Drop ជាប់ៗ
+            if IsSafeZone and TargetCollected then
+                if not IsTargetCollectedByDropHeldEgg() then
+                    if not RecoveryTriggered then
+                        RecoveryTriggered = true
+                        print("[VIPTP] ⚠️ Egg Dropped on Way → Recovery!")
+                        CleanupMovers()
+                        task.spawn(function() FlyToTargetAgain() end)
+                        return
+                    end
+                end
             end
 
             local CurrentPos = Root2.Position
@@ -778,7 +790,6 @@ FlyToTargetAgain = function()
     print("[VIPTP] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween + FlyTP)")
     CurrentStep = "recovery"
 
-    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
     StopActiveTask()
     if BodyVelocity then
         BodyVelocity.Velocity = Vector3.zero
@@ -788,7 +799,6 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
-    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -816,7 +826,6 @@ FlyToTargetAgain = function()
         return
     end
 
-    -- ✅ ៣. Tween Player ទៅ Near Position
     local Hum = GetHum()
     local Root = GetRoot()
     if not Hum or not Root then
@@ -837,7 +846,6 @@ FlyToTargetAgain = function()
     Tween:Play()
     Tween.Completed:Wait()
 
-    -- ✅ ៤. FlyTP ទៅ Target
     RecoveryTriggered = false
     TargetCollected = false
 
@@ -884,7 +892,6 @@ StartActiveTask = function()
             if not Hum or not Root then break end
             if Hum.Health <= 0 then break end
 
-            -- Step 1: Collect First Egg
             if CurrentStep == "collect_first" and not CollectDone then
                 if IsFirstEggInWorkspace() then
                     CollectDone = true
@@ -906,17 +913,14 @@ StartActiveTask = function()
                 end
             end
 
-            -- Step 2: Wait First Egg Spawn Back
             if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
                 if IsFirstEggInContainer() then
                     task.spawn(function() StartFlyToTarget() end)
                 end
             end
 
-            -- Step 3: Collect Target Egg (DropHeldEgg + Mode ដើម)
             if CurrentStep == "collect_target" and not TargetCollected then
 
-                -- ✅ DropHeldEgg Check
                 if IsTargetCollectedByDropHeldEgg() then
                     print("[VIPTP] ✅ DropHeldEgg.Enabled = true → Target Collected!")
                     TargetCollected = true
@@ -959,19 +963,6 @@ StartActiveTask = function()
                             task.spawn(function() FlyToTargetAgain() end)
                         end
                     end
-                end
-            end
-
-            -- Step 4: Recovery (Egg Drop តាមផ្លូវ)
-            if CurrentStep == "to_safe" then
-                if not IsTargetCollectedByDropHeldEgg() then
-                    if not RecoveryTriggered then
-                        RecoveryTriggered = true
-                        print("[VIPTP] ⚠️ Egg Dropped on Way → Recovery!")
-                        task.spawn(function() FlyToTargetAgain() end)
-                    end
-                else
-                    RecoveryTriggered = false
                 end
             end
         end
@@ -1144,6 +1135,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = SAFE_ZONE,
 }
 
--- ✅ ដក Register ចេញ — មិន Register ជាមួយ CharacterSystem
-
-print("✅ VIPTP Loaded (AFK Farm Only | Instant | Speed 1000/800 | Offset 15 | No Register | No GetHumanoid | No Heartbeat | Auto Recovery | Tween + BodyV/G)")
+print("✅ VIPTP Loaded (AFK Farm Only | Instant | Speed 1000/800 | Offset 15 | No Register | No GetHumanoid | No Heartbeat | Auto Recovery in FlyTP | Tween + BodyV/G)")
