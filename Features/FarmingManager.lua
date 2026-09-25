@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
--- ✅ ប្រើ VIPTP វិញ (មិនប្រើ TeleportSystem)
+-- ✅ ប្រើ VIPTP វិញ
 -- ✅ Callback ពី VIPTP ពេល AutoStop
 -- ✅ StopAll() រង់ចាំ JumpOutTreadmill ចប់
+-- ✅ IsVIPTPRunning Flag (ការពារ Loop ស្ទួន)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -178,6 +179,7 @@ local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
 local WaitingForVIPTP = false
+local IsVIPTPRunning = false  -- ✅ Flag ការពារ Loop ស្ទួន
 
 local FlyConnection = nil
 local BodyVelocity = nil
@@ -353,7 +355,6 @@ local function StopAll()
         end
 
         if TreadmillPos then
-            -- ✅ រង់ចាំ JumpOutTreadmill ចប់
             local JumpDone = false
             _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
                 _G.YOKUDO_AFKSystem.Disable()
@@ -362,7 +363,6 @@ local function StopAll()
                 print("[FarmingManager] ✅ AFK Stopped + Jumped out!")
             end)
 
-            -- ✅ រង់ចាំរហូតដល់ JumpOut ចប់ (ឬ 5s timeout)
             local WaitTime = 0
             while not JumpDone and WaitTime < 5 do
                 task.wait(0.1)
@@ -380,7 +380,6 @@ local function StopAll()
         end
     end
 
-    -- ✅ បិទ VIPTP
     if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
         _G.YOKUDO_VIPTP.Disable()
         print("[FarmingManager] ✅ VIPTP Stopped")
@@ -461,6 +460,7 @@ local function StartVIPTP(EggUid)
     print("  - Target UID: " .. tostring(EggUid))
 
     WaitingForVIPTP = true
+    IsVIPTPRunning = true  -- ✅ កំណត់ flag
     _G.YOKUDO_VIPTP.SetTargetId(EggUid)
     _G.YOKUDO_VIPTP.Enable()
 end
@@ -469,10 +469,11 @@ end
 -- ✅ CALLBACK ពី VIPTP
 -- ==================================================
 local function OnVIPTPComplete()
-    if not FarmingEnabled then return end
-    if not WaitingForVIPTP then return end
-
+    IsVIPTPRunning = false  -- ✅ Reset flag
     WaitingForVIPTP = false
+
+    if not FarmingEnabled then return end
+
     print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
     local BestEgg = FindBestEgg()
@@ -514,12 +515,18 @@ local function OnVIPTPComplete()
 end
 
 -- ==================================================
--- MAIN LOOP
+-- MAIN LOOP (✅ ការពារ Loop ស្ទួន)
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started")
 
     while FarmingEnabled do
+        -- ✅ បើ VIPTP កំពុងរត់ → មិនធ្វើអ្វី
+        if IsVIPTPRunning then
+            task.wait(EGG_CHECK_INTERVAL)
+            continue
+        end
+
         local Phase = GetPhase()
         CurrentPhase = Phase
 
@@ -530,7 +537,6 @@ local function MainLoop()
 
             PendingEggUid = BestEgg.Uid
 
-            -- ✅ StopAll() រង់ចាំ JumpOut ចប់
             StopAll()
             task.wait(1)
 
@@ -579,6 +585,7 @@ local function Enable()
     AFKStarted = false
     PendingEggUid = nil
     WaitingForVIPTP = false
+    IsVIPTPRunning = false  -- ✅ Reset flag
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -603,6 +610,7 @@ local function Disable()
     AFKStarted = false
     PendingEggUid = nil
     WaitingForVIPTP = false
+    IsVIPTPRunning = false  -- ✅ Reset flag
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -640,4 +648,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback + StopAll Fixed)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback + IsVIPTPRunning Flag)")
