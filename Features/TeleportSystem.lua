@@ -1,10 +1,14 @@
 -- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
--- ✅ Micro TP: TP ខ្លីៗ 15 studs ម្តង
--- ✅ Heartbeat:Wait() ជំនួស task.wait (មិនកន្រាក់)
+-- First Egg: FlyTP (Shot TP, Offset 5, Speed 1000)
+-- Target Egg: FlyTP / Instant (Lock 1)
+-- Safe Zone: FlyTP (No Shot TP, Offset 5, Speed 800)
+-- ✅ BodyVelocity + BodyGyro (លឿន មិនកន្រាក់)
+-- ✅ BodyVelocity.P = 10000 | BodyGyro.P = 100000 | BodyGyro.D = 2000
+-- ✅ task.wait(0.2) មុន StartLock (ការពារកន្រាក់)
 -- ✅ DropHeldEgg Signal
--- ✅ Auto Recovery (Egg Drop តាមផ្លូវ)
--- ✅ Safe Zone → Stop ភ្លាម + Reset State
+-- ✅ Auto Recovery (No Shot TP)
+-- ✅ Safe Zone: AutoStop + Reset State
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -47,18 +51,13 @@ local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 5
-local SHOT_DISTANCE = 10
+local FLY_OFFSET = 5              -- ✅ Offset 5
+local SHOT_DISTANCE = 100         -- ✅ Shot TP ពីចម្ងាយ 100
 local LOCK_ABOVE = 1
 
-local ARRIVE_DISTANCE = 5
-local SAFE_LOCK_DISTANCE = 30
+local ARRIVE_DISTANCE = 5         -- ✅ ឈប់ពីចម្ងាយ 5
+local SAFE_LOCK_DISTANCE = 3
 local TIMEOUT_SECONDS = 30
-
--- ✅ Micro TP Settings
-local MICRO_STEP = 10           -- ខ្លីៗ 15 studs ម្តង
-local MICRO_HEARTBEAT = 1         -- Heartbeat:Wait() 1 ដង រវាងដង
-local MICRO_FINAL_HEARTBEAT = 2   -- Heartbeat:Wait() 2 ដង មុន StartLock
 
 local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
@@ -69,6 +68,14 @@ local LOCK_POSITION = Vector3.new(
     70.57420349121094,
     -326.8830261230469
 )
+
+-- ==================================================
+-- ✅ BODY SETTINGS (លឿន មិនកន្រាក់)
+-- ==================================================
+local BODY_VELOCITY_P = 10000      -- ខ្ពស់ — លឿន
+local BODY_GYRO_P = 100000         -- ខ្ពស់ — បង្វិលលឿន
+local BODY_GYRO_D = 2000           -- ✅ ខ្ពស់ — មិនទាញ មិនកន្រាក់
+local WAIT_BEFORE_LOCK = 0.2       -- ✅ រង់ចាំមុន StartLock
 
 -- ==================================================
 -- RAGDOLL BYPASS
@@ -435,23 +442,17 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ MICRO TP (TP ខ្លីៗ 15 studs ម្តង + Heartbeat)
+-- ✅ FLY TP (Body C&G លឿន មិនកន្រាក់)
 -- ==================================================
-local function MicroTP(Destination, IsSafeZone, Callback)
+local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
 
     local Hum = GetHum()
     local Root = GetRoot()
-    if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    if Hum.Health <= 0 then
-        if Callback then Callback() end
-        return
-    end
+    if not Hum or not Root then return end
+    if Hum.Health <= 0 then return end
 
-    Hum.PlatformStand = true
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
 
     local LockCFrame
     if IsSafeZone then
@@ -460,59 +461,156 @@ local function MicroTP(Destination, IsSafeZone, Callback)
         LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
     end
 
+    Hum.PlatformStand = true
+
+    -- ✅ BodyVelocity លឿន
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = BODY_VELOCITY_P
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    -- ✅ BodyGyro មិនកន្រាក់
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = BODY_GYRO_P
+    BodyGyro.D = BODY_GYRO_D
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
+
     local StartTime = tick()
+    local ShotDone = false
 
-    task.spawn(function()
-        while Running do
-            local Root2 = GetRoot()
-            if not Root2 then break end
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not Running then
+            CleanupMovers()
+            return
+        end
 
-            local CurrentPos = Root2.Position
-            local Direction = (Destination - CurrentPos)
-            local TotalDist = Direction.Magnitude
+        local Hum2 = GetHum()
+        local Root2 = GetRoot()
+        if not Hum2 or not Root2 then
+            CleanupMovers()
+            return
+        end
+        if Hum2.Health <= 0 then return end
 
-            -- ✅ ដល់ហើយ
-            if TotalDist <= MICRO_STEP then
+        if not BodyVelocity or not BodyGyro then
+            CleanupMovers()
+            return
+        end
+
+        local CurrentPos = Root2.Position
+        local Direction = (FlyPos - CurrentPos)
+        local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
+        local VertDist = math.abs(Direction.Y)
+        local TotalDist = Direction.Magnitude
+
+        -- ✅ Shot TP ខ្លីៗ តែលឿន
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+            ShotDone = true
+            CleanupMovers()
+            Root2.CFrame = LockCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+
+            task.wait(WAIT_BEFORE_LOCK)  -- ✅ ការពារកន្រាក់
+
+            StartLock(Destination)
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ Safe Zone
+        if IsSafeZone then
+            if HorizDist <= SAFE_LOCK_DISTANCE then
+                CleanupMovers()
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
 
-                -- ✅ រង់ចាំ Heartbeat (Physics Update)
-                for i = 1, MICRO_FINAL_HEARTBEAT do
-                    RunService.Heartbeat:Wait()
-                end
+                task.wait(WAIT_BEFORE_LOCK)  -- ✅ ការពារកន្រាក់
 
                 StartLock(Destination)
                 if Callback then Callback() end
                 return
             end
+        end
 
-            -- ✅ Timeout
-            if tick() - StartTime > TIMEOUT_SECONDS then
-                if Callback then Callback() end
-                return
-            end
-
-            -- ✅ TP ខ្លីៗ 15 studs ម្តង
-            local StepPos = CurrentPos + (Direction.Unit * MICRO_STEP)
-            Root2.CFrame = CFrame.new(StepPos)
+        -- ✅ ដល់ហើយ
+        if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
+            CleanupMovers()
+            Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            -- ✅ រង់ចាំ Heartbeat
-            for i = 1, MICRO_HEARTBEAT do
-                RunService.Heartbeat:Wait()
-            end
+            task.wait(WAIT_BEFORE_LOCK)  -- ✅ ការពារកន្រាក់
+
+            StartLock(Destination)
+            if Callback then Callback() end
+            return
         end
+
+        -- ✅ Timeout
+        if tick() - StartTime > TIMEOUT_SECONDS then
+            CleanupMovers()
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ បន្តហោះ
+        if TotalDist > 1 then
+            BodyVelocity.Velocity = Direction.Unit * Speed
+        else
+            BodyVelocity.Velocity = Vector3.zero
+        end
+
+        BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
     end)
+end
+
+-- ==================================================
+-- INSTANT FLY TP
+-- ==================================================
+local function InstantFlyTP(Destination, Callback)
+    if not Destination then
+        if Callback then Callback() end
+        return
+    end
+
+    CleanupMovers()
+
+    local Hum = GetHum()
+    local Root = GetRoot()
+    if not Hum or not Root then return end
+    if Hum.Health <= 0 then return end
+
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+
+    Root.CFrame = LockCFrame
+    Root.AssemblyLinearVelocity = Vector3.zero
+    Root.AssemblyAngularVelocity = Vector3.zero
+
+    task.wait(WAIT_BEFORE_LOCK)  -- ✅ ការពារកន្រាក់
+
+    StartLock(Destination)
+
+    if Callback then Callback() end
 end
 
 -- ==================================================
 -- TELEPORT TO TARGET
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
-    print("[YOKUDO] Micro TP to Target")
-    MicroTP(TargetPos, false, Callback)
+    if CurrentMethod == "InstantTeleport" then
+        print("[YOKUDO] Instant TP to Target")
+        InstantFlyTP(TargetPos, Callback)
+    else
+        print("[YOKUDO] FlyTP to Target (Shot TP)")
+        FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
+    end
 end
 
 -- ==================================================
@@ -590,22 +688,16 @@ local function IsTargetInWorkspace()
     return workspace:FindFirstChild(TARGET_UID) ~= nil
 end
 
+local function IsTargetStillExists()
+    return IsTargetInContainer() or IsTargetInWorkspace()
+end
+
 -- ==================================================
--- AUTO STOP (Reset State ទាំងអស់)
+-- AUTO STOP
 -- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
-
-    -- ✅ Reset State ទាំងអស់
-    TargetCollected = false
-    CollectDone = false
-    CollectTime = 0
-    CollectAttempts = 0
-    RecoveryTriggered = false
-    RemotesFired = false
-    FlyTargetStarted = false
-    SavedTargetPosition = nil
 
     if LockConnection then
         LockConnection:Disconnect()
@@ -631,15 +723,14 @@ local function AutoStop()
         end)
     end
 
-    RunService.Heartbeat:Wait()
-    RunService.Heartbeat:Wait()
+    task.wait(0.3)
 
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] TeleportSystem: Auto Stop + Reset State")
+    print("[YOKUDO] TeleportSystem: Auto Stop")
 
     task.spawn(function()
         task.wait(0.5)
@@ -699,10 +790,10 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- FLY TO TARGET AGAIN (Recovery — Micro TP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — No Shot TP)
 -- ==================================================
 local function FlyToTargetAgain()
-    print("[YOKUDO] ⚠️ Egg Dropped → Recovery! (Micro TP)")
+    print("[YOKUDO] ⚠️ Egg Dropped → Recovery! (No Shot TP)")
     CurrentStep = "recovery"
 
     local TargetPos = nil
@@ -736,9 +827,11 @@ local function FlyToTargetAgain()
         return
     end
 
-    -- ✅ Micro TP ទៅ Target Egg
-    print("[YOKUDO] Recovery Micro TP")
-    MicroTP(TargetPos, false, function()
+    task.wait(0.3)  -- ✅ រង់ចាំបន្តិច
+
+    -- ✅ FlyTP ធម្មតា (No Shot TP)
+    print("[YOKUDO] Recovery FlyTP (No Shot) to Target")
+    FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery Arrived → collect_target")
 
         TargetCollected = false
@@ -752,15 +845,28 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Micro TP + Stop ភ្លាម)
+-- ✅ FLY TO SAFE ZONE (AutoStop + Reset State)
 -- ==================================================
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] Micro TP to Safe Zone")
+    print("[YOKUDO] FlyTP to Safe Zone")
 
-    MicroTP(SAFE_ZONE, true, function()
-        print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
+    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
+        print("[YOKUDO] ✅ Arrived Safe Zone → Reset + AutoStop")
+
+        -- ✅ Reset State ទាំងអស់
+        TargetCollected = false
+        CollectDone = false
+        CollectTime = 0
+        CollectAttempts = 0
+        RecoveryTriggered = false
+        RemotesFired = false
+        FlyTargetStarted = false
+        SavedTargetPosition = nil
+
+        task.wait(0.2)
+
         AutoStop()
     end)
 end
@@ -958,8 +1064,8 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    print("[YOKUDO] Micro TP to First Egg")
-    MicroTP(EggPos, false, function()
+    print("[YOKUDO] FlyTP to First Egg (Shot TP)")
+    FlyTP(EggPos, FLY_SPEED, true, false, function()
         CollectDone = false
         CollectTime = 0
         CurrentStep = "collect_first"
@@ -1096,4 +1202,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Micro TP + Heartbeat + No Drag + Recovery)")
+print("✅ TeleportSystem Loaded (Body C&G Fast + No Drag + Offset 5 + Recovery No Shot)")
