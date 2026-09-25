@@ -1,9 +1,14 @@
 -- ==================================================
--- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
--- First Egg: FlyTP (Shot TP, Offset 10, Speed 1000)
--- Target Egg: FlyTP / Instant (Lock 1)
--- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
--- ✅ Register ជាមួយ CharacterSystem
+-- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
+-- ដាច់ដោយឡែកសម្រាប់ AFK Farm
+-- ✅ ប្រើ VIPTP_ Prefix ដើម្បីកុំឲ្យជាន់គ្នាជាមួយ TeleportSystem
+-- ✅ Logic ដូច TeleportSystem ចាស់ ១០០%
+-- ✅ Method: InstantTeleport (តែមួយ)
+-- ✅ Option ២: spawn និង workspace
+-- Fly Speed: 1000 | Return Speed: 1000
+-- Fly Offset First: 5 | Fly Offset Safe: 5
+-- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop
+-- ✅ ForestStrike = Remote Drop Egg (First Egg Only)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -14,99 +19,108 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- REMOTES
+-- REMOTES (VIPTP_ Prefix)
 -- ==================================================
-local CollectEvent = nil
-local ForestStrike = nil
+local VIPTP_CollectEvent = nil
+local VIPTP_ForestStrike = nil
 
 pcall(function()
-    CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
+    VIPTP_CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
 end)
 
 pcall(function()
-    ForestStrike = ReplicatedStorage.Packages.Networking["RE/GuardPatrol/ForestStrike"]
+    VIPTP_ForestStrike = ReplicatedStorage.Packages.Networking["RE/GuardPatrol/ForestStrike"]
 end)
 
-if not CollectEvent then
-    warn("[YOKUDO] CollectEvent not found")
+if not VIPTP_CollectEvent then
+    warn("[VIPTP] CollectEvent not found")
     return
 end
 
-print("[YOKUDO] TeleportSystem: CollectEvent OK")
+print("[VIPTP] CollectEvent OK")
 
 -- ==================================================
--- ✅ SETTINGS (កែឱ្យលឿន)
+-- SETTINGS (VIPTP_ Prefix)
 -- ==================================================
-local TARGET_UID = nil
-local SAFE_ZONE = Vector3.new(533, 70, -366)
+local VIPTP_TARGET_UID = nil
+local VIPTP_SAFE_ZONE = Vector3.new(533, 70, -366)
 
-local FLY_SPEED = 1000
-local RETURN_SPEED = 800
+local VIPTP_FLY_SPEED = 1000
+local VIPTP_RETURN_SPEED = 1000
+local VIPTP_FLY_OFFSET_FIRST = 5
+local VIPTP_FLY_OFFSET_SAFE = 5
 
-local CurrentMethod = "TeleportFly"
+local VIPTP_SHOT_DISTANCE = 15
+local VIPTP_LOCK_ABOVE = 1
 
-local FLY_OFFSET = 10
-local SHOT_DISTANCE = 15
-local LOCK_ABOVE = 1
+local VIPTP_ARRIVE_DISTANCE = 2
+local VIPTP_SAFE_LOCK_DISTANCE = 3
+local VIPTP_TIMEOUT_SECONDS = 30
 
-local ARRIVE_DISTANCE = 2
-local SAFE_LOCK_DISTANCE = 3
-local TIMEOUT_SECONDS = 30
+local VIPTP_COLLECT_INTERVAL = 0.2
+local VIPTP_SEARCH_PREFIX = "FirstAreaEgg"
+local VIPTP_POSITION_THRESHOLD = 1
 
-local COLLECT_INTERVAL = 0.2
-local SEARCH_PREFIX = "FirstAreaEgg"
-local POSITION_THRESHOLD = 1
-
-local LOCK_POSITION = Vector3.new(
+local VIPTP_LOCK_POSITION = Vector3.new(
     607.6259155273438,
     70.57420349121094,
     -326.8830261230469
 )
 
 -- ==================================================
--- RAGDOLL BYPASS
+-- RAGDOLL BYPASS (VIPTP_ Prefix)
 -- ==================================================
-local RagdollEnabled = false
-local RagdollConnection = nil
-local ForceUpConnection = nil
+local VIPTP_RagdollEnabled = false
+local VIPTP_RagdollConnection = nil
+local VIPTP_ForceUpConnection = nil
 
 -- ==================================================
--- STATE
+-- STATE (VIPTP_ Prefix)
 -- ==================================================
-local Running = false
-local CurrentStep = "idle"
-local CurrentMode = "none"
+local VIPTP_Running = false
+local VIPTP_CurrentStep = "idle"
+local VIPTP_CurrentMode = "none"
 
-local FlyConnection = nil
-local BodyVelocity = nil
-local BodyGyro = nil
-local ActiveHeartbeat = nil
-local LockConnection = nil
+local VIPTP_FlyConnection = nil
+local VIPTP_BodyVelocity = nil
+local VIPTP_BodyGyro = nil
+local VIPTP_ActiveHeartbeat = nil
+local VIPTP_LockConnection = nil
 
-local FirstEggList = {}
-local FirstEggUid = nil
-local FirstEggSlotKey = nil
+local VIPTP_FirstEggList = {}
+local VIPTP_FirstEggUid = nil
+local VIPTP_FirstEggSlotKey = nil
 
-local CollectAttempts = 0
-local CollectTime = 0
+local VIPTP_CollectAttempts = 0
+local VIPTP_CollectTime = 0
 
-local FlyTargetStarted = false
-local CollectDone = false
-local TargetCollected = false
-local RemotesFired = false
+local VIPTP_FlyTargetStarted = false
+local VIPTP_CollectDone = false
+local VIPTP_TargetCollected = false
+local VIPTP_ForestStrikeFired = false
 
-local SavedTargetPosition = nil
-local TargetLockedCFrame = nil
+local VIPTP_SavedTargetPosition = nil
+local VIPTP_TargetLockedCFrame = nil
 
-local SavedWalkSpeed = nil
-local SavedJumpPower = nil
-local SavedJumpHeight = nil
-local SavedUseJumpPower = nil
+local VIPTP_SavedWalkSpeed = nil
+local VIPTP_SavedJumpPower = nil
+local VIPTP_SavedJumpHeight = nil
+local VIPTP_SavedUseJumpPower = nil
+
+-- ==================================================
+-- FORWARD DECLARATIONS
+-- ==================================================
+local VIPTP_StopActiveHeartbeat
+local VIPTP_StartActiveHeartbeat
+local VIPTP_StartFlyToTarget
+local VIPTP_AutoStop
+local VIPTP_FlyUpAndToSafeZone
+local VIPTP_StartProcess
 
 -- ==================================================
 -- GET HUMANOID
 -- ==================================================
-local function GetHumanoid()
+local function VIPTP_GetHumanoid()
     local Char = Player.Character
     if not Char then return nil, nil end
     local Hum = Char:FindFirstChildOfClass("Humanoid")
@@ -117,8 +131,8 @@ end
 -- ==================================================
 -- RAGDOLL BYPASS
 -- ==================================================
-local function ForceUp()
-    local Hum, Root = GetHumanoid()
+local function VIPTP_ForceUp()
+    local Hum, Root = VIPTP_GetHumanoid()
     if not Hum or not Root then return end
 
     pcall(function()
@@ -144,7 +158,7 @@ local function ForceUp()
     end)
 end
 
-local function CleanupRagdollConstraints()
+local function VIPTP_CleanupRagdollConstraints()
     local Char = Player.Character
     if not Char then return end
 
@@ -166,90 +180,90 @@ local function CleanupRagdollConstraints()
     end)
 end
 
-local function EnableRagdollBypass()
-    if RagdollEnabled then return end
-    RagdollEnabled = true
+local function VIPTP_EnableRagdollBypass()
+    if VIPTP_RagdollEnabled then return end
+    VIPTP_RagdollEnabled = true
 
-    RagdollConnection = RunService.Heartbeat:Connect(function()
-        if not RagdollEnabled then return end
-        ForceUp()
+    VIPTP_RagdollConnection = RunService.Heartbeat:Connect(function()
+        if not VIPTP_RagdollEnabled then return end
+        VIPTP_ForceUp()
     end)
 
-    ForceUpConnection = task.spawn(function()
-        while RagdollEnabled do
+    VIPTP_ForceUpConnection = task.spawn(function()
+        while VIPTP_RagdollEnabled do
             task.wait(0.1)
-            ForceUp()
-            CleanupRagdollConstraints()
+            VIPTP_ForceUp()
+            VIPTP_CleanupRagdollConstraints()
         end
     end)
 
-    print("[YOKUDO] Ragdoll Bypass: ON")
+    print("[VIPTP] Ragdoll Bypass: ON")
 end
 
-local function DisableRagdollBypass()
-    if not RagdollEnabled then return end
-    RagdollEnabled = false
+local function VIPTP_DisableRagdollBypass()
+    if not VIPTP_RagdollEnabled then return end
+    VIPTP_RagdollEnabled = false
 
-    if RagdollConnection then
-        RagdollConnection:Disconnect()
-        RagdollConnection = nil
+    if VIPTP_RagdollConnection then
+        VIPTP_RagdollConnection:Disconnect()
+        VIPTP_RagdollConnection = nil
     end
 
-    print("[YOKUDO] Ragdoll Bypass: OFF")
+    print("[VIPTP] Ragdoll Bypass: OFF")
 end
 
 -- ==================================================
 -- SAVE / RESTORE STATS
 -- ==================================================
-local function SaveStats()
-    local Hum = GetHumanoid()
+local function VIPTP_SaveStats()
+    local Hum = VIPTP_GetHumanoid()
     if not Hum then return end
 
-    if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
-    if SavedJumpPower == nil then SavedJumpPower = Hum.JumpPower end
-    if SavedJumpHeight == nil then SavedJumpHeight = Hum.JumpHeight end
-    if SavedUseJumpPower == nil then SavedUseJumpPower = Hum.UseJumpPower end
+    if VIPTP_SavedWalkSpeed == nil then VIPTP_SavedWalkSpeed = Hum.WalkSpeed end
+    if VIPTP_SavedJumpPower == nil then VIPTP_SavedJumpPower = Hum.JumpPower end
+    if VIPTP_SavedJumpHeight == nil then VIPTP_SavedJumpHeight = Hum.JumpHeight end
+    if VIPTP_SavedUseJumpPower == nil then VIPTP_SavedUseJumpPower = Hum.UseJumpPower end
 end
 
-local function RestoreStats()
-    local Hum = GetHumanoid()
+local function VIPTP_RestoreStats()
+    local Hum = VIPTP_GetHumanoid()
     if not Hum then return end
 
-    if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
-    if SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = SavedJumpPower end) end
-    if SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = SavedJumpHeight end) end
-    if SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedUseJumpPower end) end
+    if VIPTP_SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = VIPTP_SavedWalkSpeed end) end
+    if VIPTP_SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = VIPTP_SavedJumpPower end) end
+    if VIPTP_SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = VIPTP_SavedJumpHeight end) end
+    if VIPTP_SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = VIPTP_SavedUseJumpPower end) end
 end
 
 -- ==================================================
 -- CLEANUP
 -- ==================================================
-local function CleanupMovers()
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
+local function VIPTP_CleanupMovers()
+    if VIPTP_FlyConnection then
+        VIPTP_FlyConnection:Disconnect()
+        VIPTP_FlyConnection = nil
     end
-    if LockConnection then
-        LockConnection:Disconnect()
-        LockConnection = nil
+    if VIPTP_LockConnection then
+        VIPTP_LockConnection:Disconnect()
+        VIPTP_LockConnection = nil
     end
-    if BodyVelocity then
+    if VIPTP_BodyVelocity then
         pcall(function()
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
+            VIPTP_BodyVelocity.Velocity = Vector3.zero
+            VIPTP_BodyVelocity.MaxForce = Vector3.zero
         end)
-        BodyVelocity:Destroy()
-        BodyVelocity = nil
+        VIPTP_BodyVelocity:Destroy()
+        VIPTP_BodyVelocity = nil
     end
-    if BodyGyro then
+    if VIPTP_BodyGyro then
         pcall(function()
-            BodyGyro.MaxTorque = Vector3.zero
+            VIPTP_BodyGyro.MaxTorque = Vector3.zero
         end)
-        BodyGyro:Destroy()
-        BodyGyro = nil
+        VIPTP_BodyGyro:Destroy()
+        VIPTP_BodyGyro = nil
     end
 
-    local Hum, Root = GetHumanoid()
+    local Hum, Root = VIPTP_GetHumanoid()
     if Root then
         for _, Child in ipairs(Root:GetChildren()) do
             if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
@@ -274,25 +288,25 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- LOCK AT TARGET (Y+1)
+-- LOCK AT TARGET
 -- ==================================================
-local function StartLock(TargetPosition)
-    TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
+local function VIPTP_StartLock(TargetPosition)
+    VIPTP_TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, VIPTP_LOCK_ABOVE, 0))
 
-    if LockConnection then
-        LockConnection:Disconnect()
+    if VIPTP_LockConnection then
+        VIPTP_LockConnection:Disconnect()
     end
 
-    LockConnection = RunService.Heartbeat:Connect(function()
-        if not Running then
-            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
+    VIPTP_LockConnection = RunService.Heartbeat:Connect(function()
+        if not VIPTP_Running then
+            if VIPTP_LockConnection then VIPTP_LockConnection:Disconnect() VIPTP_LockConnection = nil end
             return
         end
 
-        local Hum, Root = GetHumanoid()
+        local Hum, Root = VIPTP_GetHumanoid()
         if not Root then return end
 
-        Root.CFrame = TargetLockedCFrame
+        Root.CFrame = VIPTP_TargetLockedCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
     end)
@@ -301,7 +315,7 @@ end
 -- ==================================================
 -- GET POSITION
 -- ==================================================
-local function GetPosition(Object)
+local function VIPTP_GetPosition(Object)
     if not Object then return nil end
     if Object:IsA("Model") then
         if Object.PrimaryPart then return Object.PrimaryPart.Position end
@@ -319,15 +333,15 @@ end
 -- ==================================================
 -- SEARCH FIRST EGGS
 -- ==================================================
-local function SearchFirstEggs()
-    FirstEggList = {}
+local function VIPTP_SearchFirstEggs()
+    VIPTP_FirstEggList = {}
     if not Container then return end
 
     for _, Slot in ipairs(Container:GetChildren()) do
-        if string.find(Slot.Name, SEARCH_PREFIX) then
+        if string.find(Slot.Name, VIPTP_SEARCH_PREFIX) then
             local SlotNum = string.match(Slot.Name, "Slot_(%d+)")
             if SlotNum then
-                table.insert(FirstEggList, {
+                table.insert(VIPTP_FirstEggList, {
                     Slot = Slot,
                     Uid = Slot.Name,
                     SlotKey = "Forest:Slot_" .. SlotNum,
@@ -338,15 +352,15 @@ local function SearchFirstEggs()
     end
 end
 
-local function FindClosestEgg()
-    local Hum, Root = GetHumanoid()
+local function VIPTP_FindClosestEgg()
+    local Hum, Root = VIPTP_GetHumanoid()
     if not Root then return nil end
 
     local Closest = nil
     local ClosestDistance = 9999
 
-    for _, Egg in ipairs(FirstEggList) do
-        local Pos = GetPosition(Egg.Slot)
+    for _, Egg in ipairs(VIPTP_FirstEggList) do
+        local Pos = VIPTP_GetPosition(Egg.Slot)
         if Pos then
             local Dist = (Pos - Root.Position).Magnitude
             if Dist < ClosestDistance then
@@ -357,61 +371,61 @@ local function FindClosestEgg()
     end
 
     if Closest then
-        FirstEggUid = Closest.Uid
-        FirstEggSlotKey = Closest.SlotKey
+        VIPTP_FirstEggUid = Closest.Uid
+        VIPTP_FirstEggSlotKey = Closest.SlotKey
     end
 
     return Closest
 end
 
 -- ==================================================
--- FLY TP
+-- FLY TP (ដូច TeleportSystem ចាស់)
 -- ==================================================
-local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
-    CleanupMovers()
+local function VIPTP_FlyTP(Destination, Speed, Offset, UseShotTP, IsSafeZone, Callback)
+    VIPTP_CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum, Root = VIPTP_GetHumanoid()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + Offset, Destination.Z)
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, VIPTP_LOCK_ABOVE, 0))
 
     Hum.PlatformStand = true
 
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
+    VIPTP_BodyVelocity = Instance.new("BodyVelocity")
+    VIPTP_BodyVelocity.Name = "YokudoBV"
+    VIPTP_BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    VIPTP_BodyVelocity.P = 1250
+    VIPTP_BodyVelocity.Velocity = Vector3.zero
+    VIPTP_BodyVelocity.Parent = Root
 
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    VIPTP_BodyGyro = Instance.new("BodyGyro")
+    VIPTP_BodyGyro.Name = "YokudoBG"
+    VIPTP_BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    VIPTP_BodyGyro.P = 3000
+    VIPTP_BodyGyro.D = 500
+    VIPTP_BodyGyro.CFrame = Root.CFrame
+    VIPTP_BodyGyro.Parent = Root
 
     local StartTime = tick()
     local ShotDone = false
 
-    FlyConnection = RunService.Heartbeat:Connect(function()
-        if not Running then
-            CleanupMovers()
+    VIPTP_FlyConnection = RunService.Heartbeat:Connect(function()
+        if not VIPTP_Running then
+            VIPTP_CleanupMovers()
             return
         end
 
-        local Hum2, Root2 = GetHumanoid()
+        local Hum2, Root2 = VIPTP_GetHumanoid()
         if not Hum2 or not Root2 then
-            CleanupMovers()
+            VIPTP_CleanupMovers()
             return
         end
         if Hum2.Health <= 0 then return end
 
-        if not BodyVelocity or not BodyGyro then
-            CleanupMovers()
+        if not VIPTP_BodyVelocity or not VIPTP_BodyGyro then
+            VIPTP_CleanupMovers()
             return
         end
 
@@ -422,107 +436,102 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local TotalDist = Direction.Magnitude
 
         if IsSafeZone then
-            if HorizDist <= SAFE_LOCK_DISTANCE then
-                CleanupMovers()
+            if HorizDist <= VIPTP_SAFE_LOCK_DISTANCE then
+                VIPTP_CleanupMovers()
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
+                VIPTP_StartLock(Destination)
                 if Callback then Callback() end
                 return
             end
         end
 
-        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= VIPTP_SHOT_DISTANCE then
             ShotDone = true
-            CleanupMovers()
+            VIPTP_CleanupMovers()
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
-            StartLock(Destination)
+            VIPTP_StartLock(Destination)
             if Callback then Callback() end
             return
         end
 
-        if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
-            CleanupMovers()
+        if HorizDist <= VIPTP_ARRIVE_DISTANCE and VertDist <= 2 then
+            VIPTP_CleanupMovers()
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
-            StartLock(Destination)
+            VIPTP_StartLock(Destination)
             if Callback then Callback() end
             return
         end
 
-        if tick() - StartTime > TIMEOUT_SECONDS then
-            CleanupMovers()
+        if tick() - StartTime > VIPTP_TIMEOUT_SECONDS then
+            VIPTP_CleanupMovers()
             if Callback then Callback() end
             return
         end
 
         if TotalDist > 1 then
-            BodyVelocity.Velocity = Direction.Unit * Speed
+            VIPTP_BodyVelocity.Velocity = Direction.Unit * Speed
         else
-            BodyVelocity.Velocity = Vector3.zero
+            VIPTP_BodyVelocity.Velocity = Vector3.zero
         end
 
-        BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
+        VIPTP_BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
     end)
 end
 
 -- ==================================================
--- INSTANT FLY TP (FOR TARGET EGG)
+-- INSTANT FLY TP
 -- ==================================================
-local function InstantFlyTP(Destination, Callback)
-    CleanupMovers()
+local function VIPTP_InstantFlyTP(Destination, Callback)
+    VIPTP_CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum, Root = VIPTP_GetHumanoid()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, VIPTP_LOCK_ABOVE, 0))
 
     Root.CFrame = LockCFrame
     Root.AssemblyLinearVelocity = Vector3.zero
     Root.AssemblyAngularVelocity = Vector3.zero
 
-    StartLock(Destination)
+    VIPTP_StartLock(Destination)
 
     if Callback then Callback() end
 end
 
 -- ==================================================
--- TELEPORT TO TARGET (Option Specific)
+-- TELEPORT TO TARGET (Instant Only)
 -- ==================================================
-local function TeleportToTarget(TargetPos, Callback)
-    if CurrentMethod == "InstantTeleport" then
-        print("[YOKUDO] Instant TP to Target")
-        InstantFlyTP(TargetPos, Callback)
-    else
-        print("[YOKUDO] FlyTP to Target (Shot TP)")
-        FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
-    end
+local function VIPTP_TeleportToTarget(TargetPos, Callback)
+    print("[VIPTP] Instant TP to Target")
+    VIPTP_InstantFlyTP(TargetPos, Callback)
 end
 
 -- ==================================================
 -- REMOTE COLLECT
 -- ==================================================
-local function RemoteCollectFirst()
-    if not CollectEvent or not FirstEggSlotKey or not FirstEggUid then return false end
+local function VIPTP_RemoteCollectFirst()
+    if not VIPTP_CollectEvent or not VIPTP_FirstEggSlotKey or not VIPTP_FirstEggUid then return false end
     local success = pcall(function()
-        return CollectEvent:InvokeServer({
-            FirstAreaSlotKey = FirstEggSlotKey,
-            Uid = FirstEggUid
+        return VIPTP_CollectEvent:InvokeServer({
+            FirstAreaSlotKey = VIPTP_FirstEggSlotKey,
+            Uid = VIPTP_FirstEggUid
         })
     end)
     return success
 end
 
-local function RemoteCollectTarget()
-    if not CollectEvent or not TARGET_UID then return false end
+local function VIPTP_RemoteCollectTarget()
+    if not VIPTP_CollectEvent or not VIPTP_TARGET_UID then return false end
     local success = pcall(function()
-        return CollectEvent:InvokeServer({
-            Uid = TARGET_UID
+        return VIPTP_CollectEvent:InvokeServer({
+            Uid = VIPTP_TARGET_UID
         })
     end)
     return success
@@ -531,183 +540,218 @@ end
 -- ==================================================
 -- FIRE FOREST STRIKE
 -- ==================================================
-local function FireForestStrike()
-    if RemotesFired then return end
-    RemotesFired = true
+local function VIPTP_FireForestStrike()
+    if VIPTP_ForestStrikeFired then return end
+    VIPTP_ForestStrikeFired = true
 
-    EnableRagdollBypass()
+    VIPTP_EnableRagdollBypass()
 
     pcall(function()
-        ForestStrike:FireServer({
-            EggUid = FirstEggUid,
-            GuardCFrame = CFrame.new(LOCK_POSITION)
+        VIPTP_ForestStrike:FireServer({
+            EggUid = VIPTP_FirstEggUid,
+            GuardCFrame = CFrame.new(VIPTP_LOCK_POSITION)
         })
     end)
 
     task.spawn(function()
         for i = 1, 10 do
             task.wait(0.05)
-            ForceUp()
-            CleanupRagdollConstraints()
+            VIPTP_ForceUp()
+            VIPTP_CleanupRagdollConstraints()
         end
     end)
 
-    print("[YOKUDO] ForestStrike Fired")
+    print("[VIPTP] ForestStrike Fired (Drop First Egg)")
 end
 
 -- ==================================================
 -- CHECK EGG
 -- ==================================================
-local function IsFirstEggInWorkspace()
-    if not FirstEggUid then return false end
-    return workspace:FindFirstChild(FirstEggUid) ~= nil
+local function VIPTP_IsFirstEggInWorkspace()
+    if not VIPTP_FirstEggUid then return false end
+    return workspace:FindFirstChild(VIPTP_FirstEggUid) ~= nil
 end
 
-local function IsFirstEggInContainer()
-    if not FirstEggUid then return false end
+local function VIPTP_IsFirstEggInContainer()
+    if not VIPTP_FirstEggUid then return false end
     if not Container then return false end
-    return Container:FindFirstChild(FirstEggUid) ~= nil
+    return Container:FindFirstChild(VIPTP_FirstEggUid) ~= nil
 end
 
-local function IsTargetInContainer()
-    if not TARGET_UID or not Container then return false end
-    return Container:FindFirstChild(TARGET_UID) ~= nil
+local function VIPTP_IsTargetInContainer()
+    if not VIPTP_TARGET_UID or not Container then return false end
+    return Container:FindFirstChild(VIPTP_TARGET_UID) ~= nil
 end
 
-local function IsTargetInWorkspace()
-    if not TARGET_UID then return false end
-    return workspace:FindFirstChild(TARGET_UID) ~= nil
+local function VIPTP_IsTargetInWorkspace()
+    if not VIPTP_TARGET_UID then return false end
+    return workspace:FindFirstChild(VIPTP_TARGET_UID) ~= nil
 end
 
 -- ==================================================
--- AUTO STOP
+-- STOP ACTIVE HEARTBEAT
 -- ==================================================
-local function AutoStop()
-    Running = false
-    CurrentStep = "done"
-
-    CleanupMovers()
-    DisableRagdollBypass()
-    StopActiveHeartbeat()
-    RestoreStats()
-
-    print("[YOKUDO] TeleportSystem: Auto Stop")
+VIPTP_StopActiveHeartbeat = function()
+    if VIPTP_ActiveHeartbeat then
+        VIPTP_ActiveHeartbeat:Disconnect()
+        VIPTP_ActiveHeartbeat = nil
+    end
 end
 
 -- ==================================================
 -- FLY TO TARGET
 -- ==================================================
-function StartFlyToTarget()
-    if FlyTargetStarted then return end
-    FlyTargetStarted = true
+VIPTP_StartFlyToTarget = function()
+    if VIPTP_FlyTargetStarted then return end
+    VIPTP_FlyTargetStarted = true
 
-    CurrentStep = "to_target"
+    VIPTP_CurrentStep = "to_target"
 
     local TargetPos = nil
 
-    if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
+    if VIPTP_CurrentMode == "spawn" then
+        local TargetEgg = Container and Container:FindFirstChild(VIPTP_TARGET_UID)
         if TargetEgg then
-            TargetPos = GetPosition(TargetEgg)
+            TargetPos = VIPTP_GetPosition(TargetEgg)
         end
-    elseif CurrentMode == "workspace" then
-        if SavedTargetPosition then
-            TargetPos = SavedTargetPosition
+    elseif VIPTP_CurrentMode == "workspace" then
+        if VIPTP_SavedTargetPosition then
+            TargetPos = VIPTP_SavedTargetPosition
         else
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
+            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
             if WSEgg then
-                TargetPos = GetPosition(WSEgg)
-                SavedTargetPosition = TargetPos
+                TargetPos = VIPTP_GetPosition(WSEgg)
+                VIPTP_SavedTargetPosition = TargetPos
             end
         end
     end
 
     if not TargetPos then
-        AutoStop()
+        VIPTP_AutoStop()
         return
     end
 
-    TeleportToTarget(TargetPos, function()
-        CurrentStep = "collect_target"
+    VIPTP_TeleportToTarget(TargetPos, function()
+        VIPTP_CurrentStep = "collect_target"
     end)
 end
 
 -- ==================================================
--- FLY TO SAFE (NO SHOT TP)
+-- FLY UP + FLY TO SAFE ZONE (Offset 5)
 -- ==================================================
-local function FlyToSafeZone()
-    CurrentStep = "to_safe"
+VIPTP_FlyUpAndToSafeZone = function()
+    VIPTP_CurrentStep = "fly_up"
 
-    print("[YOKUDO] FlyTP to Safe Zone")
-
-    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        AutoStop()
-    end)
-end
-
--- ==================================================
--- HEARTBEAT
--- ==================================================
-function StartActiveHeartbeat()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
+    local Hum, Root = VIPTP_GetHumanoid()
+    if not Root then
+        VIPTP_AutoStop()
+        return
     end
 
-    ActiveHeartbeat = RunService.Heartbeat:Connect(function()
-        if not Running then return end
+    local UpPosition = Vector3.new(VIPTP_SAFE_ZONE.X, VIPTP_SAFE_ZONE.Y + VIPTP_FLY_OFFSET_SAFE, VIPTP_SAFE_ZONE.Z)
 
-        local Hum, Root = GetHumanoid()
+    print("[VIPTP] Fly Up to Y+" .. VIPTP_FLY_OFFSET_SAFE .. " → " .. tostring(UpPosition))
+
+    VIPTP_FlyTP(UpPosition, VIPTP_RETURN_SPEED, 0, false, false, function()
+        print("[VIPTP] ✅ Reached Fly Up Offset → Fly to Safe Zone")
+
+        VIPTP_FlyTP(VIPTP_SAFE_ZONE, VIPTP_RETURN_SPEED, 0, false, true, function()
+            print("[VIPTP] ✅ Reached Safe Zone")
+            VIPTP_AutoStop()
+        end)
+    end)
+end
+
+-- ==================================================
+-- AUTO STOP
+-- ==================================================
+VIPTP_AutoStop = function()
+    VIPTP_Running = false
+    VIPTP_CurrentStep = "done"
+
+    VIPTP_CleanupMovers()
+    VIPTP_DisableRagdollBypass()
+    VIPTP_StopActiveHeartbeat()
+    VIPTP_RestoreStats()
+
+    print("[VIPTP] Auto Stop")
+
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
+        task.spawn(function()
+            task.wait(0.2)
+            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+        end)
+    end
+end
+
+-- ==================================================
+-- START ACTIVE HEARTBEAT
+-- ==================================================
+VIPTP_StartActiveHeartbeat = function()
+    if VIPTP_ActiveHeartbeat then
+        VIPTP_ActiveHeartbeat:Disconnect()
+        VIPTP_ActiveHeartbeat = nil
+    end
+
+    VIPTP_ActiveHeartbeat = RunService.Heartbeat:Connect(function()
+        if not VIPTP_Running then return end
+
+        local Hum, Root = VIPTP_GetHumanoid()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
-        if CurrentStep == "collect_first" and not CollectDone then
-            if IsFirstEggInWorkspace() then
-                CollectDone = true
-                FireForestStrike()
-                CurrentStep = "wait_spawn_back"
+        -- Step: Collect First Egg
+        if VIPTP_CurrentStep == "collect_first" and not VIPTP_CollectDone then
+            if VIPTP_IsFirstEggInWorkspace() then
+                VIPTP_CollectDone = true
+                VIPTP_FireForestStrike()
+                VIPTP_CurrentStep = "wait_spawn_back"
                 return
             end
 
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
+            if tick() - VIPTP_CollectTime > VIPTP_COLLECT_INTERVAL then
+                VIPTP_CollectTime = tick()
 
-                if IsFirstEggInContainer() then
-                    RemoteCollectFirst()
-                    CollectAttempts = CollectAttempts + 1
+                if VIPTP_IsFirstEggInContainer() then
+                    VIPTP_RemoteCollectFirst()
+                    VIPTP_CollectAttempts = VIPTP_CollectAttempts + 1
                 else
-                    if IsFirstEggInWorkspace() then
-                        CollectDone = true
-                        FireForestStrike()
-                        CurrentStep = "wait_spawn_back"
+                    if VIPTP_IsFirstEggInWorkspace() then
+                        VIPTP_CollectDone = true
+                        VIPTP_FireForestStrike()
+                        VIPTP_CurrentStep = "wait_spawn_back"
                     end
                 end
             end
         end
 
-        if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
-            if IsFirstEggInContainer() then
-                task.spawn(function() StartFlyToTarget() end)
+        -- Step: Wait First Egg Back to Spawn
+        if VIPTP_CurrentStep == "wait_spawn_back" and not VIPTP_FlyTargetStarted then
+            if VIPTP_IsFirstEggInContainer() then
+                print("[VIPTP] First Egg Back to Spawn → Stop Remote First")
+                VIPTP_ForestStrikeFired = false
+                task.spawn(function() VIPTP_StartFlyToTarget() end)
             end
         end
 
-        if CurrentStep == "collect_target" and not TargetCollected then
-            if CurrentMode == "spawn" then
-                if workspace:FindFirstChild(TARGET_UID) then
-                    TargetCollected = true
-                    task.spawn(function() FlyToSafeZone() end)
+        -- Step: Collect Target Egg
+        if VIPTP_CurrentStep == "collect_target" and not VIPTP_TargetCollected then
+            if VIPTP_CurrentMode == "spawn" then
+                if workspace:FindFirstChild(VIPTP_TARGET_UID) then
+                    VIPTP_TargetCollected = true
+                    task.spawn(function() VIPTP_FlyUpAndToSafeZone() end)
                     return
                 end
-            elseif CurrentMode == "workspace" then
-                if SavedTargetPosition then
-                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
+            elseif VIPTP_CurrentMode == "workspace" then
+                if VIPTP_SavedTargetPosition then
+                    local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
                     if WSEgg then
-                        local CurrentPos = GetPosition(WSEgg)
+                        local CurrentPos = VIPTP_GetPosition(WSEgg)
                         if CurrentPos then
-                            local Dist = (CurrentPos - SavedTargetPosition).Magnitude
-                            if Dist >= POSITION_THRESHOLD then
-                                TargetCollected = true
-                                task.spawn(function() FlyToSafeZone() end)
+                            local Dist = (CurrentPos - VIPTP_SavedTargetPosition).Magnitude
+                            if Dist >= VIPTP_POSITION_THRESHOLD then
+                                VIPTP_TargetCollected = true
+                                task.spawn(function() VIPTP_FlyUpAndToSafeZone() end)
                                 return
                             end
                         end
@@ -715,223 +759,165 @@ function StartActiveHeartbeat()
                 end
             end
 
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
-                RemoteCollectTarget()
-                CollectAttempts = CollectAttempts + 1
+            if tick() - VIPTP_CollectTime > VIPTP_COLLECT_INTERVAL then
+                VIPTP_CollectTime = tick()
+                VIPTP_RemoteCollectTarget()
+                VIPTP_CollectAttempts = VIPTP_CollectAttempts + 1
             end
         end
     end)
 end
 
-function StopActiveHeartbeat()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
-    end
-end
-
 -- ==================================================
--- MAIN PROCESS
+-- MAIN PROCESS (ដូច TeleportSystem ចាស់ — រង់ចាំ 60s)
 -- ==================================================
-local function StartProcess()
-    Running = true
-    CurrentStep = "search"
+VIPTP_StartProcess = function()
+    VIPTP_Running = true
+    VIPTP_CurrentStep = "search"
 
-    CollectAttempts = 0
-    CollectTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
+    VIPTP_CollectAttempts = 0
+    VIPTP_CollectTime = 0
+    VIPTP_FlyTargetStarted = false
+    VIPTP_CollectDone = false
+    VIPTP_TargetCollected = false
+    VIPTP_ForestStrikeFired = false
+    VIPTP_SavedTargetPosition = nil
+    VIPTP_TargetLockedCFrame = nil
 
-    SaveStats()
-    EnableRagdollBypass()
+    VIPTP_SaveStats()
+    VIPTP_EnableRagdollBypass()
 
-    if IsTargetInContainer() then
-        CurrentMode = "spawn"
-    elseif IsTargetInWorkspace() then
-        CurrentMode = "workspace"
-        local WSEgg = workspace:FindFirstChild(TARGET_UID)
+    -- ✅ Option: spawn or workspace (ដូច TeleportSystem ចាស់)
+    if VIPTP_IsTargetInContainer() then
+        VIPTP_CurrentMode = "spawn"
+        print("[VIPTP] Target found in Container → spawn mode")
+    elseif VIPTP_IsTargetInWorkspace() then
+        VIPTP_CurrentMode = "workspace"
+        local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
         if WSEgg then
-            SavedTargetPosition = GetPosition(WSEgg)
+            VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
         end
+        print("[VIPTP] Target found in Workspace → workspace mode")
     else
+        -- ✅ រង់ចាំ 60s ដូច TeleportSystem ចាស់
         local WaitTime = 0
-        while Running and not IsTargetInContainer() and not IsTargetInWorkspace() do
+        while VIPTP_Running and not VIPTP_IsTargetInContainer() and not VIPTP_IsTargetInWorkspace() do
             task.wait(0.5)
             WaitTime = WaitTime + 0.5
             if WaitTime > 60 then
-                AutoStop()
+                VIPTP_AutoStop()
                 return
             end
         end
 
-        if IsTargetInContainer() then
-            CurrentMode = "spawn"
-        elseif IsTargetInWorkspace() then
-            CurrentMode = "workspace"
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
+        if VIPTP_IsTargetInContainer() then
+            VIPTP_CurrentMode = "spawn"
+        elseif VIPTP_IsTargetInWorkspace() then
+            VIPTP_CurrentMode = "workspace"
+            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
             if WSEgg then
-                SavedTargetPosition = GetPosition(WSEgg)
+                VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
             end
         end
     end
 
-    SearchFirstEggs()
+    VIPTP_SearchFirstEggs()
 
-    if #FirstEggList == 0 then
-        AutoStop()
+    if #VIPTP_FirstEggList == 0 then
+        VIPTP_AutoStop()
         return
     end
 
-    local Closest = FindClosestEgg()
+    local Closest = VIPTP_FindClosestEgg()
 
     if not Closest then
-        AutoStop()
+        VIPTP_AutoStop()
         return
     end
 
-    local EggPos = GetPosition(Closest.Slot)
+    local EggPos = VIPTP_GetPosition(Closest.Slot)
     if not EggPos then
-        AutoStop()
+        VIPTP_AutoStop()
         return
     end
 
-    CurrentStep = "fly_first"
+    VIPTP_CurrentStep = "fly_first"
 
-    StartActiveHeartbeat()
+    VIPTP_StartActiveHeartbeat()
 
-    print("[YOKUDO] FlyTP to First Egg (Shot TP)")
-    FlyTP(EggPos, FLY_SPEED, true, false, function()
-        CurrentStep = "collect_first"
+    print("[VIPTP] FlyTP to First Egg (Shot TP, Offset " .. VIPTP_FLY_OFFSET_FIRST .. ")")
+    VIPTP_FlyTP(EggPos, VIPTP_FLY_SPEED, VIPTP_FLY_OFFSET_FIRST, true, false, function()
+        VIPTP_CurrentStep = "collect_first"
     end)
 end
 
 -- ==================================================
 -- FULL RESET
 -- ==================================================
-local function FullReset()
-    Running = false
-    CurrentStep = "idle"
-    CurrentMode = "none"
+local function VIPTP_FullReset()
+    VIPTP_Running = false
+    VIPTP_CurrentStep = "idle"
+    VIPTP_CurrentMode = "none"
 
-    FirstEggList = {}
-    FirstEggUid = nil
-    FirstEggSlotKey = nil
-    CollectAttempts = 0
-    CollectTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
+    VIPTP_FirstEggList = {}
+    VIPTP_FirstEggUid = nil
+    VIPTP_FirstEggSlotKey = nil
+    VIPTP_CollectAttempts = 0
+    VIPTP_CollectTime = 0
+    VIPTP_FlyTargetStarted = false
+    VIPTP_CollectDone = false
+    VIPTP_TargetCollected = false
+    VIPTP_ForestStrikeFired = false
+    VIPTP_SavedTargetPosition = nil
+    VIPTP_TargetLockedCFrame = nil
 
-    CleanupMovers()
-    DisableRagdollBypass()
-    StopActiveHeartbeat()
-    RestoreStats()
+    VIPTP_CleanupMovers()
+    VIPTP_DisableRagdollBypass()
+    VIPTP_StopActiveHeartbeat()
+    VIPTP_RestoreStats()
 
-    print("[YOKUDO] TeleportSystem: Full Reset")
+    print("[VIPTP] Full Reset")
 end
 
 -- ==================================================
 -- ENABLE / DISABLE / SET
 -- ==================================================
-local function Enable()
-    if Running then return end
-    if not CollectEvent then warn("[YOKUDO] CollectEvent not found") return end
-    if not TARGET_UID then warn("[YOKUDO] No Target ID") return end
+local function VIPTP_Enable()
+    if VIPTP_Running then return end
+    if not VIPTP_CollectEvent then warn("[VIPTP] CollectEvent not found") return end
+    if not VIPTP_TARGET_UID then warn("[VIPTP] No Target ID") return end
 
-    FullReset()
-    StartProcess()
+    VIPTP_FullReset()
+    VIPTP_StartProcess()
 
-    print("[YOKUDO] TeleportSystem: ON | Method: " .. CurrentMethod)
+    print("[VIPTP] ON | Target: " .. tostring(VIPTP_TARGET_UID))
 end
 
-local function Disable()
-    FullReset()
-    print("[YOKUDO] TeleportSystem: OFF")
+local function VIPTP_Disable()
+    VIPTP_FullReset()
+    print("[VIPTP] OFF")
 end
 
-local function SetTargetId(Id)
-    TARGET_UID = Id
-    print("[YOKUDO] TeleportSystem Target ID: " .. tostring(Id))
-end
-
-local function SetSpeed(Value)
-    Value = math.clamp(Value, 50, 1100)
-    FLY_SPEED = Value
-    RETURN_SPEED = Value
-    print("[YOKUDO] TeleportSystem Speed: " .. tostring(Value))
-end
-
-local function SetMethod(Method)
-    if Method == "InstantTeleport" then
-        CurrentMethod = "InstantTeleport"
-    else
-        CurrentMethod = "TeleportFly"
-    end
-    print("[YOKUDO] TeleportSystem Method: " .. CurrentMethod)
-end
-
-local function GetMethod()
-    return CurrentMethod
-end
-
-local function GetSpeed()
-    return FLY_SPEED
+local function VIPTP_SetTargetId(Id)
+    VIPTP_TARGET_UID = Id
+    print("[VIPTP] Target ID: " .. tostring(Id))
 end
 
 -- ==================================================
 -- EXPORT
 -- ==================================================
-_G.YOKUDO_TeleportSystem = {
-    Enable = Enable,
-    Disable = Disable,
-    SetTargetId = SetTargetId,
-    SetSpeed = SetSpeed,
-    SetMethod = SetMethod,
-    GetMethod = GetMethod,
-    GetSpeed = GetSpeed,
-    IsEnabled = function() return Running end,
-    GetTargetId = function() return TARGET_UID end
+_G.YOKUDO_VIPTP = {
+    Enable = VIPTP_Enable,
+    Disable = VIPTP_Disable,
+    SetTargetId = VIPTP_SetTargetId,
+    IsEnabled = function() return VIPTP_Running end,
+    GetTargetId = function() return VIPTP_TARGET_UID end,
+    GetMode = function() return VIPTP_CurrentMode end,
+    FLY_SPEED = VIPTP_FLY_SPEED,
+    RETURN_SPEED = VIPTP_RETURN_SPEED,
+    FLY_OFFSET_FIRST = VIPTP_FLY_OFFSET_FIRST,
+    FLY_OFFSET_SAFE = VIPTP_FLY_OFFSET_SAFE,
+    SAFE_ZONE = VIPTP_SAFE_ZONE,
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "TeleportSystem",
-        Enable = Enable,
-        Disable = Disable,
-        IsEnabled = function() return Running end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            -- ✅ TeleportSystem ប្រើ GetHumanoid() រាល់ពេល
-            -- ដូច្នេះវាចាប់ Humanoid ថ្មីដោយស្វ័យប្រវត្តិ
-            -- ប៉ុន្តែបើកំពុងរត់ យើង Restart ដើម្បីធានា
-            if Running then
-                task.wait(1)
-                pcall(function()
-                    local Method = CurrentMethod
-                    local Speed = FLY_SPEED
-                    local TargetId = TARGET_UID
-                    Disable()
-                    task.wait(0.5)
-                    SetMethod(Method)
-                    SetSpeed(Speed)
-                    if TargetId then
-                        SetTargetId(TargetId)
-                    end
-                    Enable()
-                end)
-            end
-        end
-    })
-end
-
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + Register)")
+print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 5 | ForestStrike First Only | Logic ដូច TeleportSystem ចាស់)")
