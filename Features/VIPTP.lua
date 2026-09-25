@@ -5,6 +5,7 @@
 -- ✅ Auto Detect: spawn / workspace
 -- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
 -- ✅ Auto Recovery: ពិនិត្យ TARGET_UID ទាំង Container + Workspace
+-- ✅ Reset TargetCollected ពេល Recovery
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
@@ -756,12 +757,15 @@ local function StartFlyToTarget()
 
     print("[VIPTP] Instant TP to Target")
     InstantFlyTP(TargetPos, function()
+        TargetCollected = false       -- ✅ Reset
+        CollectTime = 0               -- ✅ Reset
+        RecoveryTriggered = false     -- ✅ Reset
         CurrentStep = "collect_target"
     end)
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Check Both)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Reset State)
 -- ==================================================
 local function FlyToTargetAgain()
     print("[VIPTP] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
@@ -788,7 +792,6 @@ local function FlyToTargetAgain()
         print("[VIPTP] Target found in Workspace → workspace mode")
 
     else
-        -- ✅ អត់ឃើញទាំងពីរ → Done
         print("[VIPTP] ✅ Target Gone (Both) → Done")
         AutoStop()
         return
@@ -803,7 +806,13 @@ local function FlyToTargetAgain()
     -- ✅ Fly TP ដោយ FLY_SPEED (1000)
     FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[VIPTP] ✅ Recovery Arrived → Collect Target")
+
+        -- ✅ Reset State សម្រាប់ Collect ម្តងទៀត
+        TargetCollected = false
+        CollectTime = 0
+        CollectAttempts = 0
         RecoveryTriggered = false
+
         CurrentStep = "collect_target"
     end)
 end
@@ -837,6 +846,7 @@ local function FlyToSafeZone()
             CurrentStep = "to_target"
             FlyTargetStarted = false
             RecoveryTriggered = false
+            TargetCollected = false
 
             task.wait(0.3)
             StartFlyToTarget()
@@ -1021,6 +1031,8 @@ local function StartProcess()
 
     print("[VIPTP] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
+        CollectDone = false
+        CollectTime = 0
         CurrentStep = "collect_first"
     end)
 end
@@ -1129,4 +1141,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery Check Both)")
+print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery + Reset State)")
