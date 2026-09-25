@@ -3,11 +3,12 @@
 -- ដាច់ដោយឡែកសម្រាប់ AFK Farm
 -- Speed កំណត់ក្នុង file ខ្លួនឯង
 -- Method: InstantTeleport (Fixed)
--- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
+-- Fly Speed: 1000 | Return Speed: 1000 | Fly Offset: 10
+-- Shot Distance: 15 | Lock Above: 1
 -- ✅ ដក GetHumanoid — ប្រើ GetChar/GetRoot/GetHum
 -- ✅ ដក Register — មិន Register ជាមួយ CharacterSystem
 -- ✅ ដក Heartbeat — ប្រើ task.spawn + task.wait
--- ✅ Auto Recovery — ពេល Egg Drop (Tween + FlyTP)
+-- ✅ Auto Recovery — ពេល Egg Drop (Tween Teleport + FlyTP)
 -- ✅ Check Collect — DropHeldEgg Signal
 -- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop (មាន pcall)
 -- ==================================================
@@ -42,18 +43,18 @@ end
 print("[VIPTP] CollectEvent OK")
 
 -- ==================================================
--- SETTINGS (កំណត់ក្នុង file ខ្លួនឯង)
+-- SETTINGS
 -- ==================================================
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
-local FLY_SPEED = 1000        -- Fixed
-local RETURN_SPEED = 1000      -- Fixed
-local FLY_OFFSET = 15         -- Fixed
+local FLY_SPEED = 1000          -- Fixed
+local RETURN_SPEED = 1000       -- Fixed
+local FLY_OFFSET = 10           -- ✅ Offset 10
 local CurrentMethod = "InstantTeleport"  -- Fixed
 
-local SHOT_DISTANCE = 15
-local LOCK_ABOVE = 1
+local SHOT_DISTANCE = 15        -- ✅ Shot Distance 15
+local LOCK_ABOVE = 1            -- ✅ Lock Above 1
 
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
@@ -148,7 +149,7 @@ local StartActiveTask
 local StartProcess
 
 -- ==================================================
--- ✅ GET CHAR / ROOT / HUM (ដក GetHumanoid ចេញ)
+-- ✅ GET CHAR / ROOT / HUM
 -- ==================================================
 local function GetChar()
     return Player.Character
@@ -721,7 +722,7 @@ AutoStop = function()
 end
 
 -- ==================================================
--- FLY TO TARGET
+-- START FLY TO TARGET
 -- ==================================================
 StartFlyToTarget = function()
     if FlyTargetStarted then return end
@@ -764,7 +765,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Tween Teleport)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -775,7 +776,7 @@ FlyToTargetAgain = function()
         return
     end
 
-    print("[VIPTP] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween + FlyTP)")
+    print("[VIPTP] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween Teleport)")
     CurrentStep = "recovery"
 
     -- ✅ ១. Stop FlyTP ដើម ភ្លាម
@@ -816,7 +817,7 @@ FlyToTargetAgain = function()
         return
     end
 
-    -- ✅ ៣. Tween Player ទៅ Near Position
+    -- ✅ ៣. Tween Player ទៅ Near Position (Recovery)
     local Hum = GetHum()
     local Root = GetRoot()
     if not Hum or not Root then
@@ -837,12 +838,12 @@ FlyToTargetAgain = function()
     Tween:Play()
     Tween.Completed:Wait()
 
-    -- ✅ ៤. FlyTP ទៅ Target
+    -- ✅ ៤. FlyTP ទៅ Target (No Shot TP)
     RecoveryTriggered = false
     TargetCollected = false
 
-    print("[VIPTP] Recovery Tween Done → FlyTP to Target")
-    FlyTP(TargetPos, FLY_SPEED, true, false, function()
+    print("[VIPTP] Recovery Tween Done → FlyTP to Target (No Shot)")
+    FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[VIPTP] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
 
         TargetCollected = false
@@ -862,7 +863,7 @@ end
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
 
-    print("[VIPTP] FlyTP to Safe Zone")
+    print("[VIPTP] FlyTP to Safe Zone (No Shot TP)")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         AutoStop()
@@ -1144,6 +1145,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = SAFE_ZONE,
 }
 
--- ✅ ដក Register ចេញ — មិន Register ជាមួយ CharacterSystem
-
-print("✅ VIPTP Loaded (AFK Farm Only | Instant | Speed 1000/800 | Offset 15 | No Register | No GetHumanoid | No Heartbeat | Auto Recovery | Tween + BodyV/G)")
+print("✅ VIPTP Loaded (Fly Offset 10 | Speed 1000/1000 | Shot Distance 15 | Lock Above 1 | Tween Recovery)")
