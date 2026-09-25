@@ -2,11 +2,12 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
--- Safe Zone: FlyTP (No Shot TP, Offset 5, Speed 800)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
--- ✅ Fixed: Fall Through Floor (Set CFrame នៅ Y+3)
--- ✅ Tween + BodyV/G → រលូត 100% មិនកន្រាក់
--- ✅ Sequence Number → Stop 100% ទៀងទាត់
+-- ✅ Safe Zone: មិន Lock + Set CFrame Y+3 (កុំធ្លុះដី)
+-- ✅ Recovery: Tween + PlatformStand = true (កុំកន្រាក់)
+-- ✅ Recovery: មិន CleanupMovers មុន Tween
+-- ✅ Sequence Number: Stop 100% ទៀងទាត់
 -- ✅ DropHeldEgg Check
 -- ✅ Logic ចាស់ | គ្មាន Callback
 -- ==================================================
@@ -45,7 +46,7 @@ print("[YOKUDO] TeleportSystem: CollectEvent OK")
 -- ==================================================
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
-local SAFE_ZONE_ABOVE = Vector3.new(533, 73, -366)  -- ✅ Y + 3 (លើដី)
+local SAFE_ZONE_ABOVE = Vector3.new(533, 73, -366)  -- ✅ Y + 3
 
 local FLY_SPEED = 1000
 local RETURN_SPEED = 800
@@ -459,7 +460,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (Sequence + Disconnect ភ្លាម)
+-- FLY TP (Sequence + Safe Zone No Lock + CFrame Y+3)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -526,7 +527,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone
+        -- ✅ Safe Zone (មិន Lock — Stop ភ្លាម)
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 if BodyVelocity then
@@ -552,6 +553,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
                     task.wait(0.1)
 
+                    -- ✅ មិន StartLock() ពេល IsSafeZone
                     if Callback then Callback() end
                 end)
                 return
@@ -762,7 +764,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (Fixed Fall Through)
+-- AUTO STOP
 -- ==================================================
 AutoStop = function()
     Running = false
@@ -781,11 +783,11 @@ AutoStop = function()
     StopActiveHeartbeat()
     RestoreStats()
 
-    -- ✅ Set CFrame ទៅ Safe Zone (Y + 3) ក្រោយ Cleanup
+    -- ✅ Set CFrame ទៅ Safe Zone (Y + 3)
     local Hum, Root = GetHumanoid()
     if Root then
         pcall(function()
-            Root.CFrame = CFrame.new(SAFE_ZONE_ABOVE)  -- ✅ Y + 3
+            Root.CFrame = CFrame.new(SAFE_ZONE_ABOVE)
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -875,6 +877,7 @@ FlyToTargetAgain = function()
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween + FlyTP)")
     CurrentStep = "recovery"
 
+    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
     FlySequence = FlySequence + 1
     if FlyConnection then
         FlyConnection:Disconnect()
@@ -888,6 +891,7 @@ FlyToTargetAgain = function()
         BodyGyro.MaxTorque = Vector3.zero
     end
 
+    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -915,16 +919,17 @@ FlyToTargetAgain = function()
         return
     end
 
+    -- ✅ ៣. Tween Player ទៅ Near Position (មិន CleanupMovers មុន)
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
         AutoStop()
         return
     end
 
+    Hum.PlatformStand = true
+
     local Direction = (TargetPos - Root.Position).Unit
     local NearPos = TargetPos - (Direction * NEAR_OFFSET)
-
-    Hum.PlatformStand = true
 
     local TweenInfoObj = TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
     local Tween = TweenService:Create(Root, TweenInfoObj, {
@@ -932,9 +937,9 @@ FlyToTargetAgain = function()
     })
 
     Tween:Play()
-
     Tween.Completed:Wait()
 
+    -- ✅ ៤. FlyTP ទៅ Target (Cleanup ក្នុង FlyTP)
     RecoveryTriggered = false
     TargetCollected = false
 
@@ -954,7 +959,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Fixed Fall Through)
+-- FLY TO SAFE ZONE (មិន Shot TP + មិន Lock + Set CFrame Y+3)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -962,7 +967,7 @@ FlyToSafeZone = function()
     RecoveryTriggered = false
     TargetCollected = false
 
-    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
+    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP, No Lock)")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
@@ -1323,4 +1328,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Fixed Fall Through + Tween 0.50s + BodyV/G + No Lag)")
+print("✅ TeleportSystem Loaded (Safe Zone No Lock + No Fall + Tween Recovery + BodyV/G)")
