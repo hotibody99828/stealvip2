@@ -8,6 +8,7 @@
 -- ✅ ដក GetHumanoid — ប្រើ GetChar/GetRoot/GetHum
 -- ✅ ដក Register — មិន Register ជាមួយ CharacterSystem
 -- ✅ Callback ពី VIPTP ពេល AutoStop
+-- ✅ Fixed: ត្រឡប់ទៅ AFK ពេល VIPTP ចប់ + អត់ឃើញ Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,7 +35,7 @@ end
 -- SETTINGS
 -- ==================================================
 local NIGHT_CHECK_INTERVAL = 0.05
-local DAY_CHECK_INTERVAL = 0.5
+local DAY_CHECK_INTERVAL = 0.10
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
@@ -453,12 +454,14 @@ end
 
 -- ==================================================
 -- ✅ CALLBACK ពី VIPTP (ពេល AutoStop)
+-- ✅ Fixed: ត្រឡប់ទៅ AFK ពេល VIPTP ចប់ + អត់ឃើញ Egg
 -- ==================================================
 local function OnVIPTPComplete()
     if not FarmingEnabled then return end
     if not WaitingForVIPTP then return end
 
     WaitingForVIPTP = false
+    AFKStarted = false  -- ✅ Reset AFKStarted ដើម្បីឲ្យវាត្រឡប់ទៅ AFK វិញ
     print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
     local BestEgg = FindBestEgg()
@@ -477,9 +480,13 @@ local function OnVIPTPComplete()
         end)
     else
         print("[FarmingManager] No New Egg → AFK")
+        print("[FarmingManager] AFKSystem exists:", tostring(_G.YOKUDO_AFKSystem ~= nil))
+        print("[FarmingManager] AFKSystem IsEnabled:", tostring(_G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled()))
+
         if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
             _G.YOKUDO_AFKSystem.Enable()
             AFKStarted = true
+            print("[FarmingManager] ✅ AFKSystem Enabled")
         end
     end
 end
@@ -706,4 +713,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback | No Register | No GetHumanoid)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback | Fixed AFK Return)")
