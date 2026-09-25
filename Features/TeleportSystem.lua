@@ -52,7 +52,7 @@ local RETURN_SPEED = 800
 local CurrentMethod = "TeleportFly"
 
 local FLY_OFFSET = 5              -- ✅ Offset 5
-local SHOT_DISTANCE = 100         -- ✅ Shot TP ពីចម្ងាយ 100
+local SHOT_DISTANCE = 30         -- ✅ Shot TP ពីចម្ងាយ 100
 local LOCK_ABOVE = 1
 
 local ARRIVE_DISTANCE = 5         -- ✅ ឈប់ពីចម្ងាយ 5
