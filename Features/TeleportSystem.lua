@@ -2,14 +2,15 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP)
 -- Target Egg: FlyTP (Shot TP) / Instant
--- Safe Zone: FlyTP (No Shot TP) → Reset State + Stop (No Lock)
--- Recovery: FlyTP (No Shot TP)
+-- Safe Zone: FlyTP (No Shot TP, No Lock) → Reset + Stop
+-- Recovery: FlyTP (No Shot TP) — មិនកន្រាក់
 -- Teleport Speed: 50 - 1100
 -- ForestStrike: Fire only when First Egg collected
 -- ✅ DropHeldEgg Check
--- ✅ Auto Recovery (No Tween)
+-- ✅ Auto Recovery (FlyTP No Shot TP)
 -- ✅ Safe Zone: Reset State + Stop (គ្មាន Lock)
 -- ✅ FLY_OFFSET = 10
+-- ✅ មិនកន្រាក់ពេល Fly Back
 --==================================================
 
 local Players = game:GetService("Players")
@@ -53,7 +54,7 @@ local RETURN_SPEED = 300
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 10  -- ✅ កែពី 25 → 10
+local FLY_OFFSET = 10  -- ✅ Fly Offset = 10
 local SHOT_DISTANCE = 30
 local LOCK_ABOVE = 2
 
@@ -67,6 +68,10 @@ local POSITION_THRESHOLD = 1
 
 local MAX_RECOVERY_ATTEMPTS = 10
 local TARGET_COLLECT_TIMEOUT = 15
+
+-- ✅ កុំកន្រាក់ — បន្ថែម Smooth Settings
+local SMOOTH_DISTANCE = 5
+local SMOOTH_SPEED_FACTOR = 0.5
 
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -458,7 +463,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP
+-- ✅ FLY TP (មាន Smooth កុំកន្រាក់)
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -557,8 +562,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
+        -- ✅ Smooth Speed (កុំកន្រាក់)
+        local RealSpeed = Speed
+        if TotalDist < SMOOTH_DISTANCE then
+            RealSpeed = Speed * SMOOTH_SPEED_FACTOR
+        end
+
         if TotalDist > 1 then
-            BodyVelocity.Velocity = Direction.Unit * Speed
+            BodyVelocity.Velocity = Direction.Unit * RealSpeed
         else
             BodyVelocity.Velocity = Vector3.zero
         end
@@ -1124,8 +1135,7 @@ StartProcess = function()
 end
 
 --==================================================
--- FULL RESET
---==================================================
+-- FULL RESET--==================================================
 
 local function FullReset()
     Running = false
@@ -1228,4 +1238,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Fly Offset 10 + No Tween + Safe Zone No Lock)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Fly Offset 10 + Smooth + Safe Zone Reset)")
