@@ -1,14 +1,18 @@
 -- ==================================================
--- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION)
--- First Egg: FlyTP (Shot TP, Offset 10, Speed 1000)
--- Target Egg: FlyTP / Instant (Lock 1)
--- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
--- ✅ Register ជាមួយ CharacterSystem
+-- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
+-- Mode 1: TeleportFly
+-- Mode 2: InstantTeleport
+-- Option: spawn + workspace (Auto Detect)
+-- ✅ DropHeldEgg Signal (Check Collect)
+-- ✅ Auto Recovery (Egg Drop តាមផ្លូវ)
+-- ✅ Callback ទៅ FarmingManager
+-- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 10
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
@@ -28,27 +32,34 @@ pcall(function()
 end)
 
 if not CollectEvent then
-    warn("[YOKUDO] CollectEvent not found")
+    warn("[TeleportSystem] CollectEvent not found")
     return
 end
 
-print("[YOKUDO] TeleportSystem: CollectEvent OK")
+print("[TeleportSystem] CollectEvent OK")
 
 -- ==================================================
--- ✅ SETTINGS (កែឱ្យលឿន)
+-- AREA EGG CYCLE
+-- ==================================================
+local AreaEggCycle = nil
+
+pcall(function()
+    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
+end)
+
+-- ==================================================
+-- SETTINGS
 -- ==================================================
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000
 local RETURN_SPEED = 800
-
+local FLY_OFFSET = 10
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 10
 local SHOT_DISTANCE = 15
 local LOCK_ABOVE = 1
-
 local ARRIVE_DISTANCE = 2
 local SAFE_LOCK_DISTANCE = 3
 local TIMEOUT_SECONDS = 30
@@ -56,6 +67,9 @@ local TIMEOUT_SECONDS = 30
 local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
+
+local NIGHT_CHECK_INTERVAL = 0.05
+local DAY_CHECK_INTERVAL = 0.5
 
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -69,6 +83,14 @@ local LOCK_POSITION = Vector3.new(
 local RagdollEnabled = false
 local RagdollConnection = nil
 local ForceUpConnection = nil
+
+-- ==================================================
+-- DROPHELDEGG
+-- ==================================================
+local PlayerGui = nil
+local DropHeldEgg = nil
+local DropHeldEggConnection = nil
+local LastDropState = false
 
 -- ==================================================
 -- STATE
@@ -94,6 +116,7 @@ local FlyTargetStarted = false
 local CollectDone = false
 local TargetCollected = false
 local RemotesFired = false
+local RecoveryTriggered = false
 
 local SavedTargetPosition = nil
 local TargetLockedCFrame = nil
@@ -104,21 +127,30 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
--- GET HUMANOID
+-- GET CHARACTER
 -- ==================================================
-local function GetHumanoid()
-    local Char = Player.Character
-    if not Char then return nil, nil end
-    local Hum = Char:FindFirstChildOfClass("Humanoid")
-    local Root = Char:FindFirstChild("HumanoidRootPart")
-    return Hum, Root
+local function GetChar()
+    return Player.Character
+end
+
+local function GetRoot()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHum()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChildOfClass("Humanoid")
 end
 
 -- ==================================================
 -- RAGDOLL BYPASS
 -- ==================================================
 local function ForceUp()
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
 
     pcall(function()
@@ -145,7 +177,7 @@ local function ForceUp()
 end
 
 local function CleanupRagdollConstraints()
-    local Char = Player.Character
+    local Char = GetChar()
     if not Char then return end
 
     pcall(function()
@@ -183,7 +215,7 @@ local function EnableRagdollBypass()
         end
     end)
 
-    print("[YOKUDO] Ragdoll Bypass: ON")
+    print("[TeleportSystem] Ragdoll Bypass: ON")
 end
 
 local function DisableRagdollBypass()
@@ -195,14 +227,14 @@ local function DisableRagdollBypass()
         RagdollConnection = nil
     end
 
-    print("[YOKUDO] Ragdoll Bypass: OFF")
+    print("[TeleportSystem] Ragdoll Bypass: OFF")
 end
 
 -- ==================================================
 -- SAVE / RESTORE STATS
 -- ==================================================
 local function SaveStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
@@ -212,7 +244,7 @@ local function SaveStats()
 end
 
 local function RestoreStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
@@ -249,7 +281,7 @@ local function CleanupMovers()
         BodyGyro = nil
     end
 
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if Root then
         for _, Child in ipairs(Root:GetChildren()) do
             if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
@@ -258,6 +290,7 @@ local function CleanupMovers()
         end
     end
 
+    local Hum = GetHum()
     if Hum then
         pcall(function()
             Hum.PlatformStand = false
@@ -277,6 +310,8 @@ end
 -- LOCK AT TARGET (Y+1)
 -- ==================================================
 local function StartLock(TargetPosition)
+    if not TargetPosition then return end
+
     TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
 
     if LockConnection then
@@ -289,7 +324,7 @@ local function StartLock(TargetPosition)
             return
         end
 
-        local Hum, Root = GetHumanoid()
+        local Root = GetRoot()
         if not Root then return end
 
         Root.CFrame = TargetLockedCFrame
@@ -317,6 +352,102 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
+-- GET PHASE
+-- ==================================================
+local function GetPhase()
+    if AreaEggCycle then
+        local Success, IsNight = pcall(function()
+            return AreaEggCycle.IsNightPhase(Workspace:GetServerTimeNow())
+        end)
+
+        if Success then
+            if IsNight then
+                return "Night"
+            else
+                return "Day"
+            end
+        end
+    end
+
+    local Success, Text = pcall(function()
+        return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+    end)
+
+    if Success and Text then
+        local M = tonumber(string.match(Text, "(%d+)m")) or 0
+        local S = tonumber(string.match(Text, "(%d+)s")) or 0
+        local Sec = M * 60 + S
+        if Sec > 10 then
+            return "Day"
+        else
+            return "Night"
+        end
+    end
+
+    return "UNKNOWN"
+end
+
+-- ==================================================
+-- WAIT FOR DAY
+-- ==================================================
+local function WaitForDay()
+    print("[TeleportSystem] Waiting for Day...")
+
+    while Running do
+        local Phase = GetPhase()
+        if Phase == "Day" then
+            print("[TeleportSystem] ✅ Day Started!")
+            return true
+        end
+        task.wait(DAY_CHECK_INTERVAL)
+    end
+
+    return false
+end
+
+-- ==================================================
+-- SETUP DROPHELDEGG
+-- ==================================================
+local function SetupDropHeldEgg()
+    PlayerGui = Player:FindFirstChild("PlayerGui")
+    if not PlayerGui then
+        PlayerGui = Player:WaitForChild("PlayerGui", 5)
+    end
+
+    if not PlayerGui then
+        warn("[TeleportSystem] PlayerGui not found!")
+        return
+    end
+
+    DropHeldEgg = PlayerGui:FindFirstChild("DropHeldEgg")
+    if not DropHeldEgg then
+        warn("[TeleportSystem] DropHeldEgg not found!")
+        return
+    end
+
+    LastDropState = DropHeldEgg.Enabled
+    print("[TeleportSystem] DropHeldEgg found | Enabled: " .. tostring(DropHeldEgg.Enabled))
+
+    if DropHeldEggConnection then
+        DropHeldEggConnection:Disconnect()
+        DropHeldEggConnection = nil
+    end
+
+    DropHeldEggConnection = DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
+        print("[TeleportSystem] DropHeldEgg.Enabled changed: " .. tostring(LastDropState) .. " → " .. tostring(DropHeldEgg.Enabled))
+        LastDropState = DropHeldEgg.Enabled
+    end)
+end
+
+-- ==================================================
+-- CHECK TARGET COLLECTED
+-- ==================================================
+local function IsTargetCollectedByDropHeldEgg()
+    if not DropHeldEgg then return false end
+    return DropHeldEgg.Enabled == true
+end
+
+-- ==================================================
 -- SEARCH FIRST EGGS
 -- ==================================================
 local function SearchFirstEggs()
@@ -339,7 +470,7 @@ local function SearchFirstEggs()
 end
 
 local function FindClosestEgg()
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if not Root then return nil end
 
     local Closest = nil
@@ -370,12 +501,20 @@ end
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
     local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+
+    -- ✅ Safe Zone → Lock នៅ Y ដី
+    local LockCFrame
+    if IsSafeZone then
+        LockCFrame = CFrame.new(Destination)
+    else
+        LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    end
 
     Hum.PlatformStand = true
 
@@ -403,7 +542,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        local Hum2, Root2 = GetHumanoid()
+        local Hum2 = GetHum()
+        local Root2 = GetRoot()
         if not Hum2 or not Root2 then
             CleanupMovers()
             return
@@ -471,12 +611,18 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 -- ==================================================
--- INSTANT FLY TP (FOR TARGET EGG)
+-- INSTANT FLY TP
 -- ==================================================
 local function InstantFlyTP(Destination, Callback)
+    if not Destination then
+        if Callback then Callback() end
+        return
+    end
+
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
@@ -496,10 +642,10 @@ end
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
     if CurrentMethod == "InstantTeleport" then
-        print("[YOKUDO] Instant TP to Target")
+        print("[TeleportSystem] Instant TP to Target")
         InstantFlyTP(TargetPos, Callback)
     else
-        print("[YOKUDO] FlyTP to Target (Shot TP)")
+        print("[TeleportSystem] FlyTP to Target (Shot TP)")
         FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
     end
 end
@@ -552,7 +698,7 @@ local function FireForestStrike()
         end
     end)
 
-    print("[YOKUDO] ForestStrike Fired")
+    print("[TeleportSystem] ForestStrike Fired")
 end
 
 -- ==================================================
@@ -579,36 +725,82 @@ local function IsTargetInWorkspace()
     return workspace:FindFirstChild(TARGET_UID) ~= nil
 end
 
+local function IsTargetStillExists()
+    return IsTargetInContainer() or IsTargetInWorkspace()
+end
+
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (កែ — Reset CFrame ទៅដី)
 -- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
 
+    -- ✅ Disconnect Lock មុន
+    if LockConnection then
+        LockConnection:Disconnect()
+        LockConnection = nil
+    end
+    TargetLockedCFrame = nil
+
+    -- ✅ Reset CFrame ទៅ Safe Zone (ដី Y = 70)
+    local Root = GetRoot()
+    if Root then
+        pcall(function()
+            Root.CFrame = CFrame.new(SAFE_ZONE)
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
+    -- ✅ Reset Humanoid
+    local Hum = GetHum()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+    end
+
+    task.wait(0.3)
+
+    -- ✅ Cleanup
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] TeleportSystem: Auto Stop")
+    print("[TeleportSystem] Auto Stop")
+
+    -- ✅ Callback ទៅ FarmingManager
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
+        task.spawn(function()
+            task.wait(0.5)
+            _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+        end)
+    end
 end
 
 -- ==================================================
--- FLY TO TARGET
+-- START FLY TO TARGET (Instant)
 -- ==================================================
-function StartFlyToTarget()
+local function StartFlyToTarget()
     if FlyTargetStarted then return end
     FlyTargetStarted = true
 
     CurrentStep = "to_target"
 
+    print("[TeleportSystem] StartFlyToTarget | Mode:", CurrentMode, "| UID:", tostring(TARGET_UID))
+
     local TargetPos = nil
 
     if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
-        if TargetEgg then
-            TargetPos = GetPosition(TargetEgg)
+        if Container then
+            local TargetEgg = Container:FindFirstChild(TARGET_UID)
+            if TargetEgg then
+                TargetPos = GetPosition(TargetEgg)
+            end
         end
     elseif CurrentMode == "workspace" then
         if SavedTargetPosition then
@@ -623,32 +815,113 @@ function StartFlyToTarget()
     end
 
     if not TargetPos then
+        warn("[TeleportSystem] StartFlyToTarget: TargetPos is nil! Mode:", CurrentMode)
         AutoStop()
         return
     end
 
+    print("[TeleportSystem] Instant TP to Target | Pos:", tostring(TargetPos))
     TeleportToTarget(TargetPos, function()
+        TargetCollected = false
+        CollectTime = 0
+        RecoveryTriggered = false
         CurrentStep = "collect_target"
     end)
 end
 
 -- ==================================================
--- FLY TO SAFE (NO SHOT TP)
+-- FLY TO TARGET AGAIN (Recovery)
+-- ==================================================
+local function FlyToTargetAgain()
+    print("[TeleportSystem] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
+    CurrentStep = "recovery"
+
+    local TargetPos = nil
+
+    if IsTargetInContainer() then
+        CurrentMode = "spawn"
+        local TargetEgg = Container:FindFirstChild(TARGET_UID)
+        if TargetEgg then
+            TargetPos = GetPosition(TargetEgg)
+        end
+        print("[TeleportSystem] Target found in Container → spawn mode")
+
+    elseif IsTargetInWorkspace() then
+        CurrentMode = "workspace"
+        local WSEgg = workspace:FindFirstChild(TARGET_UID)
+        if WSEgg then
+            TargetPos = GetPosition(WSEgg)
+            SavedTargetPosition = TargetPos
+        end
+        print("[TeleportSystem] Target found in Workspace → workspace mode")
+
+    else
+        print("[TeleportSystem] ✅ Target Gone (Both) → Done")
+        AutoStop()
+        return
+    end
+
+    if not TargetPos then
+        print("[TeleportSystem] Target Pos not found → Done")
+        AutoStop()
+        return
+    end
+
+    -- ✅ ប្រើ Method ដើម (Instant ឬ FlyTP)
+    TeleportToTarget(TargetPos, function()
+        print("[TeleportSystem] ✅ Recovery Arrived → Collect Target")
+
+        TargetCollected = false
+        CollectTime = 0
+        CollectAttempts = 0
+        RecoveryTriggered = false
+
+        CurrentStep = "collect_target"
+    end)
+end
+
+-- ==================================================
+-- FLY TO SAFE ZONE
 -- ==================================================
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] FlyTP to Safe Zone")
+    print("[TeleportSystem] FlyTP to Safe Zone")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        AutoStop()
+        print("[TeleportSystem] ✅ Arrived Safe Zone → Check Egg")
+
+        if IsTargetStillExists() then
+            print("[TeleportSystem] Egg Still Exists → Go Collect Again")
+
+            if IsTargetInContainer() then
+                CurrentMode = "spawn"
+            elseif IsTargetInWorkspace() then
+                CurrentMode = "workspace"
+                local WSEgg = workspace:FindFirstChild(TARGET_UID)
+                if WSEgg then
+                    SavedTargetPosition = GetPosition(WSEgg)
+                end
+            end
+
+            CurrentStep = "to_target"
+            FlyTargetStarted = false
+            RecoveryTriggered = false
+            TargetCollected = false
+
+            task.wait(0.3)
+            StartFlyToTarget()
+        else
+            print("[TeleportSystem] ✅ Egg Gone (Both) → Done")
+            AutoStop()
+        end
     end)
 end
 
 -- ==================================================
 -- HEARTBEAT
 -- ==================================================
-function StartActiveHeartbeat()
+local function StartActiveHeartbeat()
     if ActiveHeartbeat then
         ActiveHeartbeat:Disconnect()
         ActiveHeartbeat = nil
@@ -657,10 +930,12 @@ function StartActiveHeartbeat()
     ActiveHeartbeat = RunService.Heartbeat:Connect(function()
         if not Running then return end
 
-        local Hum, Root = GetHumanoid()
+        local Hum = GetHum()
+        local Root = GetRoot()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
+        -- Step 1: Collect First Egg
         if CurrentStep == "collect_first" and not CollectDone then
             if IsFirstEggInWorkspace() then
                 CollectDone = true
@@ -685,13 +960,26 @@ function StartActiveHeartbeat()
             end
         end
 
+        -- Step 2: Wait First Egg Spawn Back
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
+                print("[TeleportSystem] First Egg Spawn Back → Go Target")
                 task.spawn(function() StartFlyToTarget() end)
             end
         end
 
+        -- Step 3: Collect Target Egg (ពិនិត្យ DropHeldEgg + Mode ដើម)
         if CurrentStep == "collect_target" and not TargetCollected then
+
+            -- ✅ ពិនិត្យ DropHeldEgg ជាមុន
+            if IsTargetCollectedByDropHeldEgg() then
+                print("[TeleportSystem] ✅ DropHeldEgg.Enabled = true → Target Collected!")
+                TargetCollected = true
+                task.spawn(function() FlyToSafeZone() end)
+                return
+            end
+
+            -- Mode ដើម
             if CurrentMode == "spawn" then
                 if workspace:FindFirstChild(TARGET_UID) then
                     TargetCollected = true
@@ -721,10 +1009,26 @@ function StartActiveHeartbeat()
                 CollectAttempts = CollectAttempts + 1
             end
         end
+
+        -- Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ)
+        if CurrentStep == "to_safe" then
+            if not IsTargetCollectedByDropHeldEgg() then
+                if not RecoveryTriggered then
+                    RecoveryTriggered = true
+                    print("[TeleportSystem] ⚠️ Egg Dropped on Way → Recovery!")
+                    task.spawn(function()
+                        FlyToTargetAgain()
+                    end)
+                end
+                return
+            else
+                RecoveryTriggered = false
+            end
+        end
     end)
 end
 
-function StopActiveHeartbeat()
+local function StopActiveHeartbeat()
     if ActiveHeartbeat then
         ActiveHeartbeat:Disconnect()
         ActiveHeartbeat = nil
@@ -744,20 +1048,28 @@ local function StartProcess()
     CollectDone = false
     TargetCollected = false
     RemotesFired = false
+    RecoveryTriggered = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
+    LastDropState = false
+
+    -- ✅ Setup DropHeldEgg
+    SetupDropHeldEgg()
 
     SaveStats()
     EnableRagdollBypass()
 
+    -- ✅ Auto Detect
     if IsTargetInContainer() then
         CurrentMode = "spawn"
+        print("[TeleportSystem] Target found in Container → spawn mode")
     elseif IsTargetInWorkspace() then
         CurrentMode = "workspace"
         local WSEgg = workspace:FindFirstChild(TARGET_UID)
         if WSEgg then
             SavedTargetPosition = GetPosition(WSEgg)
         end
+        print("[TeleportSystem] Target found in Workspace → workspace mode")
     else
         local WaitTime = 0
         while Running and not IsTargetInContainer() and not IsTargetInWorkspace() do
@@ -804,8 +1116,10 @@ local function StartProcess()
 
     StartActiveHeartbeat()
 
-    print("[YOKUDO] FlyTP to First Egg (Shot TP)")
+    print("[TeleportSystem] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
+        CollectDone = false
+        CollectTime = 0
         CurrentStep = "collect_first"
     end)
 end
@@ -827,15 +1141,24 @@ local function FullReset()
     CollectDone = false
     TargetCollected = false
     RemotesFired = false
+    RecoveryTriggered = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
+    LastDropState = false
+
+    if DropHeldEggConnection then
+        DropHeldEggConnection:Disconnect()
+        DropHeldEggConnection = nil
+    end
+    DropHeldEgg = nil
+    PlayerGui = nil
 
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    print("[YOKUDO] TeleportSystem: Full Reset")
+    print("[TeleportSystem] Full Reset")
 end
 
 -- ==================================================
@@ -843,30 +1166,30 @@ end
 -- ==================================================
 local function Enable()
     if Running then return end
-    if not CollectEvent then warn("[YOKUDO] CollectEvent not found") return end
-    if not TARGET_UID then warn("[YOKUDO] No Target ID") return end
+    if not CollectEvent then warn("[TeleportSystem] CollectEvent not found") return end
+    if not TARGET_UID then warn("[TeleportSystem] No Target ID") return end
 
     FullReset()
     StartProcess()
 
-    print("[YOKUDO] TeleportSystem: ON | Method: " .. CurrentMethod)
+    print("[TeleportSystem] ON | Method: " .. CurrentMethod)
 end
 
 local function Disable()
     FullReset()
-    print("[YOKUDO] TeleportSystem: OFF")
+    print("[TeleportSystem] OFF")
 end
 
 local function SetTargetId(Id)
     TARGET_UID = Id
-    print("[YOKUDO] TeleportSystem Target ID: " .. tostring(Id))
+    print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
 local function SetSpeed(Value)
     Value = math.clamp(Value, 50, 1100)
     FLY_SPEED = Value
     RETURN_SPEED = Value
-    print("[YOKUDO] TeleportSystem Speed: " .. tostring(Value))
+    print("[TeleportSystem] Speed: " .. tostring(Value))
 end
 
 local function SetMethod(Method)
@@ -875,7 +1198,7 @@ local function SetMethod(Method)
     else
         CurrentMethod = "TeleportFly"
     end
-    print("[YOKUDO] TeleportSystem Method: " .. CurrentMethod)
+    print("[TeleportSystem] Method: " .. CurrentMethod)
 end
 
 local function GetMethod()
@@ -911,9 +1234,6 @@ if _G.YOKUDO_CharacterSystem then
         Disable = Disable,
         IsEnabled = function() return Running end,
         OnCharacterAdded = function(Char, Hum, Root)
-            -- ✅ TeleportSystem ប្រើ GetHumanoid() រាល់ពេល
-            -- ដូច្នេះវាចាប់ Humanoid ថ្មីដោយស្វ័យប្រវត្តិ
-            -- ប៉ុន្តែបើកំពុងរត់ យើង Restart ដើម្បីធានា
             if Running then
                 task.wait(1)
                 pcall(function()
@@ -934,4 +1254,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + Register)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery)")
