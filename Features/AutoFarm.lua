@@ -2,7 +2,6 @@
 -- YOKUDO HUB | FEATURE | Auto Farm
 -- Check Egg + Display Card + Select + Send to Teleport
 -- ✅ Register ជាមួយ CharacterSystem
--- ✅ បន្ថែម Callback សម្រាប់ Sync Checkbox
 --==================================================
 
 local Players = game:GetService("Players")
@@ -230,7 +229,7 @@ local function StopTeleport()
 end
 
 --==================================================
--- ✅ EXPORT (មាន Callback)
+-- EXPORT
 --==================================================
 _G.YOKUDO_AutoFarm = {
     Enable = EnableAutoFarm,
@@ -242,62 +241,8 @@ _G.YOKUDO_AutoFarm = {
     StartTeleport = StartTeleport,
     StopTeleport = StopTeleport,
     GetSelectedEgg = function() return SelectedEgg end,
-    FormatMoney = FormatMoney,
-    -- ✅ Callback សម្រាប់ Tab
-    OnAutoFarmChanged = nil,
+    FormatMoney = FormatMoney
 }
 
---==================================================
--- ✅ CALLBACK FUNCTION (ហៅពេល Enable/Disable)
---==================================================
-local function NotifyAutoFarmChanged(State)
-    if _G.YOKUDO_AutoFarm and _G.YOKUDO_AutoFarm.OnAutoFarmChanged then
-        task.spawn(function()
-            pcall(function()
-                _G.YOKUDO_AutoFarm.OnAutoFarmChanged(State)
-            end)
-        end)
-    end
-end
 
--- ✅ Override Enable/Disable ឲ្យហៅ Callback
-local OriginalEnable = EnableAutoFarm
-local OriginalDisable = DisableAutoFarm
-
-EnableAutoFarm = function()
-    OriginalEnable()
-    NotifyAutoFarmChanged(true)
-end
-
-DisableAutoFarm = function()
-    OriginalDisable()
-    NotifyAutoFarmChanged(false)
-end
-
--- ✅ Update Export ជាមួយ Function ថ្មី
-_G.YOKUDO_AutoFarm.Enable = EnableAutoFarm
-_G.YOKUDO_AutoFarm.Disable = DisableAutoFarm
-
---==================================================
--- REGISTER WITH CHARACTER SYSTEM
---==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "AutoFarm",
-        Enable = EnableAutoFarm,
-        Disable = DisableAutoFarm,
-        IsEnabled = function() return AutoFarmEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if AutoFarmEnabled and SelectedEgg then
-                task.wait(2)
-                pcall(function()
-                    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-                        StartTeleport()
-                    end
-                end)
-            end
-        end
-    })
-end
-
-print("✅ AutoFarm Feature Loaded (Register + Callback)")
+print("✅ AutoFarm Feature Loaded (Register)")
