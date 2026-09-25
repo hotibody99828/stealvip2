@@ -1,12 +1,13 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
--- ✅ បញ្ចូល Egg Check Logic ពី EggCheckPremium
--- ✅ ពិនិត្យ Egg ជាប់ៗ (ទាំង Day ទាំង Night)
--- ✅ ហៅ AFKSystem ពេលអត់ឃើញ Egg
--- ✅ ហៅ VIPTP ពេលឃើញ Egg
--- ✅ ពិនិត្យ Egg ភ្លាមៗពេល Enable()
+-- បញ្ចូល Egg Check Logic ពី EggCheckPremium
+-- គ្រប់គ្រង Day/Night
+-- ហៅ AFKSystem ពេលអត់ឃើញ Egg
+-- ហៅ VIPTP ពេលឃើញ Egg + Day
+-- Night Check: 0.05s | Day Check: 0.5s
+-- ✅ ដក GetHumanoid — ប្រើ GetChar/GetRoot/GetHum
+-- ✅ ដក Register — មិន Register ជាមួយ CharacterSystem
 -- ✅ Callback ពី VIPTP ពេល AutoStop
--- ✅ Disable FarmingManager ពេល VIPTP ចប់ + គ្មាន Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -17,14 +18,31 @@ local Workspace = game:GetService("Workspace")
 local Player = Players.LocalPlayer
 
 -- ==================================================
+-- AREA EGG CYCLE
+-- ==================================================
+local AreaEggCycle = nil
+
+pcall(function()
+    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
+end)
+
+if not AreaEggCycle then
+    warn("[FarmingManager] AreaEggCycle not found! Using fallback.")
+end
+
+-- ==================================================
 -- SETTINGS
 -- ==================================================
-local EGG_CHECK_INTERVAL = 0.5
+local NIGHT_CHECK_INTERVAL = 0.05
+local DAY_CHECK_INTERVAL = 0.5
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
+local FLY_SPEED = 1000
 local SAFE_FLY_SPEED = 500
+local RETURN_SPEED = 800
 local FLY_OFFSET = 15
+local METHOD = "InstantTeleport"
 
 -- ==================================================
 -- EGG CHECK PREMIUM (បញ្ចូលក្នុង FarmingManager)
@@ -162,6 +180,8 @@ end
 -- STATE
 -- ==================================================
 local FarmingEnabled = false
+local CurrentState = "IDLE"
+local CurrentPhase = "UNKNOWN"
 local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
@@ -172,7 +192,7 @@ local BodyVelocity = nil
 local BodyGyro = nil
 
 -- ==================================================
--- GET CHARACTER
+-- ✅ GET CHAR / ROOT / HUM (ដក GetHumanoid ចេញ)
 -- ==================================================
 local function GetChar()
     return Player.Character
@@ -303,6 +323,42 @@ local function SelfFlyTP(Destination, Speed, Callback)
 end
 
 -- ==================================================
+-- GET PHASE
+-- ==================================================
+local function GetPhase()
+    if AreaEggCycle then
+        local Success, IsNight = pcall(function()
+            return AreaEggCycle.IsNightPhase(Workspace:GetServerTimeNow())
+        end)
+
+        if Success then
+            if IsNight then
+                return "Night"
+            else
+                return "Day"
+            end
+        end
+    end
+
+    local Success, Text = pcall(function()
+        return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+    end)
+
+    if Success and Text then
+        local M = tonumber(string.match(Text, "(%d+)m")) or 0
+        local S = tonumber(string.match(Text, "(%d+)s")) or 0
+        local Sec = M * 60 + S
+        if Sec > 10 then
+            return "Day"
+        else
+            return "Night"
+        end
+    end
+
+    return "UNKNOWN"
+end
+
+-- ==================================================
 -- STOP ALL
 -- ==================================================
 local function StopAll()
@@ -379,7 +435,7 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- ✅ START VIPTP
+-- START VIPTP
 -- ==================================================
 local function StartVIPTP(EggUid)
     if not _G.YOKUDO_VIPTP then
@@ -396,80 +452,180 @@ local function StartVIPTP(EggUid)
 end
 
 -- ==================================================
--- ✅ CHECK EGG AND ACT
--- ==================================================
-local function CheckEggAndAct()
-    local BestEgg = FindBestEgg()
-
-    if BestEgg then
-        print("[FarmingManager] ✅ Egg Found: " .. BestEgg.DisplayName)
-
-        if WaitingForVIPTP then
-            return
-        end
-
-        PendingEggUid = BestEgg.Uid
-
-        StopAll()
-        task.wait(0.5)
-
-        local ReachedSafe = FlyToSafeZoneAndWait()
-
-        if ReachedSafe and PendingEggUid then
-            task.wait(SAFE_WAIT_AFTER_REACH)
-            StartVIPTP(PendingEggUid)
-            PendingEggUid = nil
-        end
-    else
-        if not WaitingForVIPTP then
-            if not AFKStarted then
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    print("[FarmingManager] No Egg → AFK Started")
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
-            end
-        end
-    end
-end
-
--- ==================================================
--- ✅ CALLBACK ពី VIPTP (Disable បើគ្មាន Egg)
+-- ✅ CALLBACK ពី VIPTP (ពេល AutoStop)
 -- ==================================================
 local function OnVIPTPComplete()
     if not FarmingEnabled then return end
     if not WaitingForVIPTP then return end
 
     WaitingForVIPTP = false
-    AFKStarted = false
     print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
-    -- ✅ ពិនិត្យ Egg ថ្មីភ្លាមៗ
-    task.spawn(function()
-        task.wait(0.5)
+    local BestEgg = FindBestEgg()
+
+    if BestEgg then
+        print("[FarmingManager] New Egg Found: " .. BestEgg.DisplayName)
+        PendingEggUid = BestEgg.Uid
+
+        task.spawn(function()
+            local ReachedSafe = FlyToSafeZoneAndWait()
+            if ReachedSafe and PendingEggUid then
+                task.wait(SAFE_WAIT_AFTER_REACH)
+                StartVIPTP(PendingEggUid)
+                PendingEggUid = nil
+            end
+        end)
+    else
+        print("[FarmingManager] No New Egg → AFK")
+        if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+            _G.YOKUDO_AFKSystem.Enable()
+            AFKStarted = true
+        end
+    end
+end
+
+-- ==================================================
+-- WAIT FOR DAY
+-- ==================================================
+local function WaitForDay()
+    print("[FarmingManager] Waiting for Day...")
+
+    while FarmingEnabled do
+        local Phase = GetPhase()
+        CurrentPhase = Phase
+
+        if Phase == "Day" then
+            print("[FarmingManager] ✅ Day Started!")
+            return true
+        end
+
+        task.wait(DAY_CHECK_INTERVAL)
+    end
+
+    return false
+end
+
+-- ==================================================
+-- NIGHT LOOP
+-- ==================================================
+local function NightLoop()
+    print("[FarmingManager] NightLoop Started (0.05s)")
+
+    while FarmingEnabled do
+        local Phase = GetPhase()
+        CurrentPhase = Phase
+
+        if Phase == "Day" then
+            print("[FarmingManager] Day Started → Break NightLoop")
+            return
+        end
+
         local BestEgg = FindBestEgg()
 
         if BestEgg then
-            -- ✅ ឃើញ Egg ថ្មី → បន្ត
-            print("[FarmingManager] New Egg Found → Continue")
-            CheckEggAndAct()
+            print("[FarmingManager] ✅ Night + Egg Spawn: " .. BestEgg.DisplayName)
+
+            PendingEggUid = BestEgg.Uid
+
+            StopAll()
+            task.wait(0.5)
+
+            local ReachedSafe = FlyToSafeZoneAndWait()
+
+            if ReachedSafe then
+                print("[FarmingManager] Waiting at Safe Zone for Day...")
+                task.wait(SAFE_WAIT_AFTER_REACH)
+
+                local IsDay = WaitForDay()
+
+                if IsDay and PendingEggUid then
+                    print("[FarmingManager] ✅ Day Reached → Start VIPTP")
+                    StartVIPTP(PendingEggUid)
+                    PendingEggUid = nil
+
+                    while WaitingForVIPTP and FarmingEnabled do
+                        task.wait(0.5)
+                    end
+                end
+            end
+
+            return
         else
-            -- ✅ អត់ឃើញ Egg → Disable FarmingManager ទាំងស្រុង
-            print("[FarmingManager] No New Egg → Disable FarmingManager")
-            Disable()
+            if not AFKStarted then
+                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                    _G.YOKUDO_AFKSystem.Enable()
+                    AFKStarted = true
+                    print("[FarmingManager] AFK Started (No Egg)")
+                end
+            end
         end
-    end)
+
+        task.wait(NIGHT_CHECK_INTERVAL)
+    end
+end
+
+-- ==================================================
+-- DAY LOOP
+-- ==================================================
+local function DayLoop()
+    print("[FarmingManager] DayLoop Started (0.5s)")
+
+    while FarmingEnabled do
+        local Phase = GetPhase()
+        CurrentPhase = Phase
+
+        if Phase == "Night" then
+            print("[FarmingManager] Night Started → Break DayLoop")
+            return
+        end
+
+        local BestEgg = FindBestEgg()
+
+        if BestEgg then
+            print("[FarmingManager] ✅ Day + Egg: " .. BestEgg.DisplayName)
+
+            StopAll()
+            task.wait(0.5)
+
+            FlyToSafeZoneAndWait()
+            task.wait(1)
+
+            StartVIPTP(BestEgg.Uid)
+
+            while WaitingForVIPTP and FarmingEnabled do
+                task.wait(0.5)
+            end
+        else
+            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                _G.YOKUDO_AFKSystem.Enable()
+                AFKStarted = true
+                print("[FarmingManager] AFK Started (No Egg)")
+            end
+        end
+
+        task.wait(DAY_CHECK_INTERVAL)
+    end
 end
 
 -- ==================================================
 -- MAIN LOOP
 -- ==================================================
 local function MainLoop()
-    print("[FarmingManager] MainLoop Started (Check Egg Only)")
+    print("[FarmingManager] MainLoop Started")
 
     while FarmingEnabled do
-        CheckEggAndAct()
-        task.wait(EGG_CHECK_INTERVAL)
+        local Phase = GetPhase()
+        CurrentPhase = Phase
+
+        print("[FarmingManager] Phase: " .. Phase)
+
+        if Phase == "Day" then
+            DayLoop()
+        else
+            NightLoop()
+        end
+
+        task.wait(0.1)
     end
     print("[FarmingManager] MainLoop Stopped")
 end
@@ -480,14 +636,10 @@ end
 local function Enable()
     if FarmingEnabled then return end
     FarmingEnabled = true
+    CurrentState = "CHECK_TIME"
     AFKStarted = false
     PendingEggUid = nil
     WaitingForVIPTP = false
-
-    task.spawn(function()
-        task.wait(0.3)
-        CheckEggAndAct()
-    end)
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -495,7 +647,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (Check Egg Only)")
+    print("[YOKUDO] FarmingManager: ON")
 end
 
 local function Disable()
@@ -512,6 +664,8 @@ local function Disable()
     AFKStarted = false
     PendingEggUid = nil
     WaitingForVIPTP = false
+    CurrentState = "IDLE"
+    CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
 end
 
@@ -528,33 +682,21 @@ _G.YOKUDO_FarmingManager = {
     Toggle = Toggle,
     IsEnabled = function() return FarmingEnabled end,
     SetRarities = SetRarities,
+    GetState = function() return CurrentState end,
+    GetPhase = function() return CurrentPhase end,
     FindBestEgg = FindBestEgg,
-    EGG_CHECK_INTERVAL = EGG_CHECK_INTERVAL,
+    NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
+    DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
+    FLY_SPEED = FLY_SPEED,
     SAFE_FLY_SPEED = SAFE_FLY_SPEED,
+    RETURN_SPEED = RETURN_SPEED,
     FLY_OFFSET = FLY_OFFSET,
+    METHOD = METHOD,
+    -- ✅ Callback សម្រាប់ VIPTP
     OnVIPTPComplete = OnVIPTPComplete,
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "FarmingManager",
-        Enable = Enable,
-        Disable = Disable,
-        IsEnabled = function() return FarmingEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if FarmingEnabled then
-                task.wait(1)
-                if FarmingThread then
-                    pcall(function() task.cancel(FarmingThread) end)
-                end
-                FarmingThread = task.spawn(function() MainLoop() end)
-            end
-        end
-    })
-end
+-- ✅ ដក Register ចេញ — មិន Register ជាមួយ CharacterSystem
 
 -- ==================================================
 -- BUILD MESHID MAP ON LOAD
@@ -564,4 +706,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Check Egg Only | Day + Night | Callback Disable)")
+print("✅ FarmingManager Loaded (Egg Check + Day/Night + AFK + VIPTP + Callback | No Register | No GetHumanoid)")
