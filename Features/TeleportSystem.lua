@@ -4,7 +4,7 @@
 -- Target Egg: FlyTP / Instant (Lock 1)
 -- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
 -- ✅ Register ជាមួយ CharacterSystem
--- ✅ បន្ថែម AFK Farming Mode (ដាច់ដោយឡែក)
+-- ✅ បន្ថែម AFK Farming Mode + Callback
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -55,7 +55,7 @@ local AFK_RETURN_SPEED = 1000
 -- ✅ Current Settings
 local FLY_OFFSET = DEFAULT_FLY_OFFSET
 local CurrentMethod = "TeleportFly"
-local IsAFKMode = false  -- ✅ Flag ថាតើកំពុងប្រើ AFK Mode ឬអត់
+local IsAFKMode = false
 
 local SHOT_DISTANCE = 15
 local LOCK_ABOVE = 1
@@ -113,6 +113,11 @@ local SavedWalkSpeed = nil
 local SavedJumpPower = nil
 local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
+
+-- ==================================================
+-- FORWARD DECLARATIONS
+-- ==================================================
+local StopActiveHeartbeat
 
 -- ==================================================
 -- GET HUMANOID
@@ -591,7 +596,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (បន្ថែម Callback ទៅ FarmingManager)
 -- ==================================================
 local function AutoStop()
     Running = false
@@ -603,6 +608,14 @@ local function AutoStop()
     RestoreStats()
 
     print("[YOKUDO] TeleportSystem: Auto Stop")
+
+    -- ✅ Callback ទៅ FarmingManager (បើ AFK Mode)
+    if IsAFKMode and _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnTeleportComplete then
+        task.spawn(function()
+            task.wait(0.2)
+            _G.YOKUDO_FarmingManager.OnTeleportComplete()
+        end)
+    end
 end
 
 -- ==================================================
@@ -899,16 +912,16 @@ end
 -- ==================================================
 local function EnableAFKMode()
     IsAFKMode = true
-    FLY_OFFSET = AFK_FLY_OFFSET          -- 5
-    RETURN_SPEED = AFK_RETURN_SPEED      -- 1000
+    FLY_OFFSET = AFK_FLY_OFFSET
+    RETURN_SPEED = AFK_RETURN_SPEED
     CurrentMethod = "InstantTeleport"
     print("[YOKUDO] TeleportSystem: AFK Mode ON | Offset: " .. FLY_OFFSET .. " | Return Speed: " .. RETURN_SPEED)
 end
 
 local function DisableAFKMode()
     IsAFKMode = false
-    FLY_OFFSET = DEFAULT_FLY_OFFSET      -- 10
-    RETURN_SPEED = DEFAULT_RETURN_SPEED  -- 800
+    FLY_OFFSET = DEFAULT_FLY_OFFSET
+    RETURN_SPEED = DEFAULT_RETURN_SPEED
     print("[YOKUDO] TeleportSystem: AFK Mode OFF | Reset to Default")
 end
 
@@ -984,4 +997,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + AFK Farming Mode)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + AFK Farming Mode + Callback)")
