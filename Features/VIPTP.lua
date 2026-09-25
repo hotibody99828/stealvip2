@@ -1,10 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ដាច់ដោយឡែកសម្រាប់ AFK Farm
 -- ✅ Self-contained: Check Day/Night + AFK JumpOut + FlyTP
--- ✅ InstantTP ទៅ Target Egg
+-- ✅ Instant TP ទៅ Target Egg
 -- ✅ Auto Detect: spawn / workspace
 -- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
+-- ✅ Auto Recovery Egg ពេល Egg Drop តាមផ្លូវ
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
@@ -87,6 +87,7 @@ local ForceUpConnection = nil
 local PlayerGui = nil
 local DropHeldEgg = nil
 local DropHeldEggConnection = nil
+local LastDropState = false
 
 -- ==================================================
 -- STATE
@@ -122,21 +123,30 @@ local SavedJumpHeight = nil
 local SavedUseJumpPower = nil
 
 -- ==================================================
--- GET HUMANOID
+-- ✅ GET CHARACTER (ដក GetHumanoid ចេញ)
 -- ==================================================
-local function GetHumanoid()
-    local Char = Player.Character
-    if not Char then return nil, nil end
-    local Hum = Char:FindFirstChildOfClass("Humanoid")
-    local Root = Char:FindFirstChild("HumanoidRootPart")
-    return Hum, Root
+local function GetChar()
+    return Player.Character
+end
+
+local function GetRoot()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHum()
+    local Char = GetChar()
+    if not Char then return nil end
+    return Char:FindFirstChildOfClass("Humanoid")
 end
 
 -- ==================================================
 -- RAGDOLL BYPASS
 -- ==================================================
 local function ForceUp()
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
 
     pcall(function()
@@ -163,7 +173,7 @@ local function ForceUp()
 end
 
 local function CleanupRagdollConstraints()
-    local Char = Player.Character
+    local Char = GetChar()
     if not Char then return end
 
     pcall(function()
@@ -220,7 +230,7 @@ end
 -- SAVE / RESTORE STATS
 -- ==================================================
 local function SaveStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
@@ -230,7 +240,7 @@ local function SaveStats()
 end
 
 local function RestoreStats()
-    local Hum = GetHumanoid()
+    local Hum = GetHum()
     if not Hum then return end
 
     if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
@@ -267,7 +277,7 @@ local function CleanupMovers()
         BodyGyro = nil
     end
 
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if Root then
         for _, Child in ipairs(Root:GetChildren()) do
             if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
@@ -276,6 +286,7 @@ local function CleanupMovers()
         end
     end
 
+    local Hum = GetHum()
     if Hum then
         pcall(function()
             Hum.PlatformStand = false
@@ -292,7 +303,7 @@ local function CleanupMovers()
 end
 
 -- ==================================================
--- LOCK AT TARGET (Y+1)
+-- LOCK AT TARGET
 -- ==================================================
 local function StartLock(TargetPosition)
     TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
@@ -307,7 +318,7 @@ local function StartLock(TargetPosition)
             return
         end
 
-        local Hum, Root = GetHumanoid()
+        local Root = GetRoot()
         if not Root then return end
 
         Root.CFrame = TargetLockedCFrame
@@ -335,7 +346,7 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- GET PHASE (Night / Day)
+-- GET PHASE
 -- ==================================================
 local function GetPhase()
     if AreaEggCycle then
@@ -408,6 +419,7 @@ local function SetupDropHeldEgg()
         return
     end
 
+    LastDropState = DropHeldEgg.Enabled
     print("[VIPTP] DropHeldEgg found | Enabled: " .. tostring(DropHeldEgg.Enabled))
 
     if DropHeldEggConnection then
@@ -416,12 +428,13 @@ local function SetupDropHeldEgg()
     end
 
     DropHeldEggConnection = DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
-        print("[VIPTP] DropHeldEgg.Enabled changed to: " .. tostring(DropHeldEgg.Enabled))
+        print("[VIPTP] DropHeldEgg.Enabled changed: " .. tostring(LastDropState) .. " → " .. tostring(DropHeldEgg.Enabled))
+        LastDropState = DropHeldEgg.Enabled
     end)
 end
 
 -- ==================================================
--- CHECK TARGET COLLECTED BY DROPHELDEGG
+-- CHECK TARGET COLLECTED
 -- ==================================================
 local function IsTargetCollectedByDropHeldEgg()
     if not DropHeldEgg then return false end
@@ -451,7 +464,7 @@ local function SearchFirstEggs()
 end
 
 local function FindClosestEgg()
-    local Hum, Root = GetHumanoid()
+    local Root = GetRoot()
     if not Root then return nil end
 
     local Closest = nil
@@ -482,7 +495,8 @@ end
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
@@ -515,7 +529,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        local Hum2, Root2 = GetHumanoid()
+        local Hum2 = GetHum()
+        local Root2 = GetRoot()
         if not Hum2 or not Root2 then
             CleanupMovers()
             return
@@ -583,12 +598,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 end
 
 -- ==================================================
--- INSTANT FLY TP (FOR TARGET EGG)
+-- INSTANT FLY TP
 -- ==================================================
 local function InstantFlyTP(Destination, Callback)
     CleanupMovers()
 
-    local Hum, Root = GetHumanoid()
+    local Hum = GetHum()
+    local Root = GetRoot()
     if not Hum or not Root then return end
     if Hum.Health <= 0 then return end
 
@@ -679,6 +695,13 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
+-- ✅ CHECK TARGET STILL EXISTS (ក្នុង Spawn + Workspace)
+-- ==================================================
+local function IsTargetStillExists()
+    return IsTargetInContainer() or IsTargetInWorkspace()
+end
+
+-- ==================================================
 -- AUTO STOP
 -- ==================================================
 local function AutoStop()
@@ -741,7 +764,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE
+-- ✅ FLY TO SAFE ZONE (មាន Auto Recovery Egg)
 -- ==================================================
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
@@ -749,7 +772,62 @@ local function FlyToSafeZone()
     print("[VIPTP] FlyTP to Safe Zone")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        AutoStop()
+        -- ពេលមកដល់ Safe Zone
+        print("[VIPTP] ✅ Arrived Safe Zone → Check Egg")
+
+        -- ✅ Check Egg ម្តងទៀត
+        if IsTargetStillExists() then
+            print("[VIPTP] Egg Still Exists → Go Collect Again")
+            CurrentStep = "to_target"
+            FlyTargetStarted = false
+
+            -- Fly TP ទៅ Target Egg ម្តងទៀត
+            task.wait(0.3)
+            StartFlyToTarget()
+        else
+            print("[VIPTP] ✅ Egg Gone → Done")
+            AutoStop()
+        end
+    end)
+end
+
+-- ==================================================
+-- ✅ FLY TO TARGET AGAIN (Auto Recovery ពេល Egg Drop)
+-- ==================================================
+local function FlyToTargetAgain()
+    print("[VIPTP] Egg Dropped → Fly TP to Target Again")
+
+    CurrentStep = "recovery"
+
+    local TargetPos = nil
+
+    if CurrentMode == "spawn" then
+        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
+        if TargetEgg then
+            TargetPos = GetPosition(TargetEgg)
+        end
+    elseif CurrentMode == "workspace" then
+        if SavedTargetPosition then
+            TargetPos = SavedTargetPosition
+        else
+            local WSEgg = workspace:FindFirstChild(TARGET_UID)
+            if WSEgg then
+                TargetPos = GetPosition(WSEgg)
+                SavedTargetPosition = TargetPos
+            end
+        end
+    end
+
+    if not TargetPos then
+        print("[VIPTP] Target not found → Go Safe Zone")
+        FlyToSafeZone()
+        return
+    end
+
+    -- ✅ Fly TP (No Instant) ទៅ Target Egg
+    FlyTP(TargetPos, FLY_SPEED, true, false, function()
+        print("[VIPTP] ✅ Recovery Arrived → Collect Target")
+        CurrentStep = "collect_target"
     end)
 end
 
@@ -765,7 +843,8 @@ local function StartActiveHeartbeat()
     ActiveHeartbeat = RunService.Heartbeat:Connect(function()
         if not Running then return end
 
-        local Hum, Root = GetHumanoid()
+        local Hum = GetHum()
+        local Root = GetRoot()
         if not Hum or not Root then return end
         if Hum.Health <= 0 then return end
 
@@ -805,7 +884,7 @@ local function StartActiveHeartbeat()
         -- Step 3: Collect Target Egg
         if CurrentStep == "collect_target" and not TargetCollected then
 
-            -- ✅ ពិនិត្យ DropHeldEgg ជាមុន (Signal ថា Collect បានជោគជ័យ)
+            -- ✅ ពិនិត្យ DropHeldEgg ជាមុន
             if IsTargetCollectedByDropHeldEgg() then
                 print("[VIPTP] ✅ DropHeldEgg.Enabled = true → Target Collected!")
                 TargetCollected = true
@@ -818,6 +897,16 @@ local function StartActiveHeartbeat()
                 CollectTime = tick()
                 RemoteCollectTarget()
                 CollectAttempts = CollectAttempts + 1
+            end
+        end
+
+        -- ✅ Step 4: Recovery (ពេល Egg Drop តាមផ្លូវ)
+        if CurrentStep == "to_safe" then
+            -- បើ Egg ធ្លាក់តាមផ្លូវ → DropHeldEgg.Enabled = false
+            if not IsTargetCollectedByDropHeldEgg() then
+                print("[VIPTP] ⚠️ Egg Dropped → Recovery!")
+                task.spawn(function() FlyToTargetAgain() end)
+                return
             end
         end
     end)
@@ -845,6 +934,7 @@ local function StartProcess()
     RemotesFired = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
+    LastDropState = false
 
     -- ✅ Setup DropHeldEgg
     SetupDropHeldEgg()
@@ -852,7 +942,7 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
-    -- ✅ Auto Detect Option (spawn or workspace)
+    -- ✅ Auto Detect Option
     if IsTargetInContainer() then
         CurrentMode = "spawn"
         print("[VIPTP] Target found in Container → spawn mode")
@@ -934,6 +1024,7 @@ local function FullReset()
     RemotesFired = false
     SavedTargetPosition = nil
     TargetLockedCFrame = nil
+    LastDropState = false
 
     -- ✅ Reset DropHeldEgg Connection
     if DropHeldEggConnection then
@@ -1018,4 +1109,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg Signal + Instant TP)")
+print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Auto Recovery)")
