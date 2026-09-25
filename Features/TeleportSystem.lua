@@ -1,11 +1,12 @@
 -- ==================================================
--- YOKUDO HUB - TELEPORT SYSTEM (CFRAME TP — លឿន + មិនកន្រាក់)
--- First Egg: CFrame TP (Instant)
--- Target Egg: CFrame TP (Instant)
--- Safe Zone: CFrame TP (Instant)
--- Recovery: CFrame TP (Instant)
--- ✅ CFrame TP — លឿន 100% + មិនកន្រាក់ 100%
--- ✅ Safe Zone: Stop + Reset ភ្លាមៗ
+-- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
+-- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
+-- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
+-- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
+-- ✅ Tween + BodyV/G → រលូត 100% មិនកន្រាក់
+-- ✅ Sequence Number → Stop 100% ទៀងទាត់
+-- ✅ PlatformStand → កុំឲ្យ Physics Update
 -- ✅ DropHeldEgg Check
 -- ✅ Logic ចាស់ | គ្មាន Callback
 -- ==================================================
@@ -13,6 +14,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")  -- ✅ បន្ថែម
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
@@ -44,10 +46,18 @@ print("[YOKUDO] TeleportSystem: CollectEvent OK")
 local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
+local FLY_SPEED = 1000
+local RETURN_SPEED = 800
+
 local CurrentMethod = "TeleportFly"
 
 local FLY_OFFSET = 5
+local SHOT_DISTANCE = 25
 local LOCK_ABOVE = 1
+
+local ARRIVE_DISTANCE = 2
+local SAFE_LOCK_DISTANCE = 3
+local TIMEOUT_SECONDS = 30
 
 local COLLECT_INTERVAL = 0.05
 local SEARCH_PREFIX = "FirstAreaEgg"
@@ -56,11 +66,27 @@ local POSITION_THRESHOLD = 1
 local MAX_RECOVERY_ATTEMPTS = 10
 local TARGET_COLLECT_TIMEOUT = 15
 
+-- ✅ Tween Settings
+local TWEEN_DURATION = 0.50
+local NEAR_OFFSET = 20
+
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
     70.57420349121094,
     -326.8830261230469
 )
+
+-- ==================================================
+-- BODY SETTINGS (កែកន្រាក់)
+-- ==================================================
+local BODY_VELOCITY_P = 10000
+local BODY_GYRO_P = 100000
+local BODY_GYRO_D = 2000
+
+-- ==================================================
+-- ✅ SEQUENCE NUMBER (ការពារ Race Condition)
+-- ==================================================
+local FlySequence = 0
 
 -- ==================================================
 -- RAGDOLL BYPASS
@@ -84,6 +110,9 @@ local Running = false
 local CurrentStep = "idle"
 local CurrentMode = "none"
 
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
 local ActiveHeartbeat = nil
 local LockConnection = nil
 
@@ -113,6 +142,7 @@ local SavedUseJumpPower = nil
 -- ==================================================
 -- ✅ FORWARD DECLARATIONS
 -- ==================================================
+local CleanupMovers
 local DisableRagdollBypass
 local StopActiveHeartbeat
 local RestoreStats
@@ -239,6 +269,58 @@ RestoreStats = function()
     if SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = SavedJumpPower end) end
     if SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = SavedJumpHeight end) end
     if SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedUseJumpPower end) end
+end
+
+-- ==================================================
+-- ✅ CLEANUP (មាន Parameter KeepPlatformStand)
+-- ==================================================
+CleanupMovers = function(KeepPlatformStand)
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if LockConnection then
+        LockConnection:Disconnect()
+        LockConnection = nil
+    end
+    if BodyVelocity then
+        pcall(function()
+            BodyVelocity.Velocity = Vector3.zero
+            BodyVelocity.MaxForce = Vector3.zero
+        end)
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
+    if BodyGyro then
+        pcall(function()
+            BodyGyro.MaxTorque = Vector3.zero
+        end)
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
+
+    local Hum, Root = GetHumanoid()
+    if Root then
+        for _, Child in ipairs(Root:GetChildren()) do
+            if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
+                pcall(function() Child:Destroy() end)
+            end
+        end
+    end
+
+    if Hum and not KeepPlatformStand then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
+    end
+
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
 end
 
 -- ==================================================
@@ -377,42 +459,233 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ CFRAME TP (លឿន + មិនកន្រាក់ 100%)
+-- ✅ FLY TP (Sequence + Disconnect ភ្លាម)
 -- ==================================================
-local function CFrameTP(Destination, Callback)
+local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+    -- ✅ បង្កើន Sequence
+    FlySequence = FlySequence + 1
+    local CurrentSequence = FlySequence
+
+    CleanupMovers()
+
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    if Hum.Health <= 0 then
-        if Callback then Callback() end
-        return
-    end
+    if not Hum or not Root then return end
+    if Hum.Health <= 0 then return end
 
-    -- ✅ Stop Ragdoll Bypass បណ្ដោះអាសន្ន
-    Hum.PlatformStand = false
-    Hum.Sit = false
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
 
-    -- ✅ TP ភ្លាមៗ (លឿនបំផុត)
-    local TargetCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
-    Root.CFrame = TargetCFrame
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-
-    -- ✅ Set PlatformStand ដើម្បីកុំឲ្យធ្លាក់
     Hum.PlatformStand = true
 
-    if Callback then Callback() end
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = BODY_VELOCITY_P
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = BODY_GYRO_P
+    BodyGyro.D = BODY_GYRO_D
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
+
+    local StartTime = tick()
+    local ShotDone = false
+
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        -- ✅ ពិនិត្យ Sequence
+        if CurrentSequence ~= FlySequence then
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+            return
+        end
+
+        if not Running then
+            CleanupMovers()
+            return
+        end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 then
+            CleanupMovers()
+            return
+        end
+        if Hum2.Health <= 0 then return end
+
+        if not BodyVelocity or not BodyGyro then
+            CleanupMovers()
+            return
+        end
+
+        local CurrentPos = Root2.Position
+        local Direction = (FlyPos - CurrentPos)
+        local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
+        local VertDist = math.abs(Direction.Y)
+        local TotalDist = Direction.Magnitude
+
+        -- ✅ Safe Zone
+        if IsSafeZone then
+            if HorizDist <= SAFE_LOCK_DISTANCE then
+                if BodyVelocity then
+                    BodyVelocity.Velocity = Vector3.zero
+                    BodyVelocity.MaxForce = Vector3.zero
+                end
+                if BodyGyro then
+                    BodyGyro.MaxTorque = Vector3.zero
+                end
+
+                if FlyConnection then
+                    FlyConnection:Disconnect()
+                    FlyConnection = nil
+                end
+
+                task.spawn(function()
+                    task.wait(0.1)
+
+                    CleanupMovers(true)
+                    Root2.CFrame = CFrame.new(Destination)
+                    Root2.AssemblyLinearVelocity = Vector3.zero
+                    Root2.AssemblyAngularVelocity = Vector3.zero
+
+                    task.wait(0.1)
+
+                    if Callback then Callback() end
+                end)
+                return
+            end
+        end
+
+        -- ✅ Shot TP
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+            ShotDone = true
+
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+
+            task.spawn(function()
+                task.wait(0.1)
+
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+
+                task.wait(0.1)
+
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Arrived
+        if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+
+            task.spawn(function()
+                task.wait(0.1)
+
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+
+                task.wait(0.1)
+
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Timeout
+        if tick() - StartTime > TIMEOUT_SECONDS then
+            CleanupMovers()
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ បន្តហោះ
+        if TotalDist > 1 then
+            BodyVelocity.Velocity = Direction.Unit * Speed
+        else
+            BodyVelocity.Velocity = Vector3.zero
+        end
+
+        BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
+    end)
+end
+
+-- ==================================================
+-- INSTANT FLY TP
+-- ==================================================
+local function InstantFlyTP(Destination, Callback)
+    if not Destination then
+        if Callback then Callback() end
+        return
+    end
+
+    FlySequence = FlySequence + 1
+
+    CleanupMovers()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then return end
+    if Hum.Health <= 0 then return end
+
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+
+    Hum.PlatformStand = true
+
+    task.spawn(function()
+        Root.CFrame = LockCFrame
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+
+        task.wait(0.1)
+
+        StartLock(Destination)
+        if Callback then Callback() end
+    end)
 end
 
 -- ==================================================
 -- TELEPORT TO TARGET
 -- ==================================================
 local function TeleportToTarget(TargetPos, Callback)
-    -- ✅ ប្រើ CFrame TP សម្រាប់ទាំងអស់
-    print("[YOKUDO] CFrame TP to Target")
-    CFrameTP(TargetPos, Callback)
+    if CurrentMethod == "InstantTeleport" then
+        print("[YOKUDO] Instant TP to Target")
+        InstantFlyTP(TargetPos, Callback)
+    else
+        print("[YOKUDO] FlyTP to Target (Shot TP 25)")
+        FlyTP(TargetPos, FLY_SPEED, true, false, Callback)
+    end
 end
 
 -- ==================================================
@@ -497,6 +770,8 @@ AutoStop = function()
     Running = false
     CurrentStep = "done"
 
+    FlySequence = FlySequence + 1
+
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
@@ -519,6 +794,9 @@ AutoStop = function()
         end)
     end
 
+    task.wait(0.1)
+
+    CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
@@ -584,7 +862,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — CFrame TP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -595,10 +873,24 @@ FlyToTargetAgain = function()
         return
     end
 
-    print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (CFrame TP)")
+    print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween + FlyTP)")
     CurrentStep = "recovery"
 
-    -- ✅ រក TargetPos
+    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
+    FlySequence = FlySequence + 1
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if BodyVelocity then
+        BodyVelocity.Velocity = Vector3.zero
+        BodyVelocity.MaxForce = Vector3.zero
+    end
+    if BodyGyro then
+        BodyGyro.MaxTorque = Vector3.zero
+    end
+
+    -- ✅ ២. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -626,12 +918,36 @@ FlyToTargetAgain = function()
         return
     end
 
+    -- ✅ ៣. Tween Player ទៅ Near Position (0.50s)
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        AutoStop()
+        return
+    end
+
+    -- Tween ទៅ Near Position (Offset 20 ពី Target)
+    local Direction = (TargetPos - Root.Position).Unit
+    local NearPos = TargetPos - (Direction * NEAR_OFFSET)
+
+    Hum.PlatformStand = true
+
+    -- ✅ Tween CFrame → Near Position (0.50s)
+    local TweenInfoObj = TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local Tween = TweenService:Create(Root, TweenInfoObj, {
+        CFrame = CFrame.new(NearPos, TargetPos)
+    })
+
+    Tween:Play()
+
+    -- ✅ ៤. រង់ចាំ Tween ចប់
+    Tween.Completed:Wait()
+
+    -- ✅ ៥. FlyTP ទៅ Target Egg (Shot TP 25)
     RecoveryTriggered = false
     TargetCollected = false
 
-    -- ✅ CFrame TP ភ្លាមៗ (មិនកន្រាក់)
-    print("[YOKUDO] Recovery CFrame TP to Target")
-    CFrameTP(TargetPos, function()
+    print("[YOKUDO] Recovery Tween Done → FlyTP to Target")
+    FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
 
         TargetCollected = false
@@ -646,7 +962,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE (CFrame TP + Stop + Reset)
+-- ✅ FLY TO SAFE ZONE (មិន Shot TP + Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -654,9 +970,9 @@ FlyToSafeZone = function()
     RecoveryTriggered = false
     TargetCollected = false
 
-    print("[YOKUDO] CFrame TP to Safe Zone")
+    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
 
-    CFrameTP(SAFE_ZONE, function()
+    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
 
         TargetCollected = false
@@ -669,7 +985,10 @@ FlyToSafeZone = function()
         RecoveryAttempts = 0
         SavedTargetPosition = nil
 
-        AutoStop()
+        task.spawn(function()
+            task.wait(0.2)
+            AutoStop()
+        end)
     end)
 end
 
@@ -728,6 +1047,7 @@ StartActiveHeartbeat = function()
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function()
+                    task.wait(0.1)
                     StartFlyToTarget()
                 end)
             end
@@ -741,6 +1061,7 @@ StartActiveHeartbeat = function()
                 TargetCollected = true
                 RecoveryTriggered = false
                 task.spawn(function()
+                    task.wait(0.1)
                     FlyToSafeZone()
                 end)
                 return
@@ -751,6 +1072,7 @@ StartActiveHeartbeat = function()
                     TargetCollected = true
                     RecoveryTriggered = false
                     task.spawn(function()
+                        task.wait(0.1)
                         FlyToSafeZone()
                     end)
                     return
@@ -766,6 +1088,7 @@ StartActiveHeartbeat = function()
                                 TargetCollected = true
                                 RecoveryTriggered = false
                                 task.spawn(function()
+                                    task.wait(0.1)
                                     FlyToSafeZone()
                                 end)
                                 return
@@ -786,6 +1109,7 @@ StartActiveHeartbeat = function()
                 if not RecoveryTriggered then
                     RecoveryTriggered = true
                     task.spawn(function()
+                        task.wait(0.1)
                         FlyToTargetAgain()
                     end)
                 end
@@ -800,6 +1124,7 @@ StartActiveHeartbeat = function()
                     RecoveryTriggered = true
                     print("[YOKUDO] ⚠️ Egg Dropped on Way → Recovery!")
                     task.spawn(function()
+                        task.wait(0.1)
                         FlyToTargetAgain()
                     end)
                 end
@@ -817,6 +1142,8 @@ end
 StartProcess = function()
     Running = true
     CurrentStep = "search"
+
+    FlySequence = 0
 
     CollectAttempts = 0
     CollectTime = 0
@@ -892,8 +1219,8 @@ StartProcess = function()
 
     StartActiveHeartbeat()
 
-    print("[YOKUDO] CFrame TP to First Egg")
-    CFrameTP(EggPos, function()
+    print("[YOKUDO] FlyTP to First Egg (Shot TP 25)")
+    FlyTP(EggPos, FLY_SPEED, true, false, function()
         CollectDone = false
         CollectTime = 0
         CurrentStep = "collect_first"
@@ -907,6 +1234,8 @@ local function FullReset()
     Running = false
     CurrentStep = "idle"
     CurrentMode = "none"
+
+    FlySequence = FlySequence + 1
 
     FirstEggList = {}
     FirstEggUid = nil
@@ -931,7 +1260,7 @@ local function FullReset()
     DropHeldEgg = nil
     PlayerGui = nil
 
-    if LockConnection then LockConnection:Disconnect() LockConnection = nil end
+    if CleanupMovers then CleanupMovers() end
     if DisableRagdollBypass then DisableRagdollBypass() end
     if StopActiveHeartbeat then StopActiveHeartbeat() end
     if RestoreStats then RestoreStats() end
@@ -964,21 +1293,27 @@ local function SetTargetId(Id)
 end
 
 local function SetSpeed(Value)
-    -- CFrame TP មិនត្រូវការ Speed
-    print("[YOKUDO] TeleportSystem Speed: N/A (CFrame TP)")
+    Value = math.clamp(Value, 50, 1100)
+    FLY_SPEED = Value
+    RETURN_SPEED = Value
+    print("[YOKUDO] TeleportSystem Speed: " .. tostring(Value))
 end
 
 local function SetMethod(Method)
-    CurrentMethod = "CFrameTP"
-    print("[YOKUDO] TeleportSystem Method: CFrameTP (Fixed)")
+    if Method == "InstantTeleport" then
+        CurrentMethod = "InstantTeleport"
+    else
+        CurrentMethod = "TeleportFly"
+    end
+    print("[YOKUDO] TeleportSystem Method: " .. CurrentMethod)
 end
 
 local function GetMethod()
-    return "CFrameTP"
+    return CurrentMethod
 end
 
 local function GetSpeed()
-    return 0
+    return FLY_SPEED
 end
 
 -- ==================================================
@@ -996,4 +1331,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (CFrame TP — លឿន + មិនកន្រាក់ 100%)")
+print("✅ TeleportSystem Loaded (Tween 0.50s + BodyV/G + No Lag + Safe Zone Stop + Reset)")
