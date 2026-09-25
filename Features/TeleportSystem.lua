@@ -56,7 +56,7 @@ local SAFE_LOCK_DISTANCE = 30
 local TIMEOUT_SECONDS = 30
 
 -- ✅ Micro TP Settings
-local MICRO_STEP = 1000            -- ខ្លីៗ 15 studs ម្តង
+local MICRO_STEP = 100            -- ខ្លីៗ 15 studs ម្តង
 local MICRO_HEARTBEAT = 1         -- Heartbeat:Wait() 1 ដង រវាងដង
 local MICRO_FINAL_HEARTBEAT = 2   -- Heartbeat:Wait() 2 ដង មុន StartLock
 
