@@ -1,5 +1,8 @@
 --==================================================
 -- YOKUDO HUB | TAB | Auto Farming
+-- ✅ Auto Uncheck ពេល TeleportSystem Stop
+-- ✅ Periodic Sync រាល់ 1s
+-- ✅ Refresh Function សម្រាប់ TeleportSystem
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -122,7 +125,7 @@ local function ToggleGetEgg()
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ Call StartTeleport (reads Method from Setting)
+        -- ✅ Call StartTeleport
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
@@ -299,10 +302,8 @@ local function CreateEggEntry(EggData)
     SelectButton.MouseButton1Click:Connect(function()
         UpdateGetEggBox(EggData.Icon, EggData.DisplayName, EggData.EarningRate, EggData.Id)
 
-        -- ✅ Save EggData ទាំងមូល
         SelectedEggData = EggData
 
-        -- ✅ គ្រាន់តែ Save មិន Enable
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.SelectEgg(EggData)
         end
@@ -403,4 +404,57 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded")
+--==================================================
+-- ✅ REFRESH FUNCTION (សម្រាប់ TeleportSystem ហៅ)
+--==================================================
+_G.YOKUDO_RefreshAutoFarmingUI = function()
+    if _G.YOKUDO_AutoFarm then
+        local State = _G.YOKUDO_AutoFarm.IsEnabled()
+        GetEggEnabled = State
+        GetEggCheck.Visible = State
+
+        if State then
+            GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            GetEggCheckButton.BackgroundTransparency = 0
+            GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
+        else
+            GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            GetEggCheckButton.BackgroundTransparency = 0.85
+            GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+        end
+
+        print("[YOKUDO] Auto Farming Tab UI Refreshed | State: " .. tostring(State))
+    end
+end
+
+--==================================================
+-- ✅ PERIODIC SYNC (រាល់ 1s) — Auto Uncheck
+--==================================================
+task.spawn(function()
+    while task.wait(1) do
+        -- ✅ Sync GetEgg Checkbox
+        if _G.YOKUDO_AutoFarm then
+            local CurrentState = _G.YOKUDO_AutoFarm.IsEnabled()
+            local UIState = GetEggCheck.Visible
+
+            if CurrentState ~= UIState then
+                GetEggEnabled = CurrentState
+                GetEggCheck.Visible = CurrentState
+
+                if CurrentState then
+                    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                    GetEggCheckButton.BackgroundTransparency = 0
+                    GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
+                else
+                    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                    GetEggCheckButton.BackgroundTransparency = 0.85
+                    GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+                end
+
+                print("[YOKUDO] Auto Farming UI Sync | GetEgg State: " .. tostring(CurrentState))
+            end
+        end
+    end
+end)
+
+print("✅ Auto Farming Tab Loaded (Auto Uncheck + Sync)")
