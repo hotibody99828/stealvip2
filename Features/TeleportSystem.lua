@@ -1,13 +1,13 @@
 -- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
--- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
+-- First Egg: FlyTP (Shot TP 25, Offset 15, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
--- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset State)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
--- ✅ No Heartbeat — ប្រើ task.spawn + task.wait
+-- ✅ Fly Offset = 15
+-- ✅ Safe Zone → Stop + Reset ភ្លាមៗ
+-- ✅ មិន Heartbeat — ប្រើ task.spawn
 -- ✅ DropHeldEgg Check
--- ✅ Safe Zone: មិន Lock + Stop at 5
--- ✅ គ្មាន Callback ទៅ FarmingManager
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -50,7 +50,7 @@ local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 5
+local FLY_OFFSET = 15  -- ✅ Fly Offset = 15
 local SHOT_DISTANCE = 25
 local LOCK_ABOVE = 1
 
@@ -111,7 +111,7 @@ local CurrentMode = "none"
 local FlyConnection = nil
 local BodyVelocity = nil
 local BodyGyro = nil
-local ActiveTask = nil  -- ✅ ប្រើ Task ជំនួស Heartbeat
+local ActiveTask = nil
 local LockConnection = nil
 
 local FirstEggList = {}
@@ -457,7 +457,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (No Heartbeat — ប្រើ ActiveTask)
+-- ✅ FLY TP (Safe Zone → Stop + Reset ភ្លាមៗ)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -492,15 +492,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     local StartTime = tick()
     local ShotDone = false
 
-    -- ✅ ប្រើ ActiveTask ជំនួស Heartbeat
     ActiveTask = task.spawn(function()
         while Running do
-            -- ✅ ពិនិត្យ Sequence
             if CurrentSequence ~= FlySequence then
                 return
             end
 
-            task.wait(0.01)  -- ✅ Frame rate
+            task.wait(0.01)
 
             local Hum2, Root2 = GetHumanoid()
             if not Hum2 or not Root2 then
@@ -520,9 +518,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Direction.Y)
             local TotalDist = Direction.Magnitude
 
-            -- ✅ Safe Zone (Stop at 5 — No Lock)
+            -- ✅ Safe Zone (Stop + Reset ភ្លាមៗ — មិន Lock)
             if IsSafeZone then
                 if HorizDist <= SAFE_STOP_DISTANCE then
+                    -- Stop BodyV/G
                     if BodyVelocity then
                         BodyVelocity.Velocity = Vector3.zero
                         BodyVelocity.MaxForce = Vector3.zero
@@ -531,9 +530,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                         BodyGyro.MaxTorque = Vector3.zero
                     end
 
-                    -- ✅ Cleanup ភ្លាម (កុំ Stuck)
+                    -- Cleanup ភ្លាម
                     CleanupMovers(true)
 
+                    -- ✅ Callback → FlyToSafeZone → AutoStop
                     if Callback then Callback() end
                     return
                 end
@@ -726,7 +726,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP
+-- ✅ AUTO STOP (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 AutoStop = function()
     Running = false
@@ -745,6 +745,7 @@ AutoStop = function()
     StopActiveHeartbeat()
     RestoreStats()
 
+    -- ✅ Reset State ទាំងអស់
     FirstEggList = {}
     FirstEggUid = nil
     FirstEggSlotKey = nil
@@ -806,7 +807,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -822,10 +823,6 @@ FlyToTargetAgain = function()
 
     -- ✅ ១. Stop FlyTP ដើម ភ្លាម
     FlySequence = FlySequence + 1
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
-    end
     if BodyVelocity then
         BodyVelocity.Velocity = Vector3.zero
         BodyVelocity.MaxForce = Vector3.zero
@@ -902,7 +899,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Stop at 5 — No Lock)
+-- ✅ FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -943,13 +940,12 @@ StopActiveHeartbeat = function()
 end
 
 -- ==================================================
--- HEARTBEAT (មិនប្រើ — ប្រើ task ជំនួស)
+-- HEARTBEAT (មិនប្រើ — ប្រើ task.spawn)
 -- ==================================================
 StartActiveHeartbeat = function()
-    -- ✅ មិនប្រើ Heartbeat — ប្រើ task.spawn ជំនួស
     task.spawn(function()
         while Running do
-            task.wait(0.05)  -- ✅ Frame rate
+            task.wait(0.05)
 
             local Hum, Root = GetHumanoid()
             if not Hum or not Root then break end
@@ -1255,4 +1251,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (No Heartbeat + task.spawn + Recovery + DropHeldEgg + Safe Zone No Lock)")
+print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Stop + Reset + No Lock)")
