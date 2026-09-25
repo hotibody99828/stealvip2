@@ -1,13 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ✅ Self-contained: Check Day/Night + AFK JumpOut + FlyTP
--- ✅ Instant TP ទៅ Target Egg
--- ✅ Auto Detect: spawn / workspace
--- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
--- ✅ Auto Recovery: ពិនិត្យ TARGET_UID ទាំង Container + Workspace
--- ✅ Reset State ពេល Recovery
--- ✅ AutoStop Cleanup ត្រឹមត្រូវ (មិនជាប់គាំងលើអាកាស)
--- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
+-- ✅ AutoStop: Reset CFrame ទៅដី (Y = 70) មុន PlatformStand = false
+-- ✅ FlyTP Safe Zone: Lock នៅ Y = Destination.Y (មិន + LOCK_ABOVE)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -493,7 +487,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP
+-- ✅ FLY TP (កែ Safe Zone Lock)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -504,7 +498,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     if Hum.Health <= 0 then return end
 
     local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+
+    -- ✅ បើ Safe Zone → Lock នៅ Y ដី (មិន + LOCK_ABOVE)
+    local LockCFrame
+    if IsSafeZone then
+        LockCFrame = CFrame.new(Destination)  -- Y = 70 (ដី)
+    else
+        LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    end
 
     Hum.PlatformStand = true
 
@@ -554,10 +555,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                Root2.CFrame = LockCFrame
+                Root2.CFrame = LockCFrame  -- ✅ Y = 70 (ដី)
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
+                StartLock(Destination)  -- StartLock បន្ថែម LOCK_ABOVE
                 if Callback then Callback() end
                 return
             end
@@ -702,26 +703,30 @@ local function IsTargetStillExists()
 end
 
 -- ==================================================
--- ✅ AUTO STOP (Cleanup ត្រឹមត្រូវ)
+-- ✅ AUTO STOP (កែ — Reset CFrame ទៅដី មុន PlatformStand)
 -- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
 
-    -- ✅ Cleanup ទាំងអស់
-    CleanupMovers()
-    DisableRagdollBypass()
-    StopActiveHeartbeat()
-    RestoreStats()
-
-    -- ✅ Reset Lock (ការពារជាប់គាំងលើអាកាស)
+    -- ✅ Disconnect Lock មុន
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
     end
     TargetLockedCFrame = nil
 
-    -- ✅ Reset Humanoid State
+    -- ✅ Reset CFrame ទៅ Safe Zone (ដី Y = 70) មុន
+    local Root = GetRoot()
+    if Root then
+        pcall(function()
+            Root.CFrame = CFrame.new(SAFE_ZONE)  -- Y = 70 (ដី)
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
+    -- ✅ Reset Humanoid State (បន្ទាប់ពី CFrame)
     local Hum = GetHum()
     if Hum then
         pcall(function()
@@ -730,6 +735,12 @@ local function AutoStop()
             Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end)
     end
+
+    -- ✅ Cleanup (បន្ទាប់ពី Reset)
+    CleanupMovers()
+    DisableRagdollBypass()
+    StopActiveHeartbeat()
+    RestoreStats()
 
     print("[VIPTP] Auto Stop")
 
@@ -785,7 +796,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Reset State)
+-- ✅ FLY TO TARGET AGAIN (Recovery)
 -- ==================================================
 local function FlyToTargetAgain()
     print("[VIPTP] ⚠️ Egg Dropped → Recovery! (Check Both Paths)")
@@ -793,7 +804,6 @@ local function FlyToTargetAgain()
 
     local TargetPos = nil
 
-    -- ✅ ពិនិត្យទាំង Container និង Workspace
     if IsTargetInContainer() then
         CurrentMode = "spawn"
         local TargetEgg = Container:FindFirstChild(TARGET_UID)
@@ -823,11 +833,9 @@ local function FlyToTargetAgain()
         return
     end
 
-    -- ✅ Fly TP ដោយ FLY_SPEED (1000)
     FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[VIPTP] ✅ Recovery Arrived → Collect Target")
 
-        -- ✅ Reset State
         TargetCollected = false
         CollectTime = 0
         CollectAttempts = 0
@@ -848,11 +856,9 @@ local function FlyToSafeZone()
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[VIPTP] ✅ Arrived Safe Zone → Check Egg")
 
-        -- ✅ Check Egg ម្តងទៀត (Both Paths)
         if IsTargetStillExists() then
             print("[VIPTP] Egg Still Exists → Go Collect Again")
 
-            -- Auto Detect CurrentMode
             if IsTargetInContainer() then
                 CurrentMode = "spawn"
             elseif IsTargetInWorkspace() then
@@ -992,7 +998,6 @@ local function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
-    -- ✅ Auto Detect
     if IsTargetInContainer() then
         CurrentMode = "spawn"
         print("[VIPTP] Target found in Container → spawn mode")
@@ -1091,7 +1096,6 @@ local function FullReset()
     StopActiveHeartbeat()
     RestoreStats()
 
-    -- ✅ Reset Humanoid State
     local Hum = GetHum()
     if Hum then
         pcall(function()
@@ -1170,4 +1174,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery + Cleanup)")
+print("✅ VIPTP Loaded (Safe Zone Lock Fix + AutoStop Reset CFrame)")
