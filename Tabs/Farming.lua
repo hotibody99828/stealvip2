@@ -1,9 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
--- ✅ ភ្ជាប់ជាមួយ EggCheckPremium
 -- ✅ ភ្ជាប់ជាមួយ FarmingManager
 -- ✅ Dropdown Select Rarity
 -- ✅ Checkbox Auto AFK Farming
+-- ✅ ដក EggCheckPremium ចេញ (បញ្ចូលក្នុង FarmingManager រួចហើយ)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -163,16 +163,7 @@ local function CreateDropdownOption(Name, Order)
         UpdateOptionVisual(Name)
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
-        -- ✅ Update EggCheckPremium
-        if _G.YOKUDO_EggCheckPremium then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_EggCheckPremium.SetRarities(List)
-        end
-
-        -- ✅ Update FarmingManager
+        -- ✅ Update FarmingManager (តែម្នាក់ឯង — គ្មាន EggCheckPremium)
         if _G.YOKUDO_FarmingManager then
             local List = {}
             if SelectedRarities.Secret then table.insert(List, "Secret") end
@@ -228,7 +219,6 @@ FarmLabel.TextYAlignment = Enum.TextYAlignment.Center
 FarmLabel.Font = Enum.Font.GothamBold
 FarmLabel.Parent = FarmHolder
 
--- ✅ Subtitle ដែលកែហើយ
 local FarmSub = Instance.new("TextLabel")
 FarmSub.Size = UDim2.new(1, -50, 0, 18)
 FarmSub.Position = UDim2.new(0, 0, 0, 24)
@@ -286,23 +276,12 @@ local function ToggleFarm()
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         FarmStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ Set Rarities ទៅ EggCheckPremium
-        if _G.YOKUDO_EggCheckPremium then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_EggCheckPremium.SetRarities(List)
-        end
-
         -- ✅ Set Rarities ទៅ FarmingManager
-        if _G.YOKUDO_FarmingManager then
-            local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
-            _G.YOKUDO_FarmingManager.SetRarities(List)
-        end
+        local List = {}
+        if SelectedRarities.Secret then table.insert(List, "Secret") end
+        if SelectedRarities.Eternal then table.insert(List, "Eternal") end
+        if SelectedRarities.Divine then table.insert(List, "Divine") end
+        _G.YOKUDO_FarmingManager.SetRarities(List)
 
         _G.YOKUDO_FarmingManager.Enable()
     else
@@ -380,4 +359,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded")
+print("✅ Farming Tab Loaded (No EggCheckPremium)")
