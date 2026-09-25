@@ -1,7 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader
 -- ✅ Load CharacterSystem មុន Features
--- ✅ ដក VIPTP ចេញ (FarmingManager ប្រើ TeleportSystem វិញ)
+-- ✅ Load VIPTP (FarmingManager ប្រើ VIPTP វិញ)
+-- ✅ Load TeleportSystem (សម្រាប់ Tabs/AutoFarming)
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -190,6 +191,7 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
+-- ✅ TeleportSystem (សម្រាប់ Tabs/AutoFarming)
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -202,7 +204,9 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ❌ ដក VIPTP ចេញ (FarmingManager ប្រើ TeleportSystem វិញ)
+-- ✅ VIPTP (សម្រាប់ FarmingManager AFK Farm)
+Loading.Update(50)
+loadstring(GetScript("Features/VIPTP.lua"))()
 
 Loading.Update(51)
 loadstring(GetScript("Features/AttackDrone.lua"))()
@@ -213,7 +217,7 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ FarmingManager (ប្រើ TeleportSystem + AFK Mode)
+-- ✅ FarmingManager (ប្រើ VIPTP វិញ)
 Loading.Update(59)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
