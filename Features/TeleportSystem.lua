@@ -4,12 +4,11 @@
 -- Target Egg: FlyTP (Shot TP) / Instant
 -- Safe Zone: FlyTP (No Shot TP) + BodyV/G
 -- Recovery: Tween Teleport (No Limit)
--- Teleport Speed: 50 - 1100
--- ForestStrike: Fire only when First Egg collected
 -- ✅ DropHeldEgg Check
--- ✅ Safe Zone: Reset State + Stop ភ្លាមៗ (Disconnect ភ្លាម)
+-- ✅ Safe Zone: Reset State + Stop ភ្លាមៗ
 -- ✅ Tween ប្រើតែ Recovery
 -- ✅ Recovery គ្មាន Limit
+-- ✅ Sequence Number → ការពារ Race Condition (មិន Stuck ពេលធីកលឿន)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -66,7 +65,6 @@ local COLLECT_INTERVAL = 0.2
 local SEARCH_PREFIX = "FirstAreaEgg"
 local POSITION_THRESHOLD = 1
 
--- ✅ Recovery Settings (គ្មាន Limit)
 local TWEEN_DURATION = 0.50
 local NEAR_OFFSET = 20
 local TARGET_COLLECT_TIMEOUT = 15
@@ -76,6 +74,12 @@ local LOCK_POSITION = Vector3.new(
     70.57420349121094,
     -326.8830261230469
 )
+
+--==================================================
+-- ✅ SEQUENCE NUMBER (ការពារ Race Condition)
+--==================================================
+
+local RunSequence = 0
 
 --==================================================
 -- RAGDOLL BYPASS STATE
@@ -461,10 +465,14 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- ✅ FLY TP (Disconnect ភ្លាម — Safe Zone Stop)
+-- ✅ FLY TP (Sequence Number + Disconnect ភ្លាម)
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+    -- ✅ បង្កើន Sequence
+    RunSequence = RunSequence + 1
+    local CurrentSequence = RunSequence
+
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -495,6 +503,15 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     local ShotDone = false
 
     FlyConnection = RunService.Heartbeat:Connect(function()
+        -- ✅ ពិនិត្យ Sequence (ការពារ Race Condition)
+        if CurrentSequence ~= RunSequence then
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+            return
+        end
+
         if not Running then
             CleanupMovers()
             return
@@ -521,7 +538,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         -- ✅ Safe Zone: No Shot TP — Disconnect ភ្លាម
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
-                -- ✅ ១. Stop BodyV/G ភ្លាម
                 if BodyVelocity then
                     BodyVelocity.Velocity = Vector3.zero
                     BodyVelocity.MaxForce = Vector3.zero
@@ -530,20 +546,17 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                     BodyGyro.MaxTorque = Vector3.zero
                 end
 
-                -- ✅ ២. Disconnect FlyConnection ភ្លាម (កុំ Stuck)
                 if FlyConnection then
                     FlyConnection:Disconnect()
                     FlyConnection = nil
                 end
 
-                -- ✅ ៣. Cleanup
                 CleanupMovers()
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
                 StartLock(Destination)
 
-                -- ✅ ៤. task.defer → Callback ទៅ Frame បន្ទាប់
                 task.defer(function()
                     if Callback then Callback() end
                 end)
@@ -551,7 +564,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             end
         end
 
-        -- ✅ Target Egg: Shot TP — Disconnect ភ្លាម
+        -- ✅ Shot TP — Disconnect ភ្លាម
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
 
@@ -629,6 +642,9 @@ end
 --==================================================
 
 local function InstantFlyTP(Destination, Callback)
+    -- ✅ បង្កើន Sequence
+    RunSequence = RunSequence + 1
+
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -651,6 +667,9 @@ end
 --==================================================
 
 local function TweenTP(Destination, Callback)
+    -- ✅ បង្កើន Sequence
+    RunSequence = RunSequence + 1
+
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -766,12 +785,15 @@ local function IsTargetInWorkspace()
 end
 
 --==================================================
--- ✅ AUTO STOP (Reset State ទាំងអស់)
+-- ✅ AUTO STOP (Reset State + Sequence++)
 --==================================================
 
 AutoStop = function()
     Running = false
     CurrentStep = "done"
+
+    -- ✅ បង្កើន Sequence ដើម្បីបញ្ឈប់ FlyConnection ទាំងអស់
+    RunSequence = RunSequence + 1
 
     CleanupMovers()
     DisableRagdollBypass()
@@ -1054,6 +1076,9 @@ end
 --==================================================
 
 StartProcess = function()
+    -- ✅ បង្កើន Sequence
+    RunSequence = RunSequence + 1
+
     Running = true
     CurrentStep = "search"
 
@@ -1140,13 +1165,16 @@ StartProcess = function()
 end
 
 --==================================================
--- FULL RESET
+-- ✅ FULL RESET (Sequence++ — ការពារ Race)
 --==================================================
 
 local function FullReset()
     Running = false
     CurrentStep = "idle"
     CurrentMode = "none"
+
+    -- ✅ បង្កើន Sequence ដើម្បីបញ្ឈប់ Thread ទាំងអស់
+    RunSequence = RunSequence + 1
 
     FirstEggList = {}
     FirstEggUid = nil
@@ -1244,4 +1272,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery Tween No Limit + Safe Zone Stop)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery Tween No Limit + Safe Zone Stop + Sequence Number)")
