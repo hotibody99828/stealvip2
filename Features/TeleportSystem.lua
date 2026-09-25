@@ -6,7 +6,8 @@
 -- ✅ DropHeldEgg Signal (Check Collect)
 -- ✅ Auto Recovery (Egg Drop តាមផ្លូវ)
 -- ✅ Recovery: ប្រើ FlyTP ធម្មតា (No Shot TP)
--- ✅ Body Velocity P=10000, Body Gyro P=100000, D=500 (លឿន មិនកន្រាក់)
+-- ✅ Body: P=10000, P=100000, D=1000 (លឿន មិនទាញ)
+-- ✅ task.wait(0.1) មុន StartLock (មិនកន្រាក់)
 -- ✅ FLY_OFFSET = 5 ទាំងអស់
 -- ==================================================
 
@@ -50,7 +51,7 @@ local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 5              -- ✅ Offset 5 ទាំងអស់
+local FLY_OFFSET = 5              -- ✅ Offset 5
 local SHOT_DISTANCE = 30          -- ✅ Shot TP ពីចម្ងាយ 30
 local LOCK_ABOVE = 1
 
@@ -69,11 +70,11 @@ local LOCK_POSITION = Vector3.new(
 )
 
 -- ==================================================
--- BODY SETTINGS (លឿន មិនកន្រាក់)
+-- BODY SETTINGS (លឿន មិនទាញ)
 -- ==================================================
-local BODY_VELOCITY_P = 10000      -- ✅ ខ្ពស់ — លឿន
-local BODY_GYRO_P = 100000         -- ✅ ខ្ពស់ — មិនទាញ
-local BODY_GYRO_D = 500            -- ✅ D ទាប — Smooth
+local BODY_VELOCITY_P = 10000      -- ខ្ពស់ — លឿន
+local BODY_GYRO_P = 100000         -- ខ្ពស់ — មិនទាញ
+local BODY_GYRO_D = 1000           -- ✅ ខ្ពស់ — មិនទាញ
 
 -- ==================================================
 -- RAGDOLL BYPASS
@@ -461,7 +462,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ BodyVelocity លឿន
     BodyVelocity = Instance.new("BodyVelocity")
     BodyVelocity.Name = "YokudoBV"
     BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -469,7 +469,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     BodyVelocity.Velocity = Vector3.zero
     BodyVelocity.Parent = Root
 
-    -- ✅ BodyGyro មិនទាញ
     BodyGyro = Instance.new("BodyGyro")
     BodyGyro.Name = "YokudoBG"
     BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
@@ -513,6 +512,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
+
+            task.wait(0.1)  -- ✅ ការពារកន្រាក់
+
             StartLock(Destination)
             if Callback then Callback() end
             return
@@ -525,6 +527,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
+
+                task.wait(0.1)  -- ✅ ការពារកន្រាក់
+
                 StartLock(Destination)
                 if Callback then Callback() end
                 return
@@ -537,6 +542,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
+
+            task.wait(0.1)  -- ✅ ការពារកន្រាក់
+
             StartLock(Destination)
             if Callback then Callback() end
             return
@@ -581,6 +589,8 @@ local function InstantFlyTP(Destination, Callback)
     Root.CFrame = LockCFrame
     Root.AssemblyLinearVelocity = Vector3.zero
     Root.AssemblyAngularVelocity = Vector3.zero
+
+    task.wait(0.1)  -- ✅ ការពារកន្រាក់
 
     StartLock(Destination)
 
@@ -780,7 +790,7 @@ end
 -- ✅ FLY TO TARGET AGAIN (Recovery — FlyTP No Shot)
 -- ==================================================
 local function FlyToTargetAgain()
-    print("[YOKUDO] ⚠️ Egg Dropped → Recovery! (FlyTP No Shot)")
+    print("[YOKUDO] ⚠️ Egg Dropped → Recovery! (No Shot TP)")
     CurrentStep = "recovery"
 
     local TargetPos = nil
@@ -814,7 +824,7 @@ local function FlyToTargetAgain()
         return
     end
 
-    -- ✅ FlyTP ធម្មតា (No Shot TP) ទៅ Target Egg
+    -- ✅ FlyTP ធម្មតា (No Shot TP)
     print("[YOKUDO] Recovery FlyTP (No Shot) to Target")
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery Arrived → collect_target")
@@ -1174,4 +1184,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Body C&G Fast + Offset 5 + Recovery)")
+print("✅ TeleportSystem Loaded (Body C&G Fast + No Drag + Offset 5 + Recovery No Shot)")
