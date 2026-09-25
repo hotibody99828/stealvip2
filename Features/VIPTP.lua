@@ -48,7 +48,7 @@ local TARGET_UID = nil
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 
 local FLY_SPEED = 1000        -- Fixed
-local RETURN_SPEED = 800      -- Fixed
+local RETURN_SPEED = 1000      -- Fixed
 local FLY_OFFSET = 15         -- Fixed
 local CurrentMethod = "InstantTeleport"  -- Fixed
 
