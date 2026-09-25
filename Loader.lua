@@ -4,7 +4,7 @@
 -- ✅ FarmingManager មុន VIPTP (ដោះស្រាយ Callback nil)
 -- ==================================================
 
-local BASE_URL = "https://raw.githubusercontent.com/betdoyvaka/stealanegg/main/"
+local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
 
 _G.YOKUDO_EnablePrint = false
 
