@@ -2,13 +2,13 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP)
 -- Target Egg: FlyTP (Shot TP) / Instant
--- Safe Zone: FlyTP (No Shot TP) → Reset State + Stop
+-- Safe Zone: FlyTP (No Shot TP) → Reset State + Stop (No Lock)
 -- Recovery: Tween Teleport ពេល Egg Drop
 -- Teleport Speed: 50 - 1100
 -- ForestStrike: Fire only when First Egg collected
 -- ✅ DropHeldEgg Check
 -- ✅ Auto Recovery (Tween)
--- ✅ Safe Zone: Reset State + Stop ភ្លាមៗ
+-- ✅ Safe Zone: Reset State + Stop (គ្មាន Lock)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -518,14 +518,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone: No Shot TP
+        -- ✅ Safe Zone: No Shot TP + No Lock
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
-                Root2.CFrame = LockCFrame
+                Root2.CFrame = CFrame.new(Destination)  -- ✅ Set CFrame នៅដី
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
+                -- ✅ មិន StartLock() ពេល IsSafeZone
                 if Callback then Callback() end
                 return
             end
@@ -842,13 +842,13 @@ FlyToTargetAgain = function()
 end
 
 --==================================================
--- ✅ FLY TO SAFE ZONE (Reset State + Stop ភ្លាមៗ)
+-- ✅ FLY TO SAFE ZONE (Reset State + Stop — គ្មាន Lock)
 --==================================================
 
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
 
-    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
+    print("[YOKUDO] FlyTP to Safe Zone (No Shot TP, No Lock)")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset State + Stop")
@@ -857,35 +857,66 @@ FlyToSafeZone = function()
         Running = false
         CurrentStep = "done"
 
-        -- ✅ ២. Stop BodyV/G
+        -- ✅ ២. Stop BodyV/G ភ្លាម
         if BodyVelocity then
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
+            pcall(function()
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end)
+            pcall(function() BodyVelocity:Destroy() end)
+            BodyVelocity = nil
         end
         if BodyGyro then
-            BodyGyro.MaxTorque = Vector3.zero
+            pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
+            pcall(function() BodyGyro:Destroy() end)
+            BodyGyro = nil
         end
 
-        -- ✅ ៣. Disconnect Lock
+        -- ✅ ៣. Disconnect FlyConnection ភ្លាម
+        if FlyConnection then
+            FlyConnection:Disconnect()
+            FlyConnection = nil
+        end
+
+        -- ✅ ៤. Disconnect LockConnection ភ្លាម (កុំឲ Lock ពីលើ Safe Zone)
         if LockConnection then
             LockConnection:Disconnect()
             LockConnection = nil
         end
         TargetLockedCFrame = nil
 
-        -- ✅ ៤. Stop Heartbeat
+        -- ✅ ៥. Stop Heartbeat
         StopActiveHeartbeat()
 
-        -- ✅ ៥. Disable Ragdoll
+        -- ✅ ៦. Disable Ragdoll Bypass
         DisableRagdollBypass()
 
-        -- ✅ ៦. Restore Stats
+        -- ✅ ៧. Restore Stats
         RestoreStats()
 
-        -- ✅ ៧. Cleanup Movers
+        -- ✅ ៨. Reset Humanoid PlatformStand
+        local Hum = GetHumanoid()
+        if Hum then
+            pcall(function()
+                Hum.PlatformStand = false
+                Hum.Sit = false
+            end)
+        end
+
+        -- ✅ ៩. Set CFrame ទៅ Safe Zone (ដី)
+        local Root = GetHumanoid()
+        if Root then
+            pcall(function()
+                Root.CFrame = CFrame.new(SAFE_ZONE)
+                Root.AssemblyLinearVelocity = Vector3.zero
+                Root.AssemblyAngularVelocity = Vector3.zero
+            end)
+        end
+
+        -- ✅ ១០. Cleanup Movers
         CleanupMovers()
 
-        -- ✅ ៨. Reset State ទាំងអស់
+        -- ✅ ១១. Reset State ទាំងអស់
         FirstEggList = {}
         FirstEggUid = nil
         FirstEggSlotKey = nil
@@ -901,7 +932,7 @@ FlyToSafeZone = function()
         SavedTargetPosition = nil
         TargetLockedCFrame = nil
 
-        print("[YOKUDO] TeleportSystem: Safe Zone → Reset + Stop")
+        print("[YOKUDO] TeleportSystem: Safe Zone → Reset + Stop (No Lock)")
     end)
 end
 
@@ -954,7 +985,7 @@ StartActiveHeartbeat = function()
             end
         end
 
-        -- Step 3: Collect Target Egg (DropHeldEgg + Mode ដើម)
+        -- Step 3: Collect Target Egg
         if CurrentStep == "collect_target" and not TargetCollected then
 
             if IsTargetCollectedByDropHeldEgg() then
@@ -1224,4 +1255,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Tween + Safe Zone Reset)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery + Tween + Safe Zone No Lock)")
