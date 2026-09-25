@@ -7,7 +7,7 @@
 -- Teleport Speed: 50 - 1100
 -- ForestStrike: Fire only when First Egg collected
 -- ✅ DropHeldEgg Check
--- ✅ Safe Zone: Reset State + Stop ភ្លាមៗ
+-- ✅ Safe Zone: Reset State + Stop ភ្លាមៗ (Disconnect ភ្លាម)
 -- ✅ Tween ប្រើតែ Recovery
 -- ✅ Recovery គ្មាន Limit
 --==================================================
@@ -70,7 +70,6 @@ local POSITION_THRESHOLD = 1
 local TWEEN_DURATION = 0.50
 local NEAR_OFFSET = 20
 local TARGET_COLLECT_TIMEOUT = 15
--- ✅ ដក MAX_RECOVERY_ATTEMPTS ចេញ → គ្មាន Limit
 
 local LOCK_POSITION = Vector3.new(
     607.6259155273438,
@@ -462,7 +461,7 @@ local function FindClosestEgg()
 end
 
 --==================================================
--- FLY TP (BodyV/G)
+-- ✅ FLY TP (Disconnect ភ្លាម — Safe Zone Stop)
 --==================================================
 
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
@@ -519,39 +518,92 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone: No Shot TP
+        -- ✅ Safe Zone: No Shot TP — Disconnect ភ្លាម
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
+                -- ✅ ១. Stop BodyV/G ភ្លាម
+                if BodyVelocity then
+                    BodyVelocity.Velocity = Vector3.zero
+                    BodyVelocity.MaxForce = Vector3.zero
+                end
+                if BodyGyro then
+                    BodyGyro.MaxTorque = Vector3.zero
+                end
+
+                -- ✅ ២. Disconnect FlyConnection ភ្លាម (កុំ Stuck)
+                if FlyConnection then
+                    FlyConnection:Disconnect()
+                    FlyConnection = nil
+                end
+
+                -- ✅ ៣. Cleanup
                 CleanupMovers()
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
                 StartLock(Destination)
-                if Callback then Callback() end
+
+                -- ✅ ៤. task.defer → Callback ទៅ Frame បន្ទាប់
+                task.defer(function()
+                    if Callback then Callback() end
+                end)
                 return
             end
         end
 
-        -- ✅ Target Egg: Shot TP
+        -- ✅ Target Egg: Shot TP — Disconnect ភ្លាម
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
+
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+
             CleanupMovers()
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             StartLock(Destination)
-            if Callback then Callback() end
+
+            task.defer(function()
+                if Callback then Callback() end
+            end)
             return
         end
 
         -- Arrived fallback
         if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
+            if BodyVelocity then
+                BodyVelocity.Velocity = Vector3.zero
+                BodyVelocity.MaxForce = Vector3.zero
+            end
+            if BodyGyro then
+                BodyGyro.MaxTorque = Vector3.zero
+            end
+
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
+            end
+
             CleanupMovers()
             Root2.CFrame = LockCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             StartLock(Destination)
-            if Callback then Callback() end
+
+            task.defer(function()
+                if Callback then Callback() end
+            end)
             return
         end
 
@@ -607,7 +659,6 @@ local function TweenTP(Destination, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Tween Player ទៅ Near Position
     local Direction = (Destination - Root.Position).Unit
     local NearPos = Destination - (Direction * NEAR_OFFSET)
 
@@ -619,7 +670,6 @@ local function TweenTP(Destination, Callback)
     Tween:Play()
     Tween.Completed:Wait()
 
-    -- ✅ បន្ទាប់មក FlyTP ទៅ Target
     FlyTP(Destination, FLY_SPEED, true, false, Callback)
 end
 
@@ -798,7 +848,6 @@ end
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
 
-    -- ✅ គ្មាន Limit — មិន Check MAX_RECOVERY_ATTEMPTS
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween Teleport)")
     CurrentStep = "recovery"
 
@@ -1021,7 +1070,6 @@ StartProcess = function()
     TargetLockedCFrame = nil
     LastDropState = false
 
-    -- ✅ Setup DropHeldEgg
     SetupDropHeldEgg()
 
     SaveStats()
@@ -1083,7 +1131,6 @@ StartProcess = function()
 
     StartActiveHeartbeat()
 
-    -- ✅ First Egg: Shot TP = true
     print("[YOKUDO] FlyTP to First Egg (Shot TP)")
     FlyTP(EggPos, FLY_SPEED, true, false, function()
         CollectDone = false
@@ -1197,4 +1244,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery Tween No Limit)")
+print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery Tween No Limit + Safe Zone Stop)")
