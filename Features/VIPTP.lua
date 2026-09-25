@@ -5,7 +5,8 @@
 -- ✅ Auto Detect: spawn / workspace
 -- ✅ DropHeldEgg ជា Signal ថា Collect បានជោគជ័យ
 -- ✅ Auto Recovery: ពិនិត្យ TARGET_UID ទាំង Container + Workspace
--- ✅ Reset TargetCollected ពេល Recovery
+-- ✅ Reset State ពេល Recovery
+-- ✅ AutoStop Cleanup ត្រឹមត្រូវ (មិនជាប់គាំងលើអាកាស)
 -- Fly Speed: 1000 | Return Speed: 800 | Fly Offset: 15
 -- ==================================================
 
@@ -701,22 +702,41 @@ local function IsTargetStillExists()
 end
 
 -- ==================================================
--- AUTO STOP
+-- ✅ AUTO STOP (Cleanup ត្រឹមត្រូវ)
 -- ==================================================
 local function AutoStop()
     Running = false
     CurrentStep = "done"
 
+    -- ✅ Cleanup ទាំងអស់
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
+    -- ✅ Reset Lock (ការពារជាប់គាំងលើអាកាស)
+    if LockConnection then
+        LockConnection:Disconnect()
+        LockConnection = nil
+    end
+    TargetLockedCFrame = nil
+
+    -- ✅ Reset Humanoid State
+    local Hum = GetHum()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+    end
+
     print("[VIPTP] Auto Stop")
 
+    -- ✅ Callback ទៅ FarmingManager
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
         task.spawn(function()
-            task.wait(0.3)
+            task.wait(0.5)
             _G.YOKUDO_FarmingManager.OnVIPTPComplete()
         end)
     end
@@ -757,9 +777,9 @@ local function StartFlyToTarget()
 
     print("[VIPTP] Instant TP to Target")
     InstantFlyTP(TargetPos, function()
-        TargetCollected = false       -- ✅ Reset
-        CollectTime = 0               -- ✅ Reset
-        RecoveryTriggered = false     -- ✅ Reset
+        TargetCollected = false
+        CollectTime = 0
+        RecoveryTriggered = false
         CurrentStep = "collect_target"
     end)
 end
@@ -807,7 +827,7 @@ local function FlyToTargetAgain()
     FlyTP(TargetPos, FLY_SPEED, true, false, function()
         print("[VIPTP] ✅ Recovery Arrived → Collect Target")
 
-        -- ✅ Reset State សម្រាប់ Collect ម្តងទៀត
+        -- ✅ Reset State
         TargetCollected = false
         CollectTime = 0
         CollectAttempts = 0
@@ -1071,6 +1091,15 @@ local function FullReset()
     StopActiveHeartbeat()
     RestoreStats()
 
+    -- ✅ Reset Humanoid State
+    local Hum = GetHum()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
+    end
+
     print("[VIPTP] Full Reset")
 end
 
@@ -1141,4 +1170,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery + Reset State)")
+print("✅ VIPTP Loaded (Auto Detect + DropHeldEgg + Recovery + Cleanup)")
