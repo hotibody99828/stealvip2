@@ -1,7 +1,6 @@
 --==================================================
 -- YOKUDO HUB | FEATURE | Anti Ragdoll
 -- Prevent Character from Ragdoll / Knockback
--- Remove Ragdoll Constraints + Force Up
 --==================================================
 
 local Players = game:GetService("Players")
@@ -13,8 +12,7 @@ local Player = Players.LocalPlayer
 -- SETTINGS
 --==================================================
 
-local CHECK_INTERVAL = 0.1        -- Check រាល់ 0.1 វិនាទី
-local FORCE_UP_INTERVAL = 0.5     -- Force Up រាល់ 0.5 វិនាទី
+local CHECK_INTERVAL = 0.1
 
 --==================================================
 -- STATE
@@ -22,7 +20,8 @@ local FORCE_UP_INTERVAL = 0.5     -- Force Up រាល់ 0.5 វិនាទ�
 
 local AntiRagdollEnabled = false
 local HeartbeatConnection = nil
-local ForceUpThread = nil
+local CleanupThread = nil
+local LastForceUp = 0
 
 --==================================================
 -- GET HUMANOID
@@ -37,28 +36,24 @@ local function GetHumanoid()
 end
 
 --==================================================
--- FORCE UP (Anti Ragdoll State)
+-- FORCE UP (Only if Ragdoll/Physics)
 --==================================================
 
 local function ForceUp()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then return end
 
+    -- ✅ Only Force Up if currently Physics/Ragdoll
+    local CurrentState = Hum:GetState()
+    if CurrentState ~= Enum.HumanoidStateType.Physics
+       and CurrentState ~= Enum.HumanoidStateType.Ragdoll
+       and CurrentState ~= Enum.HumanoidStateType.FallingDown then
+        return
+    end
+
     pcall(function()
-        -- ✅ Force GettingUp state if Physics
-        if Hum:GetState() == Enum.HumanoidStateType.Physics then
-            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-
-        -- ✅ Disable Ragdoll States
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-
-        -- ✅ Disable PlatformStand
-        Hum.PlatformStand = false
-        Hum.Sit = false
+        -- ✅ Force GettingUp
+        Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
 
         -- ✅ Reset Velocity
         Root.AssemblyLinearVelocity = Vector3.zero
@@ -71,6 +66,8 @@ local function ForceUp()
         Hum.BreakJointsOnDeath = false
         Hum.RequiresNeck = false
     end)
+
+    print("[YOKUDO] Anti Ragdoll: Force Up")
 end
 
 --==================================================
@@ -82,7 +79,6 @@ local function CleanupRagdollConstraints()
     if not Char then return end
 
     pcall(function()
-        -- ✅ Remove Ragdoll Constraints
         for _, descendant in ipairs(Char:GetDescendants()) do
             if descendant.Name:find("RagdollConstraint") then
                 descendant:Destroy()
@@ -92,24 +88,9 @@ local function CleanupRagdollConstraints()
             end
         end
 
-        -- ✅ Re-enable Motor6D
         for _, descendant in ipairs(Char:GetDescendants()) do
             if descendant:IsA("Motor6D") then
                 descendant.Enabled = true
-            end
-        end
-
-        -- ✅ Remove BallSocketConstraint / HingeConstraint
-        for _, descendant in ipairs(Char:GetDescendants()) do
-            if descendant:IsA("BallSocketConstraint") then
-                if descendant.Name:find("Ragdoll") then
-                    descendant:Destroy()
-                end
-            end
-            if descendant:IsA("HingeConstraint") then
-                if descendant.Name:find("Ragdoll") then
-                    descendant:Destroy()
-                end
             end
         end
     end)
@@ -123,18 +104,17 @@ local function EnableAntiRagdoll()
     if AntiRagdollEnabled then return end
     AntiRagdollEnabled = true
 
-    -- ✅ Loop រាល់ Heartbeat
+    -- ✅ Check រាល់ Heartbeat (មិន ForceUp ជាប់ៗ)
     HeartbeatConnection = RunService.Heartbeat:Connect(function()
         if not AntiRagdollEnabled then return end
         ForceUp()
     end)
 
-    -- ✅ Loop រាល់ 0.5 វិនាទី (Cleanup + Force Up)
-    ForceUpThread = task.spawn(function()
+    -- ✅ Cleanup រាល់ 0.5 វិនាទី
+    CleanupThread = task.spawn(function()
         while AntiRagdollEnabled do
-            task.wait(FORCE_UP_INTERVAL)
+            task.wait(0.5)
             if AntiRagdollEnabled then
-                ForceUp()
                 CleanupRagdollConstraints()
             end
         end
@@ -170,9 +150,7 @@ end
 Player.CharacterAdded:Connect(function(Char)
     if AntiRagdollEnabled then
         task.wait(1)
-        ForceUp()
         CleanupRagdollConstraints()
-        print("[YOKUDO] Anti Ragdoll: Re-applied on Character")
     end
 end)
 
