@@ -2,13 +2,12 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
--- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5 Distance)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
--- ✅ Tween + BodyV/G (P = 5000/50000/D = 2000) — មិនដូល Player
--- ✅ Safe Zone: មិន Lock + Stop at 5 Distance
--- ✅ Sequence Number: Stop 100% ទៀងទាត់
+-- ✅ No Heartbeat — ប្រើ task.spawn + task.wait
 -- ✅ DropHeldEgg Check
--- ✅ Logic ចាស់ | គ្មាន Callback
+-- ✅ Safe Zone: មិន Lock + Stop at 5
+-- ✅ គ្មាន Callback ទៅ FarmingManager
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -76,11 +75,11 @@ local LOCK_POSITION = Vector3.new(
 )
 
 -- ==================================================
--- ✅ BODY SETTINGS (Tween + BodyV/G — ល្អបំផុត)
+-- BODY SETTINGS
 -- ==================================================
-local BODY_VELOCITY_P = 5000       -- ✅ មធ្យម — មិនដូល
-local BODY_GYRO_P = 50000          -- ✅ មធ្យម — មិនដូល
-local BODY_GYRO_D = 2000           -- ✅ ខ្ពស់ — មិនទាញ
+local BODY_VELOCITY_P = 5000
+local BODY_GYRO_P = 50000
+local BODY_GYRO_D = 2000
 
 -- ==================================================
 -- SEQUENCE NUMBER
@@ -112,7 +111,7 @@ local CurrentMode = "none"
 local FlyConnection = nil
 local BodyVelocity = nil
 local BodyGyro = nil
-local ActiveHeartbeat = nil
+local ActiveTask = nil  -- ✅ ប្រើ Task ជំនួស Heartbeat
 local LockConnection = nil
 
 local FirstEggList = {}
@@ -458,7 +457,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (Sequence + BodyV/G + Tween Compatibility)
+-- ✅ FLY TP (No Heartbeat — ប្រើ ActiveTask)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -493,41 +492,57 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     local StartTime = tick()
     local ShotDone = false
 
-    FlyConnection = RunService.Heartbeat:Connect(function()
-        if CurrentSequence ~= FlySequence then
-            if FlyConnection then
-                FlyConnection:Disconnect()
-                FlyConnection = nil
+    -- ✅ ប្រើ ActiveTask ជំនួស Heartbeat
+    ActiveTask = task.spawn(function()
+        while Running do
+            -- ✅ ពិនិត្យ Sequence
+            if CurrentSequence ~= FlySequence then
+                return
             end
-            return
-        end
 
-        if not Running then
-            CleanupMovers()
-            return
-        end
+            task.wait(0.01)  -- ✅ Frame rate
 
-        local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then
-            CleanupMovers()
-            return
-        end
-        if Hum2.Health <= 0 then return end
+            local Hum2, Root2 = GetHumanoid()
+            if not Hum2 or not Root2 then
+                CleanupMovers()
+                return
+            end
+            if Hum2.Health <= 0 then return end
 
-        if not BodyVelocity or not BodyGyro then
-            CleanupMovers()
-            return
-        end
+            if not BodyVelocity or not BodyGyro then
+                CleanupMovers()
+                return
+            end
 
-        local CurrentPos = Root2.Position
-        local Direction = (FlyPos - CurrentPos)
-        local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
-        local VertDist = math.abs(Direction.Y)
-        local TotalDist = Direction.Magnitude
+            local CurrentPos = Root2.Position
+            local Direction = (FlyPos - CurrentPos)
+            local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
+            local VertDist = math.abs(Direction.Y)
+            local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone (Stop at 5 Distance — មិន Lock, មិន Set CFrame)
-        if IsSafeZone then
-            if HorizDist <= SAFE_STOP_DISTANCE then
+            -- ✅ Safe Zone (Stop at 5 — No Lock)
+            if IsSafeZone then
+                if HorizDist <= SAFE_STOP_DISTANCE then
+                    if BodyVelocity then
+                        BodyVelocity.Velocity = Vector3.zero
+                        BodyVelocity.MaxForce = Vector3.zero
+                    end
+                    if BodyGyro then
+                        BodyGyro.MaxTorque = Vector3.zero
+                    end
+
+                    -- ✅ Cleanup ភ្លាម (កុំ Stuck)
+                    CleanupMovers(true)
+
+                    if Callback then Callback() end
+                    return
+                end
+            end
+
+            -- ✅ Shot TP
+            if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+                ShotDone = true
+
                 if BodyVelocity then
                     BodyVelocity.Velocity = Vector3.zero
                     BodyVelocity.MaxForce = Vector3.zero
@@ -536,43 +551,27 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                     BodyGyro.MaxTorque = Vector3.zero
                 end
 
-                if FlyConnection then
-                    FlyConnection:Disconnect()
-                    FlyConnection = nil
-                end
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
 
-                task.spawn(function()
-                    task.wait(0.1)
+                task.wait(0.1)
 
-                    CleanupMovers(true)
-
-                    task.wait(0.1)
-
-                    if Callback then Callback() end
-                end)
+                StartLock(Destination)
+                if Callback then Callback() end
                 return
             end
-        end
 
-        -- ✅ Shot TP
-        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
-            ShotDone = true
-
-            if BodyVelocity then
-                BodyVelocity.Velocity = Vector3.zero
-                BodyVelocity.MaxForce = Vector3.zero
-            end
-            if BodyGyro then
-                BodyGyro.MaxTorque = Vector3.zero
-            end
-
-            if FlyConnection then
-                FlyConnection:Disconnect()
-                FlyConnection = nil
-            end
-
-            task.spawn(function()
-                task.wait(0.1)
+            -- ✅ Arrived
+            if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
+                if BodyVelocity then
+                    BodyVelocity.Velocity = Vector3.zero
+                    BodyVelocity.MaxForce = Vector3.zero
+                end
+                if BodyGyro then
+                    BodyGyro.MaxTorque = Vector3.zero
+                end
 
                 CleanupMovers(true)
                 Root2.CFrame = LockCFrame
@@ -583,56 +582,25 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
                 StartLock(Destination)
                 if Callback then Callback() end
-            end)
-            return
-        end
-
-        -- ✅ Arrived
-        if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
-            if BodyVelocity then
-                BodyVelocity.Velocity = Vector3.zero
-                BodyVelocity.MaxForce = Vector3.zero
-            end
-            if BodyGyro then
-                BodyGyro.MaxTorque = Vector3.zero
+                return
             end
 
-            if FlyConnection then
-                FlyConnection:Disconnect()
-                FlyConnection = nil
-            end
-
-            task.spawn(function()
-                task.wait(0.1)
-
-                CleanupMovers(true)
-                Root2.CFrame = LockCFrame
-                Root2.AssemblyLinearVelocity = Vector3.zero
-                Root2.AssemblyAngularVelocity = Vector3.zero
-
-                task.wait(0.1)
-
-                StartLock(Destination)
+            -- ✅ Timeout
+            if tick() - StartTime > TIMEOUT_SECONDS then
+                CleanupMovers()
                 if Callback then Callback() end
-            end)
-            return
-        end
+                return
+            end
 
-        -- ✅ Timeout
-        if tick() - StartTime > TIMEOUT_SECONDS then
-            CleanupMovers()
-            if Callback then Callback() end
-            return
-        end
+            -- ✅ បន្តហោះ
+            if TotalDist > 1 then
+                BodyVelocity.Velocity = Direction.Unit * Speed
+            else
+                BodyVelocity.Velocity = Vector3.zero
+            end
 
-        -- ✅ បន្តហោះ
-        if TotalDist > 1 then
-            BodyVelocity.Velocity = Direction.Unit * Speed
-        else
-            BodyVelocity.Velocity = Vector3.zero
+            BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
         end
-
-        BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
     end)
 end
 
@@ -934,7 +902,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Stop at 5 Distance — No Lock)
+-- FLY TO SAFE ZONE (Stop at 5 — No Lock)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -975,134 +943,118 @@ StopActiveHeartbeat = function()
 end
 
 -- ==================================================
--- HEARTBEAT
+-- HEARTBEAT (មិនប្រើ — ប្រើ task ជំនួស)
 -- ==================================================
 StartActiveHeartbeat = function()
-    if ActiveHeartbeat then
-        ActiveHeartbeat:Disconnect()
-        ActiveHeartbeat = nil
-    end
+    -- ✅ មិនប្រើ Heartbeat — ប្រើ task.spawn ជំនួស
+    task.spawn(function()
+        while Running do
+            task.wait(0.05)  -- ✅ Frame rate
 
-    ActiveHeartbeat = RunService.Heartbeat:Connect(function()
-        if not Running then return end
+            local Hum, Root = GetHumanoid()
+            if not Hum or not Root then break end
+            if Hum.Health <= 0 then break end
 
-        local Hum, Root = GetHumanoid()
-        if not Hum or not Root then return end
-        if Hum.Health <= 0 then return end
+            -- Step 1: Collect First Egg
+            if CurrentStep == "collect_first" and not CollectDone then
+                if IsFirstEggInWorkspace() then
+                    CollectDone = true
+                    FireForestStrike()
+                    CurrentStep = "wait_spawn_back"
+                elseif tick() - CollectTime > COLLECT_INTERVAL then
+                    CollectTime = tick()
 
-        -- Step 1: Collect First Egg
-        if CurrentStep == "collect_first" and not CollectDone then
-            if IsFirstEggInWorkspace() then
-                CollectDone = true
-                FireForestStrike()
-                CurrentStep = "wait_spawn_back"
-                return
-            end
-
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
-
-                if IsFirstEggInContainer() then
-                    RemoteCollectFirst()
-                    CollectAttempts = CollectAttempts + 1
-                else
-                    if IsFirstEggInWorkspace() then
-                        CollectDone = true
-                        FireForestStrike()
-                        CurrentStep = "wait_spawn_back"
+                    if IsFirstEggInContainer() then
+                        RemoteCollectFirst()
+                        CollectAttempts = CollectAttempts + 1
                     end
                 end
             end
-        end
 
-        -- Step 2: Wait First Egg Spawn Back
-        if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
-            if IsFirstEggInContainer() then
-                task.spawn(function()
-                    task.wait(0.1)
-                    StartFlyToTarget()
-                end)
-            end
-        end
-
-        -- Step 3: Collect Target Egg
-        if CurrentStep == "collect_target" and not TargetCollected then
-
-            if IsTargetCollectedByDropHeldEgg() then
-                print("[YOKUDO] ✅ DropHeldEgg.Enabled = true → Target Collected!")
-                TargetCollected = true
-                RecoveryTriggered = false
-                task.spawn(function()
-                    task.wait(0.1)
-                    FlyToSafeZone()
-                end)
-                return
+            -- Step 2: Wait First Egg Spawn Back
+            if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
+                if IsFirstEggInContainer() then
+                    task.spawn(function()
+                        task.wait(0.1)
+                        StartFlyToTarget()
+                    end)
+                end
             end
 
-            if CurrentMode == "spawn" then
-                if workspace:FindFirstChild(TARGET_UID) then
+            -- Step 3: Collect Target Egg
+            if CurrentStep == "collect_target" and not TargetCollected then
+
+                if IsTargetCollectedByDropHeldEgg() then
+                    print("[YOKUDO] ✅ DropHeldEgg.Enabled = true → Target Collected!")
                     TargetCollected = true
                     RecoveryTriggered = false
                     task.spawn(function()
                         task.wait(0.1)
                         FlyToSafeZone()
                     end)
-                    return
-                end
-            elseif CurrentMode == "workspace" then
-                if SavedTargetPosition then
-                    local WSEgg = workspace:FindFirstChild(TARGET_UID)
-                    if WSEgg then
-                        local CurrentPos = GetPosition(WSEgg)
-                        if CurrentPos then
-                            local Dist = (CurrentPos - SavedTargetPosition).Magnitude
-                            if Dist >= POSITION_THRESHOLD then
-                                TargetCollected = true
-                                RecoveryTriggered = false
-                                task.spawn(function()
-                                    task.wait(0.1)
-                                    FlyToSafeZone()
-                                end)
-                                return
+                else
+                    if CurrentMode == "spawn" then
+                        if workspace:FindFirstChild(TARGET_UID) then
+                            TargetCollected = true
+                            RecoveryTriggered = false
+                            task.spawn(function()
+                                task.wait(0.1)
+                                FlyToSafeZone()
+                            end)
+                        end
+                    elseif CurrentMode == "workspace" then
+                        if SavedTargetPosition then
+                            local WSEgg = workspace:FindFirstChild(TARGET_UID)
+                            if WSEgg then
+                                local CurrentPos = GetPosition(WSEgg)
+                                if CurrentPos then
+                                    local Dist = (CurrentPos - SavedTargetPosition).Magnitude
+                                    if Dist >= POSITION_THRESHOLD then
+                                        TargetCollected = true
+                                        RecoveryTriggered = false
+                                        task.spawn(function()
+                                            task.wait(0.1)
+                                            FlyToSafeZone()
+                                        end)
+                                    end
+                                end
                             end
+                        end
+                    end
+
+                    if tick() - CollectTime > COLLECT_INTERVAL then
+                        CollectTime = tick()
+                        RemoteCollectTarget()
+                        CollectAttempts = CollectAttempts + 1
+                    end
+
+                    if tick() - TargetCollectStartTime > TARGET_COLLECT_TIMEOUT then
+                        print("[YOKUDO] ⚠️ Target Collect Timeout → Recovery")
+                        if not RecoveryTriggered then
+                            RecoveryTriggered = true
+                            task.spawn(function()
+                                task.wait(0.1)
+                                FlyToTargetAgain()
+                            end)
                         end
                     end
                 end
             end
 
-            if tick() - CollectTime > COLLECT_INTERVAL then
-                CollectTime = tick()
-                RemoteCollectTarget()
-                CollectAttempts = CollectAttempts + 1
-            end
-
-            if tick() - TargetCollectStartTime > TARGET_COLLECT_TIMEOUT then
-                print("[YOKUDO] ⚠️ Target Collect Timeout → Recovery")
-                if not RecoveryTriggered then
-                    RecoveryTriggered = true
-                    task.spawn(function()
-                        task.wait(0.1)
-                        FlyToTargetAgain()
-                    end)
+            -- Step 4: Recovery (Egg Drop តាមផ្លូវ)
+            if CurrentStep == "to_safe" then
+                if not IsTargetCollectedByDropHeldEgg() then
+                    if not RecoveryTriggered then
+                        RecoveryTriggered = true
+                        print("[YOKUDO] ⚠️ Egg Dropped on Way → Recovery!")
+                        task.spawn(function()
+                            task.wait(0.1)
+                            FlyToTargetAgain()
+                        end)
+                    end
+                else
+                    RecoveryTriggered = false
                 end
-                return
-            end
-        end
-
-        -- Step 4: Recovery (Egg Drop តាមផ្លូវ)
-        if CurrentStep == "to_safe" then
-            if not IsTargetCollectedByDropHeldEgg() then
-                if not RecoveryTriggered then
-                    RecoveryTriggered = true
-                    print("[YOKUDO] ⚠️ Egg Dropped on Way → Recovery!")
-                    task.spawn(function()
-                        task.wait(0.1)
-                        FlyToTargetAgain()
-                    end)
-                end
-                return
-            else
-                RecoveryTriggered = false
             end
         end
     end)
@@ -1303,4 +1255,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Tween + BodyV/G P=5000/50000/D=2000 + Stop at 5)")
+print("✅ TeleportSystem Loaded (No Heartbeat + task.spawn + Recovery + DropHeldEgg + Safe Zone No Lock)")
