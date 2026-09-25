@@ -3,12 +3,12 @@
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Shot TP 25, Lock 1)
 -- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
--- Recovery: FlyTP ធម្មតា (No Shot TP)
+-- Recovery: FlyTP ធម្មតា (No Shot TP) — Stop FlyTP ដើម មុនចាប់ផ្តើម
 -- ✅ Disconnect FlyConnection ភ្លាម → Stop 100% ទៀងទាត់
 -- ✅ Safe Zone: មិន Shot TP + Stop + Reset ភ្លាមៗ
+-- ✅ Recovery: Stop FlyTP ដើម មុនចាប់ផ្តើម (កុំឲ្យជាន់គ្នា)
 -- ✅ DropHeldEgg Check
--- ✅ Auto Recovery ពេល Egg Drop
--- ✅ Logic ចាស់ | គ្មាន Callback
+-- ✅ Logic ចាស់ | គ្មាន Callback ទៅ FarmingManager
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -449,7 +449,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (Disconnect FlyConnection ភ្លាម)
+-- ✅ FLY TP (Disconnect FlyConnection ភ្លាម + IsRecovering Check)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -517,7 +517,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                     BodyGyro.MaxTorque = Vector3.zero
                 end
 
-                -- ✅ ២. Disconnect FlyConnection ភ្លាម (ធានា 100%)
+                -- ✅ ២. Disconnect FlyConnection ភ្លាម
                 if FlyConnection then
                     FlyConnection:Disconnect()
                     FlyConnection = nil
@@ -534,7 +534,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
                     task.wait(0.1)
 
-                    -- ✅ Callback → FlyToSafeZone → AutoStop
                     if Callback then Callback() end
                 end)
                 return
@@ -545,7 +544,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
 
-            -- ✅ Stop BodyV/G
             if BodyVelocity then
                 BodyVelocity.Velocity = Vector3.zero
                 BodyVelocity.MaxForce = Vector3.zero
@@ -840,7 +838,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — FlyTP ធម្មតា មិន Shot TP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Stop FlyTP ដើម មុនចាប់ផ្តើម)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -854,6 +852,26 @@ FlyToTargetAgain = function()
     print("[YOKUDO] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (No Shot TP)")
     CurrentStep = "recovery"
 
+    -- ✅ ១. Stop FlyTP ដើម ភ្លាម (កុំឲ្យជាន់គ្នា)
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if BodyVelocity then
+        BodyVelocity.Velocity = Vector3.zero
+        BodyVelocity.MaxForce = Vector3.zero
+    end
+    if BodyGyro then
+        BodyGyro.MaxTorque = Vector3.zero
+    end
+
+    -- ✅ ២. រង់ចាំ 0.1 វិនាទី
+    task.wait(0.1)
+
+    -- ✅ ៣. Cleanup
+    CleanupMovers()
+
+    -- ✅ ៤. រក TargetPos
     local TargetPos = nil
 
     if IsTargetInContainer() then
@@ -881,7 +899,7 @@ FlyToTargetAgain = function()
         return
     end
 
-    -- ✅ FlyTP ធម្មតា (No Shot TP)
+    -- ✅ ៥. FlyTP ធម្មតា (No Shot TP) ទៅ Target Egg
     print("[YOKUDO] Recovery FlyTP (No Shot) to Target")
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
@@ -905,7 +923,6 @@ FlyToSafeZone = function()
 
     print("[YOKUDO] FlyTP to Safe Zone (No Shot TP)")
 
-    -- ✅ មិនប្រើ Shot TP — FlyTP ធម្មតា
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
 
@@ -1258,4 +1275,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Disconnect FlyConnection ភ្លាម + Safe Zone No Shot TP + Stop 100% ទៀងទាត់)")
+print("✅ TeleportSystem Loaded (Disconnect FlyConnection ភ្លាម + Recovery Stop ដើម + Stop 100% ទៀងទាត់)")
