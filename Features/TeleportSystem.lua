@@ -5,7 +5,7 @@
 -- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset State)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
 -- ✅ Fly Offset = 15
--- ✅ Safe Zone → Reset + Stop ភ្លាមៗ (No Lock)
+-- ✅ Safe Zone → Stop + Reset ភ្លាមៗ
 -- ✅ មិន Heartbeat — ប្រើ task.spawn
 -- ✅ DropHeldEgg Check
 -- ==================================================
@@ -50,7 +50,7 @@ local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 15
+local FLY_OFFSET = 15  -- ✅ Fly Offset = 15
 local SHOT_DISTANCE = 25
 local LOCK_ABOVE = 1
 
@@ -457,7 +457,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (Safe Zone → Reset + Stop ភ្លាមៗ)
+-- ✅ FLY TP (Safe Zone → Stop + Reset ភ្លាមៗ)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -518,7 +518,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Direction.Y)
             local TotalDist = Direction.Magnitude
 
-            -- ✅ Safe Zone (Reset + Stop ភ្លាមៗ — មិន Lock)
+            -- ✅ Safe Zone (Stop + Reset ភ្លាមៗ — មិន Lock)
             if IsSafeZone then
                 if HorizDist <= SAFE_STOP_DISTANCE then
                     -- Stop BodyV/G
@@ -530,41 +530,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                         BodyGyro.MaxTorque = Vector3.zero
                     end
 
-                    -- ✅ Cleanup ភ្លាម
+                    -- Cleanup ភ្លាម
                     CleanupMovers(true)
 
-                    -- ✅ Reset State ទាំងអស់ភ្លាមៗ
-                    Running = false
-                    CurrentStep = "done"
-                    FlySequence = FlySequence + 1
-
-                    if LockConnection then
-                        LockConnection:Disconnect()
-                        LockConnection = nil
-                    end
-                    TargetLockedCFrame = nil
-
-                    FirstEggList = {}
-                    FirstEggUid = nil
-                    FirstEggSlotKey = nil
-                    CollectAttempts = 0
-                    CollectTime = 0
-                    TargetCollectStartTime = 0
-                    FlyTargetStarted = false
-                    CollectDone = false
-                    TargetCollected = false
-                    RemotesFired = false
-                    RecoveryTriggered = false
-                    RecoveryAttempts = 0
-                    SavedTargetPosition = nil
-
-                    -- Disable Ragdoll
-                    DisableRagdollBypass()
-                    RestoreStats()
-
-                    print("[YOKUDO] ✅ Safe Zone → Reset + Stop ភ្លាមៗ")
-
-                    -- ✅ Callback (បើមាន)
+                    -- ✅ Callback → FlyToSafeZone → AutoStop
                     if Callback then Callback() end
                     return
                 end
@@ -757,7 +726,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (Stop + Reset ភ្លាមៗ)
+-- ✅ AUTO STOP (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 AutoStop = function()
     Running = false
@@ -838,7 +807,7 @@ StartFlyToTarget = function()
 end
 
 -- ==================================================
--- FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
+-- ✅ FLY TO TARGET AGAIN (Recovery — Tween + FlyTP)
 -- ==================================================
 FlyToTargetAgain = function()
     RecoveryAttempts = RecoveryAttempts + 1
@@ -930,7 +899,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
+-- ✅ FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -1282,4 +1251,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Reset + Stop ភ្លាមៗ + No Lock)")
+print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Stop + Reset + No Lock)")
