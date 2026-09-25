@@ -1,12 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
--- ✅ បញ្ចូល Egg Check Logic ពី EggCheckPremium
--- ✅ ពិនិត្យ Egg ជាប់ៗ (ទាំង Day ទាំង Night)
--- ✅ ហៅ AFKSystem ពេលអត់ឃើញ Egg
--- ✅ ហៅ VIPTP ពេលឃើញ Egg
--- ✅ ពិនិត្យ Egg ភ្លាមៗពេល Enable()
--- ✅ Callback ពី VIPTP ពេល AutoStop
--- ✅ ដោះស្រាយ Error: StartVIPTP នៅខាងលើ CheckEggAndAct
+-- ✅ Reset AFKStarted ក្នុង OnVIPTPComplete
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -284,7 +278,7 @@ local function SelfFlyTP(Destination, Speed, Callback)
 
         if TotalDist <= 3 then
             CleanupFly()
-            Root2.CFrame = CFrame.new(Destination)
+            Root2.CFrame = CFrame.new(Destination)  -- Y = 70 (ដី)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -379,7 +373,7 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- ✅ START VIPTP (ផ្លាស់ទៅខាងលើដើម្បីកុំឲ្យ Error)
+-- ✅ START VIPTP
 -- ==================================================
 local function StartVIPTP(EggUid)
     if not _G.YOKUDO_VIPTP then
@@ -396,10 +390,9 @@ local function StartVIPTP(EggUid)
 end
 
 -- ==================================================
--- ✅ CHECK EGG AND ACT (ពិនិត្យ Egg ភ្លាមៗ)
+-- ✅ CHECK EGG AND ACT
 -- ==================================================
 local function CheckEggAndAct()
-    -- ពិនិត្យ Egg ជាប់ៗ
     local BestEgg = FindBestEgg()
 
     if BestEgg then
@@ -411,11 +404,9 @@ local function CheckEggAndAct()
 
         PendingEggUid = BestEgg.Uid
 
-        -- Stop AFK + Jump Out
         StopAll()
         task.wait(0.5)
 
-        -- Fly to Safe Zone
         local ReachedSafe = FlyToSafeZoneAndWait()
 
         if ReachedSafe and PendingEggUid then
@@ -424,7 +415,6 @@ local function CheckEggAndAct()
             PendingEggUid = nil
         end
     else
-        -- អត់ឃើញ Egg → AFK
         if not WaitingForVIPTP then
             if not AFKStarted then
                 if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
@@ -438,13 +428,14 @@ local function CheckEggAndAct()
 end
 
 -- ==================================================
--- ✅ CALLBACK ពី VIPTP
+-- ✅ CALLBACK ពី VIPTP (កែ — Reset AFKStarted)
 -- ==================================================
 local function OnVIPTPComplete()
     if not FarmingEnabled then return end
     if not WaitingForVIPTP then return end
 
     WaitingForVIPTP = false
+    AFKStarted = false  -- ✅ Reset AFKStarted
     print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
     -- ✅ ពិនិត្យ Egg ថ្មីភ្លាមៗ
@@ -455,15 +446,13 @@ local function OnVIPTPComplete()
 end
 
 -- ==================================================
--- MAIN LOOP (ពិនិត្យ Egg ជាប់ៗ)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started (Check Egg Only)")
 
     while FarmingEnabled do
-        -- ✅ ពិនិត្យ Egg ជាប់ៗ
         CheckEggAndAct()
-
         task.wait(EGG_CHECK_INTERVAL)
     end
     print("[FarmingManager] MainLoop Stopped")
@@ -479,7 +468,6 @@ local function Enable()
     PendingEggUid = nil
     WaitingForVIPTP = false
 
-    -- ✅ ពិនិត្យ Egg ភ្លាមៗ (មិនរង់ចាំ Loop)
     task.spawn(function()
         task.wait(0.3)
         CheckEggAndAct()
