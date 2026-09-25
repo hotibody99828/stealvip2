@@ -57,7 +57,7 @@ local LOCK_ABOVE = 1
 
 local ARRIVE_DISTANCE = 5         -- ✅ ឈប់ពីចម្ងាយ 5
 local SAFE_LOCK_DISTANCE = 3
-local TIMEOUT_SECONDS = 30
+local TIMEOUT_SECONDS = 25
 
 local COLLECT_INTERVAL = 0.05
 local SEARCH_PREFIX = "FirstAreaEgg"
