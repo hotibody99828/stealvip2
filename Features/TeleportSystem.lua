@@ -1,13 +1,13 @@
 -- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
--- First Egg: FlyTP (Shot TP, Offset 10, Speed 1000)
+-- First Egg: FlyTP (Shot TP, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Lock 1)
--- Safe Zone: FlyTP (No Shot TP, Offset 10, Speed 800)
+-- Safe Zone: FlyTP (No Shot TP, Offset 5, Speed 800)
 -- ✅ DropHeldEgg Signal (Check Collect)
 -- ✅ Auto Recovery (Egg Drop តាមផ្លូវ)
 -- ✅ Recovery: ប្រើ FlyTP ធម្មតា (No Shot TP)
--- ✅ Callback ទៅ FarmingManager
--- ✅ Register ជាមួយ CharacterSystem
+-- ✅ Body Velocity P=10000, Body Gyro P=100000, D=500 (លឿន មិនកន្រាក់)
+-- ✅ FLY_OFFSET = 5 ទាំងអស់
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -50,11 +50,11 @@ local RETURN_SPEED = 800
 
 local CurrentMethod = "TeleportFly"
 
-local FLY_OFFSET = 10
-local SHOT_DISTANCE = 15
+local FLY_OFFSET = 5              -- ✅ Offset 5 ទាំងអស់
+local SHOT_DISTANCE = 30          -- ✅ Shot TP ពីចម្ងាយ 30
 local LOCK_ABOVE = 1
 
-local ARRIVE_DISTANCE = 2
+local ARRIVE_DISTANCE = 5         -- ✅ ឈប់ពីចម្ងាយ 5
 local SAFE_LOCK_DISTANCE = 3
 local TIMEOUT_SECONDS = 30
 
@@ -67,6 +67,13 @@ local LOCK_POSITION = Vector3.new(
     70.57420349121094,
     -326.8830261230469
 )
+
+-- ==================================================
+-- BODY SETTINGS (លឿន មិនកន្រាក់)
+-- ==================================================
+local BODY_VELOCITY_P = 10000      -- ✅ ខ្ពស់ — លឿន
+local BODY_GYRO_P = 100000         -- ✅ ខ្ពស់ — មិនទាញ
+local BODY_GYRO_D = 500            -- ✅ D ទាប — Smooth
 
 -- ==================================================
 -- RAGDOLL BYPASS
@@ -433,7 +440,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP
+-- ✅ FLY TP (Body C&G លឿន មិនកន្រាក់)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -454,18 +461,20 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
+    -- ✅ BodyVelocity លឿន
     BodyVelocity = Instance.new("BodyVelocity")
     BodyVelocity.Name = "YokudoBV"
     BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
+    BodyVelocity.P = BODY_VELOCITY_P
     BodyVelocity.Velocity = Vector3.zero
     BodyVelocity.Parent = Root
 
+    -- ✅ BodyGyro មិនទាញ
     BodyGyro = Instance.new("BodyGyro")
     BodyGyro.Name = "YokudoBG"
     BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
+    BodyGyro.P = BODY_GYRO_P
+    BodyGyro.D = BODY_GYRO_D
     BodyGyro.CFrame = Root.CFrame
     BodyGyro.Parent = Root
 
@@ -497,6 +506,19 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
+        -- ✅ Shot TP ខ្លីៗ
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
+            ShotDone = true
+            CleanupMovers()
+            Root2.CFrame = LockCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+            StartLock(Destination)
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ Safe Zone
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 CleanupMovers()
@@ -509,17 +531,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             end
         end
 
-        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
-            ShotDone = true
-            CleanupMovers()
-            Root2.CFrame = LockCFrame
-            Root2.AssemblyLinearVelocity = Vector3.zero
-            Root2.AssemblyAngularVelocity = Vector3.zero
-            StartLock(Destination)
-            if Callback then Callback() end
-            return
-        end
-
+        -- ✅ ដល់ហើយ
         if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
             CleanupMovers()
             Root2.CFrame = LockCFrame
@@ -530,12 +542,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
+        -- ✅ Timeout
         if tick() - StartTime > TIMEOUT_SECONDS then
             CleanupMovers()
             if Callback then Callback() end
             return
         end
 
+        -- ✅ បន្តហោះ
         if TotalDist > 1 then
             BodyVelocity.Velocity = Direction.Unit * Speed
         else
@@ -805,7 +819,6 @@ local function FlyToTargetAgain()
     FlyTP(TargetPos, FLY_SPEED, false, false, function()
         print("[YOKUDO] ✅ Recovery Arrived → collect_target")
 
-        -- ✅ Reset State ច្បាស់លាស់
         TargetCollected = false
         CollectTime = 0
         CollectAttempts = 0
@@ -1161,4 +1174,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ TeleportSystem Loaded (Dual Mode + Dual Option + DropHeldEgg + Recovery No Shot)")
+print("✅ TeleportSystem Loaded (Body C&G Fast + Offset 5 + Recovery)")
