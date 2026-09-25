@@ -6,7 +6,7 @@
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
 
-_G.YOKUDO_EnablePrint = false
+_G.YOKUDO_EnablePrint = true
 
 local oldPrint = print
 print = function(...)
