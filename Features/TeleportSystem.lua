@@ -2,11 +2,11 @@
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- First Egg: FlyTP (Shot TP 25, Offset 5, Speed 1000)
 -- Target Egg: FlyTP / Instant (Lock 1)
--- Safe Zone: FlyTP (No Shot TP, Offset 5, Speed 800)
+-- Safe Zone: FlyTP (No Shot TP, No Lock, Offset 5, Speed 800)
 -- ✅ Logic ចាស់ + កែកន្រាក់
 -- ✅ DropHeldEgg Check
 -- ✅ Auto Recovery ពេល Egg Drop (No Shot TP)
--- ✅ Safe Zone: Reset State + AutoStop
+-- ✅ Safe Zone: មិន Lock + Stop + Reset State ភ្លាមៗ
 -- ✅ គ្មាន Callback ទៅ FarmingManager
 -- ✅ Fixed: Load Order (Forward Declaration)
 -- ==================================================
@@ -449,7 +449,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (កែកន្រាក់ — Stop BodyV/G មុន TP)
+-- ✅ FLY TP (កែកន្រាក់ + Safe Zone មិន Lock)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     CleanupMovers()
@@ -459,13 +459,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     if Hum.Health <= 0 then return end
 
     local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-
-    local LockCFrame
-    if IsSafeZone then
-        LockCFrame = CFrame.new(Destination)
-    else
-        LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
-    end
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
 
     Hum.PlatformStand = true
 
@@ -511,7 +505,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone
+        -- ✅ Safe Zone (មិន Lock — Stop ភ្លាម)
         if IsSafeZone then
             if HorizDist <= SAFE_LOCK_DISTANCE then
                 if BodyVelocity then
@@ -525,13 +519,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 task.wait(0.1)
 
                 CleanupMovers()
-                Root2.CFrame = LockCFrame
+                Root2.CFrame = CFrame.new(Destination)
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
 
                 task.wait(0.1)
 
-                StartLock(Destination)
+                -- ✅ មិនហៅ StartLock() ពេល IsSafeZone
                 if Callback then Callback() end
                 return
             end
@@ -722,18 +716,20 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (គ្មាន Callback — Fixed Load Order)
+-- ✅ AUTO STOP (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 AutoStop = function()
     Running = false
     CurrentStep = "done"
 
+    -- ✅ Disconnect Lock
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
     end
     TargetLockedCFrame = nil
 
+    -- ✅ Reset CFrame ទៅ Safe Zone (ដី)
     local Hum, Root = GetHumanoid()
     if Root then
         pcall(function()
@@ -750,15 +746,15 @@ AutoStop = function()
         end)
     end
 
-    task.wait(0.2)
+    task.wait(0.1)
 
-    -- ✅ ហៅ Function តាម Forward Declaration
+    -- ✅ Cleanup ទាំងអស់
     CleanupMovers()
     DisableRagdollBypass()
     StopActiveHeartbeat()
     RestoreStats()
 
-    -- ✅ Reset State
+    -- ✅ Reset State ទាំងអស់
     FirstEggList = {}
     FirstEggUid = nil
     FirstEggSlotKey = nil
@@ -876,7 +872,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE
+-- ✅ FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -896,14 +892,14 @@ FlyToSafeZone = function()
         RecoveryAttempts = 0
         SavedTargetPosition = nil
 
-        task.wait(0.2)
+        task.wait(0.1)
 
         AutoStop()
     end)
 end
 
 -- ==================================================
--- ✅ STOP ACTIVE HEARTBEAT (Forward Declaration)
+-- STOP ACTIVE HEARTBEAT
 -- ==================================================
 StopActiveHeartbeat = function()
     if ActiveHeartbeat then
@@ -1238,4 +1234,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Logic ចាស់ + កែកន្រាក់ + DropHeldEgg + Recovery + Fixed Load Order)")
+print("✅ TeleportSystem Loaded (Logic ចាស់ + កែកន្រាក់ + DropHeldEgg + Recovery + Safe Zone No Lock + AutoStop)")
