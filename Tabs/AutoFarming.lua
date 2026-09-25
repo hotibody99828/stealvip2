@@ -1,7 +1,5 @@
 --==================================================
 -- YOKUDO HUB | TAB | Auto Farming
--- ✅ Sync Checkbox ជាមួយ AutoFarm
--- ✅ ដកធីកដោយស្វ័យប្រវត្តិពេល TeleportSystem AutoStop
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -116,33 +114,24 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ Function សម្រាប់ Update Checkbox Visual
-local function UpdateCheckboxVisual(State)
-    GetEggEnabled = State
-    GetEggCheck.Visible = State
-
-    if State then
+local function ToggleGetEgg()
+    GetEggEnabled = not GetEggEnabled
+    GetEggCheck.Visible = GetEggEnabled
+    if GetEggEnabled then
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         GetEggCheckButton.BackgroundTransparency = 0
         GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
-    else
-        GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        GetEggCheckButton.BackgroundTransparency = 0.85
-        GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
-    end
-end
 
-local function ToggleGetEgg()
-    GetEggEnabled = not GetEggEnabled
-    UpdateCheckboxVisual(GetEggEnabled)
-
-    if GetEggEnabled then
-        -- ✅ Start Teleport
+        -- ✅ Call StartTeleport (reads Method from Setting)
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
     else
-        -- ✅ Stop Teleport
+        GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        GetEggCheckButton.BackgroundTransparency = 0.85
+        GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+
+        -- ✅ Call StopTeleport
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StopTeleport()
         end
@@ -414,33 +403,4 @@ task.spawn(function()
     end
 end)
 
---==================================================
--- ✅ PERIODIC SYNC — ពិនិត្យ AutoFarmEnabled
---==================================================
-task.spawn(function()
-    while task.wait(0.5) do
-        if _G.YOKUDO_AutoFarm then
-            local AutoFarmState = _G.YOKUDO_AutoFarm.IsEnabled()
-
-            -- ✅ Sync Checkbox ជាមួយ AutoFarm
-            if GetEggEnabled ~= AutoFarmState then
-                GetEggEnabled = AutoFarmState
-                GetEggCheck.Visible = AutoFarmState
-
-                if AutoFarmState then
-                    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-                    GetEggCheckButton.BackgroundTransparency = 0
-                    GetEggCheckStroke.Color = Color3.fromRGB(135, 120, 225)
-                else
-                    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    GetEggCheckButton.BackgroundTransparency = 0.85
-                    GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
-                end
-
-                print("[AutoFarming] Checkbox synced from AutoFarm:", AutoFarmState)
-            end
-        end
-    end
-end)
-
-print("✅ Auto Farming Tab Loaded (Fixed Checkbox Sync)")
+print("✅ Auto Farming Tab Loaded")
