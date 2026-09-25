@@ -2,14 +2,13 @@
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
 -- ដាច់ដោយឡែកសម្រាប់ AFK Farm
 -- ✅ ប្រើ VIPTP_ Prefix ដើម្បីកុំឲ្យជាន់គ្នាជាមួយ TeleportSystem
--- ✅ Logic ដូច TeleportSystem ចាស់ ១០០%
--- ✅ Method: InstantTeleport (តែមួយ)
--- ✅ Option ២: spawn និង workspace
--- ✅ Repeat Task ពេលមកដល់ Safe Zone រហូតដល់ TARGET_UID បាត់ចេញពីទាំង ២
+-- ✅ Check spawn/workspace ពេលទទួល TARGET_UID
+-- ✅ Auto Check DropHeldEgg.Enabled (0.05s)
+-- ✅ Egg Lock ពេល Egg ធ្លាក់
+-- Method: InstantTeleport (Fixed)
 -- Fly Speed: 1000 | Return Speed: 1000
 -- Fly Offset First: 5 | Fly Offset Safe: 5
 -- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop
--- ✅ ForestStrike = Remote Drop Egg (First Egg Only)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -59,6 +58,7 @@ local VIPTP_SAFE_LOCK_DISTANCE = 3
 local VIPTP_TIMEOUT_SECONDS = 30
 
 local VIPTP_COLLECT_INTERVAL = 0.2
+local VIPTP_DROP_CHECK_INTERVAL = 0.05  -- ✅ លឿន
 local VIPTP_SEARCH_PREFIX = "FirstAreaEgg"
 local VIPTP_POSITION_THRESHOLD = 1
 
@@ -94,6 +94,7 @@ local VIPTP_FirstEggSlotKey = nil
 
 local VIPTP_CollectAttempts = 0
 local VIPTP_CollectTime = 0
+local VIPTP_DropCheckTime = 0
 
 local VIPTP_FlyTargetStarted = false
 local VIPTP_CollectDone = false
@@ -102,6 +103,7 @@ local VIPTP_ForestStrikeFired = false
 
 local VIPTP_SavedTargetPosition = nil
 local VIPTP_TargetLockedCFrame = nil
+local VIPTP_EggLockPosition = nil
 
 local VIPTP_SavedWalkSpeed = nil
 local VIPTP_SavedJumpPower = nil
@@ -117,7 +119,10 @@ local VIPTP_StartFlyToTarget
 local VIPTP_AutoStop
 local VIPTP_FlyUpAndToSafeZone
 local VIPTP_StartProcess
-local VIPTP_CheckTargetAndRepeat
+local VIPTP_RefreshMode
+local VIPTP_DropHeldEgg
+local VIPTP_IsHoldingEgg
+local VIPTP_FlyToEggLock
 
 -- ==================================================
 -- GET HUMANOID
@@ -330,6 +335,30 @@ local function VIPTP_GetPosition(Object)
         return Object.Position
     end
     return nil
+end
+
+-- ==================================================
+-- CHECK HOLDING EGG
+-- ==================================================
+VIPTP_IsHoldingEgg = function()
+    local DropGui = Player.PlayerGui:FindFirstChild("DropHeldEgg")
+    if not DropGui then return false end
+    return DropGui.Enabled
+end
+
+-- ==================================================
+-- DROP HELD EGG
+-- ==================================================
+VIPTP_DropHeldEgg = function()
+    local DropGui = Player.PlayerGui:FindFirstChild("DropHeldEgg")
+    if not DropGui or not DropGui.Enabled then return false end
+
+    local Button = DropGui:FindFirstChild("Button")
+    if not Button then return false end
+
+    Button:Activate()
+    print("[VIPTP] DropHeldEgg Clicked!")
+    return true
 end
 
 -- ==================================================
@@ -591,6 +620,30 @@ local function VIPTP_IsTargetInWorkspace()
 end
 
 -- ==================================================
+-- ✅ REFRESH MODE (Check spawn or workspace)
+-- ==================================================
+VIPTP_RefreshMode = function()
+    if not VIPTP_TARGET_UID then
+        VIPTP_CurrentMode = "none"
+        return false
+    end
+
+    if VIPTP_IsTargetInContainer() then
+        VIPTP_CurrentMode = "spawn"
+        print("[VIPTP] Mode → spawn")
+        return true
+    elseif VIPTP_IsTargetInWorkspace() then
+        VIPTP_CurrentMode = "workspace"
+        print("[VIPTP] Mode → workspace")
+        return true
+    else
+        VIPTP_CurrentMode = "none"
+        print("[VIPTP] Mode → none")
+        return false
+    end
+end
+
+-- ==================================================
 -- STOP ACTIVE HEARTBEAT
 -- ==================================================
 VIPTP_StopActiveHeartbeat = function()
@@ -601,44 +654,40 @@ VIPTP_StopActiveHeartbeat = function()
 end
 
 -- ==================================================
--- ✅ CHECK TARGET AND REPEAT
+-- ✅ FLY TO EGG LOCK (ពេល Egg ធ្លាក់)
 -- ==================================================
-VIPTP_CheckTargetAndRepeat = function()
-    -- Check TARGET_UID នៅក្នុង spawn ឬ workspace
-    if VIPTP_IsTargetInContainer() then
-        print("[VIPTP] Target still in spawn → Repeat spawn task")
-        VIPTP_CurrentMode = "spawn"
-        VIPTP_FullReset()
-        VIPTP_StartProcess()
-        return true
-    elseif VIPTP_IsTargetInWorkspace() then
-        print("[VIPTP] Target still in workspace → Repeat workspace task")
-        VIPTP_CurrentMode = "workspace"
-        VIPTP_FullReset()
-        VIPTP_StartProcess()
-        return true
-    else
-        -- រង់ចាំ 1.5s រួច Check ម្តងទៀត
-        print("[VIPTP] Target not found → Wait 1.5s → Check again")
-        task.wait(1.5)
+VIPTP_FlyToEggLock = function()
+    print("[VIPTP] Egg Dropped → Fly to Egg Lock")
 
-        if VIPTP_IsTargetInContainer() then
-            print("[VIPTP] Target found in spawn after 1.5s → Repeat")
-            VIPTP_CurrentMode = "spawn"
-            VIPTP_FullReset()
-            VIPTP_StartProcess()
-            return true
-        elseif VIPTP_IsTargetInWorkspace() then
-            print("[VIPTP] Target found in workspace after 1.5s → Repeat")
-            VIPTP_CurrentMode = "workspace"
-            VIPTP_FullReset()
-            VIPTP_StartProcess()
-            return true
-        else
-            print("[VIPTP] Target not found after 1.5s → Done")
-            return false
+    -- ✅ Refresh Mode
+    VIPTP_RefreshMode()
+
+    local TargetPos = nil
+
+    if VIPTP_CurrentMode == "spawn" then
+        local TargetEgg = Container and Container:FindFirstChild(VIPTP_TARGET_UID)
+        if TargetEgg then
+            TargetPos = VIPTP_GetPosition(TargetEgg)
+        end
+    elseif VIPTP_CurrentMode == "workspace" then
+        local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
+        if WSEgg then
+            TargetPos = VIPTP_GetPosition(WSEgg)
         end
     end
+
+    if not TargetPos then
+        print("[VIPTP] ⚠️ Egg Lock Position not found → Fly Safe Zone")
+        VIPTP_FlyUpAndToSafeZone()
+        return
+    end
+
+    -- ✅ Instant TP ទៅ Egg Lock
+    VIPTP_InstantFlyTP(TargetPos, function()
+        print("[VIPTP] ✅ At Egg Lock → Resume Collect")
+        VIPTP_CurrentStep = "collect_target"
+        VIPTP_TargetCollected = false
+    end)
 end
 
 -- ==================================================
@@ -649,6 +698,9 @@ VIPTP_StartFlyToTarget = function()
     VIPTP_FlyTargetStarted = true
 
     VIPTP_CurrentStep = "to_target"
+
+    -- ✅ Refresh Mode
+    VIPTP_RefreshMode()
 
     local TargetPos = nil
 
@@ -680,7 +732,7 @@ VIPTP_StartFlyToTarget = function()
 end
 
 -- ==================================================
--- FLY UP + FLY TO SAFE ZONE
+-- FLY UP + FLY TO SAFE ZONE (Offset 5)
 -- ==================================================
 VIPTP_FlyUpAndToSafeZone = function()
     VIPTP_CurrentStep = "fly_up"
@@ -688,6 +740,13 @@ VIPTP_FlyUpAndToSafeZone = function()
     local Hum, Root = VIPTP_GetHumanoid()
     if not Root then
         VIPTP_AutoStop()
+        return
+    end
+
+    -- ✅ Check DropHeldEgg មុននឹង Fly
+    if not VIPTP_IsHoldingEgg() then
+        print("[VIPTP] ⚠️ Egg Not Held → Fly to Egg Lock")
+        VIPTP_FlyToEggLock()
         return
     end
 
@@ -700,17 +759,13 @@ VIPTP_FlyUpAndToSafeZone = function()
 
         VIPTP_FlyTP(VIPTP_SAFE_ZONE, VIPTP_RETURN_SPEED, 0, false, true, function()
             print("[VIPTP] ✅ Reached Safe Zone")
-
-            -- ✅ Check Target ម្តងទៀត (Repeat or Stop)
-            if not VIPTP_CheckTargetAndRepeat() then
-                VIPTP_AutoStop()
-            end
+            VIPTP_AutoStop()
         end)
     end)
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (Callback ទៅ FarmingManager)
 -- ==================================================
 VIPTP_AutoStop = function()
     VIPTP_Running = false
@@ -723,7 +778,6 @@ VIPTP_AutoStop = function()
 
     print("[VIPTP] Auto Stop")
 
-    -- ហៅ Callback ទៅ FarmingManager
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
         task.spawn(function()
             task.wait(0.2)
@@ -782,31 +836,21 @@ VIPTP_StartActiveHeartbeat = function()
             end
         end
 
-        -- Step: Collect Target Egg
+        -- Step: Collect Target Egg (✅ Auto Check DropHeldEgg)
         if VIPTP_CurrentStep == "collect_target" and not VIPTP_TargetCollected then
-            if VIPTP_CurrentMode == "spawn" then
-                if workspace:FindFirstChild(VIPTP_TARGET_UID) then
+            -- ✅ Auto Check DropHeldEgg រាល់ 0.05s
+            if tick() - VIPTP_DropCheckTime > VIPTP_DROP_CHECK_INTERVAL then
+                VIPTP_DropCheckTime = tick()
+
+                if VIPTP_IsHoldingEgg() then
+                    print("[VIPTP] ✅ Holding Egg → Fly to Safe Zone")
                     VIPTP_TargetCollected = true
                     task.spawn(function() VIPTP_FlyUpAndToSafeZone() end)
                     return
                 end
-            elseif VIPTP_CurrentMode == "workspace" then
-                if VIPTP_SavedTargetPosition then
-                    local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
-                    if WSEgg then
-                        local CurrentPos = VIPTP_GetPosition(WSEgg)
-                        if CurrentPos then
-                            local Dist = (CurrentPos - VIPTP_SavedTargetPosition).Magnitude
-                            if Dist >= VIPTP_POSITION_THRESHOLD then
-                                VIPTP_TargetCollected = true
-                                task.spawn(function() VIPTP_FlyUpAndToSafeZone() end)
-                                return
-                            end
-                        end
-                    end
-                end
             end
 
+            -- Remote Collect Target
             if tick() - VIPTP_CollectTime > VIPTP_COLLECT_INTERVAL then
                 VIPTP_CollectTime = tick()
                 VIPTP_RemoteCollectTarget()
@@ -825,43 +869,37 @@ VIPTP_StartProcess = function()
 
     VIPTP_CollectAttempts = 0
     VIPTP_CollectTime = 0
+    VIPTP_DropCheckTime = 0
     VIPTP_FlyTargetStarted = false
     VIPTP_CollectDone = false
     VIPTP_TargetCollected = false
     VIPTP_ForestStrikeFired = false
     VIPTP_SavedTargetPosition = nil
     VIPTP_TargetLockedCFrame = nil
+    VIPTP_EggLockPosition = nil
 
     VIPTP_SaveStats()
     VIPTP_EnableRagdollBypass()
 
-    -- ✅ Auto Detect Option (spawn or workspace)
-    if VIPTP_IsTargetInContainer() then
-        VIPTP_CurrentMode = "spawn"
-        print("[VIPTP] Target found in Container → spawn mode")
-    elseif VIPTP_IsTargetInWorkspace() then
-        VIPTP_CurrentMode = "workspace"
+    -- ✅ Refresh Mode (Check spawn or workspace)
+    if not VIPTP_RefreshMode() then
+        local WaitTime = 0
+        while VIPTP_Running and not VIPTP_RefreshMode() do
+            task.wait(0.5)
+            WaitTime = WaitTime + 0.5
+            if WaitTime >= 2 then
+                print("[VIPTP] ⚠️ Target not found after 2s → Auto Stop")
+                VIPTP_AutoStop()
+                return
+            end
+        end
+    end
+
+    -- Save Target Position if workspace
+    if VIPTP_CurrentMode == "workspace" then
         local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
         if WSEgg then
             VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
-        end
-        print("[VIPTP] Target found in Workspace → workspace mode")
-    else
-        -- បើរកមិនឃើញ → រង់ចាំ 1.5s រួច Check ម្តងទៀត
-        task.wait(1.5)
-
-        if VIPTP_IsTargetInContainer() then
-            VIPTP_CurrentMode = "spawn"
-        elseif VIPTP_IsTargetInWorkspace() then
-            VIPTP_CurrentMode = "workspace"
-            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
-            if WSEgg then
-                VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
-            end
-        else
-            print("[VIPTP] ⚠️ Target not found after 1.5s → Auto Stop")
-            VIPTP_AutoStop()
-            return
         end
     end
 
@@ -908,12 +946,14 @@ local function VIPTP_FullReset()
     VIPTP_FirstEggSlotKey = nil
     VIPTP_CollectAttempts = 0
     VIPTP_CollectTime = 0
+    VIPTP_DropCheckTime = 0
     VIPTP_FlyTargetStarted = false
     VIPTP_CollectDone = false
     VIPTP_TargetCollected = false
     VIPTP_ForestStrikeFired = false
     VIPTP_SavedTargetPosition = nil
     VIPTP_TargetLockedCFrame = nil
+    VIPTP_EggLockPosition = nil
 
     VIPTP_CleanupMovers()
     VIPTP_DisableRagdollBypass()
@@ -957,6 +997,9 @@ _G.YOKUDO_VIPTP = {
     IsEnabled = function() return VIPTP_Running end,
     GetTargetId = function() return VIPTP_TARGET_UID end,
     GetMode = function() return VIPTP_CurrentMode end,
+    -- ✅ DropHeldEgg Functions
+    IsHoldingEgg = VIPTP_IsHoldingEgg,
+    DropHeldEgg = VIPTP_DropHeldEgg,
     FLY_SPEED = VIPTP_FLY_SPEED,
     RETURN_SPEED = VIPTP_RETURN_SPEED,
     FLY_OFFSET_FIRST = VIPTP_FLY_OFFSET_FIRST,
@@ -964,4 +1007,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = VIPTP_SAFE_ZONE,
 }
 
-print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 5 | ForestStrike First Only | CheckTargetAndRepeat)")
+print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | DropHeldEgg Check | Egg Lock | Auto Check 0.05s)")
