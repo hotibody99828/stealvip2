@@ -1,6 +1,12 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (NEW)
--- ✅ Reset AFKStarted ក្នុង OnVIPTPComplete
+-- ✅ បញ្ចូល Egg Check Logic ពី EggCheckPremium
+-- ✅ ពិនិត្យ Egg ជាប់ៗ (ទាំង Day ទាំង Night)
+-- ✅ ហៅ AFKSystem ពេលអត់ឃើញ Egg
+-- ✅ ហៅ VIPTP ពេលឃើញ Egg
+-- ✅ ពិនិត្យ Egg ភ្លាមៗពេល Enable()
+-- ✅ Callback ពី VIPTP ពេល AutoStop
+-- ✅ Disable FarmingManager ពេល VIPTP ចប់ + គ្មាន Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -278,7 +284,7 @@ local function SelfFlyTP(Destination, Speed, Callback)
 
         if TotalDist <= 3 then
             CleanupFly()
-            Root2.CFrame = CFrame.new(Destination)  -- Y = 70 (ដី)
+            Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
             if Callback then Callback() end
@@ -428,20 +434,30 @@ local function CheckEggAndAct()
 end
 
 -- ==================================================
--- ✅ CALLBACK ពី VIPTP (កែ — Reset AFKStarted)
+-- ✅ CALLBACK ពី VIPTP (Disable បើគ្មាន Egg)
 -- ==================================================
 local function OnVIPTPComplete()
     if not FarmingEnabled then return end
     if not WaitingForVIPTP then return end
 
     WaitingForVIPTP = false
-    AFKStarted = false  -- ✅ Reset AFKStarted
+    AFKStarted = false
     print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
     -- ✅ ពិនិត្យ Egg ថ្មីភ្លាមៗ
     task.spawn(function()
         task.wait(0.5)
-        CheckEggAndAct()
+        local BestEgg = FindBestEgg()
+
+        if BestEgg then
+            -- ✅ ឃើញ Egg ថ្មី → បន្ត
+            print("[FarmingManager] New Egg Found → Continue")
+            CheckEggAndAct()
+        else
+            -- ✅ អត់ឃើញ Egg → Disable FarmingManager ទាំងស្រុង
+            print("[FarmingManager] No New Egg → Disable FarmingManager")
+            Disable()
+        end
     end)
 end
 
@@ -548,4 +564,4 @@ task.spawn(function()
     BuildMeshIdMap()
 end)
 
-print("✅ FarmingManager Loaded (Check Egg Only | Day + Night)")
+print("✅ FarmingManager Loaded (Check Egg Only | Day + Night | Callback Disable)")
