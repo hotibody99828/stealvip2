@@ -5,9 +5,10 @@
 -- Safe Zone: FlyTP (No Shot TP, No Lock, Stop at 5, Reset State)
 -- Recovery: Tween (0.50s) → Near Target → FlyTP (Shot TP 25)
 -- ✅ Fly Offset = 15
--- ✅ Safe Zone → Stop + Reset ភ្លាមៗ
--- ✅ មិន Heartbeat — ប្រើ task.spawn
+-- ✅ Safe Zone → task.defer → AutoStop + Reset ច្បាស់ 100%
+-- ✅ មិន Stuck | មិនកន្រាក់ | មិន Lock
 -- ✅ DropHeldEgg Check
+-- ✅ Logic ចាស់ | គ្មាន Callback
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -457,7 +458,7 @@ local function FindClosestEgg()
 end
 
 -- ==================================================
--- ✅ FLY TP (Safe Zone → Stop + Reset ភ្លាមៗ)
+-- ✅ FLY TP (Safe Zone → task.defer → AutoStop)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     FlySequence = FlySequence + 1
@@ -518,10 +519,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Direction.Y)
             local TotalDist = Direction.Magnitude
 
-            -- ✅ Safe Zone (Stop + Reset ភ្លាមៗ — មិន Lock)
+            -- ✅ Safe Zone (Stop at 5 — No Lock — task.defer → AutoStop)
             if IsSafeZone then
                 if HorizDist <= SAFE_STOP_DISTANCE then
-                    -- Stop BodyV/G
+                    -- Stop BodyV/G ភ្លាម
                     if BodyVelocity then
                         BodyVelocity.Velocity = Vector3.zero
                         BodyVelocity.MaxForce = Vector3.zero
@@ -530,16 +531,18 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                         BodyGyro.MaxTorque = Vector3.zero
                     end
 
-                    -- Cleanup ភ្លាម
+                    -- ✅ Cleanup ភ្លាម
                     CleanupMovers(true)
 
-                    -- ✅ Callback → FlyToSafeZone → AutoStop
-                    if Callback then Callback() end
+                    -- ✅ task.defer → ចេញពី Task មុន Callback
+                    task.defer(function()
+                        if Callback then Callback() end
+                    end)
                     return
                 end
             end
 
-            -- ✅ Shot TP
+            -- ✅ Shot TP (First + Target)
             if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
                 ShotDone = true
 
@@ -559,7 +562,10 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 task.wait(0.1)
 
                 StartLock(Destination)
-                if Callback then Callback() end
+
+                task.defer(function()
+                    if Callback then Callback() end
+                end)
                 return
             end
 
@@ -581,14 +587,20 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 task.wait(0.1)
 
                 StartLock(Destination)
-                if Callback then Callback() end
+
+                task.defer(function()
+                    if Callback then Callback() end
+                end)
                 return
             end
 
             -- ✅ Timeout
             if tick() - StartTime > TIMEOUT_SECONDS then
                 CleanupMovers()
-                if Callback then Callback() end
+
+                task.defer(function()
+                    if Callback then Callback() end
+                end)
                 return
             end
 
@@ -633,7 +645,10 @@ local function InstantFlyTP(Destination, Callback)
         task.wait(0.1)
 
         StartLock(Destination)
-        if Callback then Callback() end
+
+        task.defer(function()
+            if Callback then Callback() end
+        end)
     end)
 end
 
@@ -899,7 +914,7 @@ FlyToTargetAgain = function()
 end
 
 -- ==================================================
--- ✅ FLY TO SAFE ZONE (Stop + Reset ភ្លាមៗ)
+-- ✅ FLY TO SAFE ZONE (task.defer → AutoStop)
 -- ==================================================
 FlyToSafeZone = function()
     CurrentStep = "to_safe"
@@ -912,18 +927,8 @@ FlyToSafeZone = function()
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
 
-        TargetCollected = false
-        CollectDone = false
-        CollectTime = 0
-        CollectAttempts = 0
-        RecoveryTriggered = false
-        RemotesFired = false
-        FlyTargetStarted = false
-        RecoveryAttempts = 0
-        SavedTargetPosition = nil
-
-        task.spawn(function()
-            task.wait(0.2)
+        -- ✅ task.defer → Defer AutoStop ទៅ Frame បន្ទាប់
+        task.defer(function()
             AutoStop()
         end)
     end)
@@ -1251,4 +1256,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Fly Offset 15 + Safe Zone Stop + Reset + No Lock)")
+print("✅ TeleportSystem Loaded (task.defer + Fly Offset 15 + Safe Zone Stop + Reset + No Lock)")
