@@ -1,11 +1,12 @@
 -- ==================================================
 -- YOKUDO HUB - TELEPORT SYSTEM (DUAL MODE + DUAL OPTION + RECOVERY)
 -- ✅ រលូត (មិនកន្រាក់) — Stop BodyV/G + task.wait(0.1) ពីរដង
--- ✅ Egg Drop ច្រើនដង — Recovery Loop (តាម task.spawn + task.wait)
+-- ✅ Egg Drop ច្រើនដង — Recovery Loop
 -- ✅ Check លឿន — COLLECT_INTERVAL = 0.05
--- ✅ មិនជាប់គាំង — task.spawn + task.wait នៅគ្រប់កន្លែង
+-- ✅ មិនជាប់គាំង — task.spawn + task.wait
 -- ✅ Shot TP = 25 | Recovery = No Shot TP
--- ✅ Safe Zone: Stop + Reset + Destroy
+-- ✅ Safe Zone: Reset State + Stop (ដូច Logic ចាស់)
+-- ✅ គ្មាន Callback ទៅ FarmingManager
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -507,7 +508,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Shot TP (First + Target)
+        -- ✅ Shot TP
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
             ShotDone = true
 
@@ -727,7 +728,7 @@ local function IsTargetStillExists()
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (គ្មាន Callback)
 -- ==================================================
 local function AutoStop()
     Running = false
@@ -780,7 +781,7 @@ local function AutoStop()
     StopActiveHeartbeat()
     RestoreStats()
 
-    -- ✅ Reset State
+    -- ✅ Reset State ទាំងអស់
     FirstEggList = {}
     FirstEggUid = nil
     FirstEggSlotKey = nil
@@ -901,7 +902,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE
+-- FLY TO SAFE ZONE (Reset State + Stop)
 -- ==================================================
 local function FlyToSafeZone()
     CurrentStep = "to_safe"
@@ -909,8 +910,9 @@ local function FlyToSafeZone()
     print("[YOKUDO] FlyTP to Safe Zone")
 
     FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
-        print("[YOKUDO] ✅ Arrived Safe Zone → AutoStop")
+        print("[YOKUDO] ✅ Arrived Safe Zone → Reset State + AutoStop")
 
+        -- ✅ Reset State ទាំងអស់
         TargetCollected = false
         CollectDone = false
         CollectTime = 0
@@ -928,7 +930,7 @@ local function FlyToSafeZone()
 end
 
 -- ==================================================
--- HEARTBEAT (Check លឿន + task.spawn + task.wait)
+-- HEARTBEAT
 -- ==================================================
 local function StartActiveHeartbeat()
     if ActiveHeartbeat then
@@ -969,7 +971,7 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- Step 2: Wait First Egg Spawn Back (task.spawn + task.wait)
+        -- Step 2: Wait First Egg Spawn Back
         if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
             if IsFirstEggInContainer() then
                 task.spawn(function()
@@ -979,7 +981,7 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- Step 3: Collect Target Egg (task.spawn + task.wait)
+        -- Step 3: Collect Target Egg
         if CurrentStep == "collect_target" and not TargetCollected then
 
             -- ✅ DropHeldEgg Check
@@ -1030,7 +1032,7 @@ local function StartActiveHeartbeat()
                 CollectAttempts = CollectAttempts + 1
             end
 
-            -- ✅ Timeout (task.spawn + task.wait)
+            -- ✅ Timeout
             if tick() - TargetCollectStartTime > TARGET_COLLECT_TIMEOUT then
                 print("[YOKUDO] ⚠️ Target Collect Timeout → Recovery")
                 if not RecoveryTriggered then
@@ -1044,7 +1046,7 @@ local function StartActiveHeartbeat()
             end
         end
 
-        -- Step 4: Recovery (Egg Drop តាមផ្លូវ — task.spawn + task.wait)
+        -- Step 4: Recovery (Egg Drop តាមផ្លូវ)
         if CurrentStep == "to_safe" then
             if not IsTargetCollectedByDropHeldEgg() then
                 if not RecoveryTriggered then
@@ -1261,4 +1263,4 @@ _G.YOKUDO_TeleportSystem = {
     GetTargetId = function() return TARGET_UID end
 }
 
-print("✅ TeleportSystem Loaded (Smooth + Multi Recovery + No Stuck via task.spawn)")
+print("✅ TeleportSystem Loaded (No Callback + Smooth + Recovery + Safe Zone Reset + Stop)")
