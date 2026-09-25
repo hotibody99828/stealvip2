@@ -2,12 +2,10 @@
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
 -- ដាច់ដោយឡែកសម្រាប់ AFK Farm
 -- ✅ ប្រើ VIPTP_ Prefix ដើម្បីកុំឲ្យជាន់គ្នាជាមួយ TeleportSystem
--- ✅ រៀបចំ Function ត្រឹមត្រូវ ១០០% (គ្មាន Error)
--- ✅ បន្ថែម VIPTP_RefreshMode() សម្រាប់ Check spawn/workspace ម្តងទៀត
--- ✅ Wait 2s (ជំនួស 60s)
--- ✅ Fly Offset Safe = 5 (ជំនួស 50)
--- ✅ កែ BodyVelocity/BodyGyro ដើម្បីកុំឲ្យរុញខ្លាំង
--- Method: InstantTeleport (Fixed)
+-- ✅ Logic ដូច TeleportSystem ចាស់ ១០០%
+-- ✅ Method: InstantTeleport (តែមួយ)
+-- ✅ Option ២: spawn និង workspace
+-- ✅ Repeat Task ពេលមកដល់ Safe Zone រហូតដល់ TARGET_UID បាត់ចេញពីទាំង ២
 -- Fly Speed: 1000 | Return Speed: 1000
 -- Fly Offset First: 5 | Fly Offset Safe: 5
 -- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop
@@ -51,14 +49,14 @@ local VIPTP_SAFE_ZONE = Vector3.new(533, 70, -366)
 local VIPTP_FLY_SPEED = 1000
 local VIPTP_RETURN_SPEED = 1000
 local VIPTP_FLY_OFFSET_FIRST = 5
-local VIPTP_FLY_OFFSET_SAFE = 5     -- ✅ ប្តូរពី 50 → 5
+local VIPTP_FLY_OFFSET_SAFE = 5
 
-local VIPTP_SHOT_DISTANCE = 30
+local VIPTP_SHOT_DISTANCE = 15
 local VIPTP_LOCK_ABOVE = 1
 
-local VIPTP_ARRIVE_DISTANCE = 5
-local VIPTP_SAFE_LOCK_DISTANCE = 5
-local VIPTP_TIMEOUT_SECONDS = 15
+local VIPTP_ARRIVE_DISTANCE = 2
+local VIPTP_SAFE_LOCK_DISTANCE = 3
+local VIPTP_TIMEOUT_SECONDS = 30
 
 local VIPTP_COLLECT_INTERVAL = 0.2
 local VIPTP_SEARCH_PREFIX = "FirstAreaEgg"
@@ -119,7 +117,7 @@ local VIPTP_StartFlyToTarget
 local VIPTP_AutoStop
 local VIPTP_FlyUpAndToSafeZone
 local VIPTP_StartProcess
-local VIPTP_RefreshMode
+local VIPTP_CheckTargetAndRepeat
 
 -- ==================================================
 -- GET HUMANOID
@@ -383,7 +381,7 @@ local function VIPTP_FindClosestEgg()
 end
 
 -- ==================================================
--- FLY TP (កែ BodyVelocity/BodyGyro)
+-- FLY TP
 -- ==================================================
 local function VIPTP_FlyTP(Destination, Speed, Offset, UseShotTP, IsSafeZone, Callback)
     VIPTP_CleanupMovers()
@@ -399,16 +397,16 @@ local function VIPTP_FlyTP(Destination, Speed, Offset, UseShotTP, IsSafeZone, Ca
 
     VIPTP_BodyVelocity = Instance.new("BodyVelocity")
     VIPTP_BodyVelocity.Name = "YokudoBV"
-    VIPTP_BodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)  -- ✅ បន្ថយពី math.huge
+    VIPTP_BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     VIPTP_BodyVelocity.P = 1250
     VIPTP_BodyVelocity.Velocity = Vector3.zero
     VIPTP_BodyVelocity.Parent = Root
 
     VIPTP_BodyGyro = Instance.new("BodyGyro")
     VIPTP_BodyGyro.Name = "YokudoBG"
-    VIPTP_BodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)  -- ✅ បន្ថយពី math.huge
-    VIPTP_BodyGyro.P = 100000  -- ✅ បង្កើន
-    VIPTP_BodyGyro.D = 1000    -- ✅ បង្កើន
+    VIPTP_BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    VIPTP_BodyGyro.P = 3000
+    VIPTP_BodyGyro.D = 500
     VIPTP_BodyGyro.CFrame = Root.CFrame
     VIPTP_BodyGyro.Parent = Root
 
@@ -478,10 +476,8 @@ local function VIPTP_FlyTP(Destination, Speed, Offset, UseShotTP, IsSafeZone, Ca
             return
         end
 
-        -- ✅ បន្ថយ Velocity ពេលជិតដល់
         if TotalDist > 1 then
-            local AdjustedSpeed = math.min(Speed, TotalDist * 10)  -- ← បន្ថយល្បឿនពេលជិតដល់
-            VIPTP_BodyVelocity.Velocity = Direction.Unit * AdjustedSpeed
+            VIPTP_BodyVelocity.Velocity = Direction.Unit * Speed
         else
             VIPTP_BodyVelocity.Velocity = Vector3.zero
         end
@@ -512,7 +508,7 @@ local function VIPTP_InstantFlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- TELEPORT TO TARGET
+-- TELEPORT TO TARGET (Instant Only)
 -- ==================================================
 local function VIPTP_TeleportToTarget(TargetPos, Callback)
     print("[VIPTP] Instant TP to Target")
@@ -595,36 +591,53 @@ local function VIPTP_IsTargetInWorkspace()
 end
 
 -- ==================================================
--- ✅ REFRESH MODE (Check spawn or workspace ម្តងទៀត)
--- ==================================================
-VIPTP_RefreshMode = function()
-    if not VIPTP_TARGET_UID then
-        VIPTP_CurrentMode = "none"
-        return false
-    end
-
-    if VIPTP_IsTargetInContainer() then
-        VIPTP_CurrentMode = "spawn"
-        print("[VIPTP] Mode Refreshed → spawn")
-        return true
-    elseif VIPTP_IsTargetInWorkspace() then
-        VIPTP_CurrentMode = "workspace"
-        print("[VIPTP] Mode Refreshed → workspace")
-        return true
-    else
-        VIPTP_CurrentMode = "none"
-        print("[VIPTP] Mode Refreshed → none (Target not found)")
-        return false
-    end
-end
-
--- ==================================================
 -- STOP ACTIVE HEARTBEAT
 -- ==================================================
 VIPTP_StopActiveHeartbeat = function()
     if VIPTP_ActiveHeartbeat then
         VIPTP_ActiveHeartbeat:Disconnect()
         VIPTP_ActiveHeartbeat = nil
+    end
+end
+
+-- ==================================================
+-- ✅ CHECK TARGET AND REPEAT
+-- ==================================================
+VIPTP_CheckTargetAndRepeat = function()
+    -- Check TARGET_UID នៅក្នុង spawn ឬ workspace
+    if VIPTP_IsTargetInContainer() then
+        print("[VIPTP] Target still in spawn → Repeat spawn task")
+        VIPTP_CurrentMode = "spawn"
+        VIPTP_FullReset()
+        VIPTP_StartProcess()
+        return true
+    elseif VIPTP_IsTargetInWorkspace() then
+        print("[VIPTP] Target still in workspace → Repeat workspace task")
+        VIPTP_CurrentMode = "workspace"
+        VIPTP_FullReset()
+        VIPTP_StartProcess()
+        return true
+    else
+        -- រង់ចាំ 1.5s រួច Check ម្តងទៀត
+        print("[VIPTP] Target not found → Wait 1.5s → Check again")
+        task.wait(1.5)
+
+        if VIPTP_IsTargetInContainer() then
+            print("[VIPTP] Target found in spawn after 1.5s → Repeat")
+            VIPTP_CurrentMode = "spawn"
+            VIPTP_FullReset()
+            VIPTP_StartProcess()
+            return true
+        elseif VIPTP_IsTargetInWorkspace() then
+            print("[VIPTP] Target found in workspace after 1.5s → Repeat")
+            VIPTP_CurrentMode = "workspace"
+            VIPTP_FullReset()
+            VIPTP_StartProcess()
+            return true
+        else
+            print("[VIPTP] Target not found after 1.5s → Done")
+            return false
+        end
     end
 end
 
@@ -636,13 +649,6 @@ VIPTP_StartFlyToTarget = function()
     VIPTP_FlyTargetStarted = true
 
     VIPTP_CurrentStep = "to_target"
-
-    -- ✅ Refresh Mode ម្តងទៀត (Check spawn or workspace)
-    if not VIPTP_RefreshMode() then
-        print("[VIPTP] ⚠️ Target not found → Auto Stop")
-        VIPTP_AutoStop()
-        return
-    end
 
     local TargetPos = nil
 
@@ -674,7 +680,7 @@ VIPTP_StartFlyToTarget = function()
 end
 
 -- ==================================================
--- FLY UP + FLY TO SAFE ZONE (Offset 5)
+-- FLY UP + FLY TO SAFE ZONE
 -- ==================================================
 VIPTP_FlyUpAndToSafeZone = function()
     VIPTP_CurrentStep = "fly_up"
@@ -694,7 +700,11 @@ VIPTP_FlyUpAndToSafeZone = function()
 
         VIPTP_FlyTP(VIPTP_SAFE_ZONE, VIPTP_RETURN_SPEED, 0, false, true, function()
             print("[VIPTP] ✅ Reached Safe Zone")
-            VIPTP_AutoStop()
+
+            -- ✅ Check Target ម្តងទៀត (Repeat or Stop)
+            if not VIPTP_CheckTargetAndRepeat() then
+                VIPTP_AutoStop()
+            end
         end)
     end)
 end
@@ -713,6 +723,7 @@ VIPTP_AutoStop = function()
 
     print("[VIPTP] Auto Stop")
 
+    -- ហៅ Callback ទៅ FarmingManager
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnVIPTPComplete then
         task.spawn(function()
             task.wait(0.2)
@@ -824,25 +835,33 @@ VIPTP_StartProcess = function()
     VIPTP_SaveStats()
     VIPTP_EnableRagdollBypass()
 
-    -- ✅ Refresh Mode (check spawn or workspace) — Wait 2s
-    if not VIPTP_RefreshMode() then
-        local WaitTime = 0
-        while VIPTP_Running and not VIPTP_RefreshMode() do
-            task.wait(0.5)
-            WaitTime = WaitTime + 0.5
-            if WaitTime >= 2 then    -- ✅ ប្តូរពី 60 → 2
-                print("[VIPTP] ⚠️ Target not found after 2s → Auto Stop")
-                VIPTP_AutoStop()
-                return
-            end
-        end
-    end
-
-    -- Save Target Position if workspace
-    if VIPTP_CurrentMode == "workspace" then
+    -- ✅ Auto Detect Option (spawn or workspace)
+    if VIPTP_IsTargetInContainer() then
+        VIPTP_CurrentMode = "spawn"
+        print("[VIPTP] Target found in Container → spawn mode")
+    elseif VIPTP_IsTargetInWorkspace() then
+        VIPTP_CurrentMode = "workspace"
         local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
         if WSEgg then
             VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
+        end
+        print("[VIPTP] Target found in Workspace → workspace mode")
+    else
+        -- បើរកមិនឃើញ → រង់ចាំ 1.5s រួច Check ម្តងទៀត
+        task.wait(1.5)
+
+        if VIPTP_IsTargetInContainer() then
+            VIPTP_CurrentMode = "spawn"
+        elseif VIPTP_IsTargetInWorkspace() then
+            VIPTP_CurrentMode = "workspace"
+            local WSEgg = workspace:FindFirstChild(VIPTP_TARGET_UID)
+            if WSEgg then
+                VIPTP_SavedTargetPosition = VIPTP_GetPosition(WSEgg)
+            end
+        else
+            print("[VIPTP] ⚠️ Target not found after 1.5s → Auto Stop")
+            VIPTP_AutoStop()
+            return
         end
     end
 
@@ -938,7 +957,6 @@ _G.YOKUDO_VIPTP = {
     IsEnabled = function() return VIPTP_Running end,
     GetTargetId = function() return VIPTP_TARGET_UID end,
     GetMode = function() return VIPTP_CurrentMode end,
-    RefreshMode = VIPTP_RefreshMode,
     FLY_SPEED = VIPTP_FLY_SPEED,
     RETURN_SPEED = VIPTP_RETURN_SPEED,
     FLY_OFFSET_FIRST = VIPTP_FLY_OFFSET_FIRST,
@@ -946,4 +964,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = VIPTP_SAFE_ZONE,
 }
 
-print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 5 | ForestStrike First Only | RefreshMode | Wait 2s)")
+print("✅ VIPTP Loaded (AFK Farm Only | VIPTP_ Prefix | Instant | First Offset 5 | Safe Offset 5 | ForestStrike First Only | CheckTargetAndRepeat)")
