@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (TWEEN + BODYV + BODYG)
--- Speed តែមួយពី TextBox (Tab Setting) | ប្រើទាំងអស់
--- First Egg: Shot TP | Target/Recovery/Safe: No Shot TP
--- Method: TeleportFly / InstantTeleport
+-- ✅ Tween គណនា Duration ខ្លួនឯង = ចម្ងាយ ÷ TeleportSpeed
+-- ✅ Speed តែមួយពី TextBox (Tab Setting)
+-- ✅ First Egg: Shot TP | Target: Instant TP
+-- ✅ Recovery: No Shot TP | Safe Zone: No Shot TP
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -20,33 +21,29 @@ local Config = {
     -- ✅ Speed តែមួយ (ពី TextBox)
     TeleportSpeed = 300,
 
-    -- Tween
-    TweenDuration = 0.5,
     NearOffset = 20,
 
-    -- Distances
     FlyOffset = 5,
     ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
 
-    -- Timing
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 10000,
 
-    -- BodyV / BodyG
     BodyVelocityP = 5000,
     BodyGyroP = 50000,
     BodyGyroD = 2000,
 
-    -- Positions
+    MinTweenDuration = 0.1,
+    MaxTweenDuration = 10,
+
     SafeZone = Vector3.new(533, 70, -366),
     LockPosition = Vector3.new(607.6259155273438, 70.57420349121094, -326.8830261230469),
 
-    -- Search
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 }
@@ -304,8 +301,8 @@ end
 
 -- ==================================================
 -- TWEEN + BODYV + BODYG FLY TP
--- ✅ Speed តែមួយ (ពី Config.TeleportSpeed)
--- ✅ UseShotTP: true = មាន Shot TP | false = គ្មាន
+-- ✅ Tween គណនា Duration ខ្លួនឯង = ចម្ងាយ ÷ TeleportSpeed
+-- ✅ BodyV + BodyG Speed = TeleportSpeed
 -- ==================================================
 local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -321,17 +318,28 @@ local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween → Near Position (Duration 0.5s ថេរ)
+    -- ✅ Step 1: Tween → Near Position (Duration គណនាខ្លួនឯង)
     local StartPos = Root.Position
     local Direction = (FlyPos - StartPos)
     local TotalDist = Direction.Magnitude
     local DirUnit = TotalDist > 0 and Direction.Unit or Vector3.new(0, 0, -1)
 
     local NearPos = FlyPos - (DirUnit * Config.NearOffset)
+    local NearDist = (NearPos - StartPos).Magnitude
+
+    -- ✅ Duration = ចម្ងាយ ÷ TeleportSpeed (ល្បឿនស្មើគ្នា)
+    local NearDuration = math.clamp(
+        NearDist / Config.TeleportSpeed,
+        Config.MinTweenDuration,
+        Config.MaxTweenDuration
+    )
+
+    print(string.format("[YOKUDO] Tween Near | Dist: %.0f | Speed: %d | Duration: %.2fs",
+        NearDist, Config.TeleportSpeed, NearDuration))
 
     local TweenNear = TweenService:Create(
         Root,
-        TweenInfo.new(Config.TweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+        TweenInfo.new(NearDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
         { CFrame = CFrame.new(NearPos, FlyPos) }
     )
     State.TweenConnection = TweenNear
@@ -499,7 +507,7 @@ local function TeleportToTarget(TargetPos, Callback)
         InstantTP(TargetPos, Callback)
     else
         print("[YOKUDO] Tween + BodyV + BodyG to Target")
-        FlyTP(TargetPos, false, false, Callback)  -- ✅ No Shot TP សម្រាប់ Target
+        FlyTP(TargetPos, false, false, Callback)
     end
 end
 
@@ -740,7 +748,6 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    -- ✅ No Shot TP សម្រាប់ Recovery
     FlyTP(TargetPos, false, false, function()
         print("[YOKUDO] Recovery #" .. State.RecoveryAttempts .. " Arrived")
         State.TargetCollected = false
@@ -754,7 +761,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Reset + Stop ពេលមកដល់ — No Shot TP)
+-- SAFE ZONE (Tween + BodyV + BodyG — No Shot TP)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
@@ -763,7 +770,6 @@ local function FlyToSafeZone()
 
     print("[YOKUDO] Tween + BodyV + BodyG to Safe Zone (No Shot TP)")
 
-    -- ✅ No Shot TP សម្រាប់ Safe Zone
     FlyTP(Config.SafeZone, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset + Stop")
 
@@ -1053,4 +1059,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Tween + BodyV + BodyG | Speed from TextBox)")
+print("✅ TeleportSystem Loaded (Tween Duration គណនាខ្លួនឯង + BodyV + BodyG)")
