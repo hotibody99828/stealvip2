@@ -1,7 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (TWEEN + BODYV + BODYG)
--- Tween Duration 0.5s ថេរ | BodyV + BodyG Speed 1000/s
--- Shot TP → Lock | Safe Zone → Reset + Stop
+-- Speed តែមួយពី TextBox (Tab Setting) | ប្រើទាំងអស់
+-- First Egg: Shot TP | Target/Recovery/Safe: No Shot TP
+-- Method: TeleportFly / InstantTeleport
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -16,31 +17,36 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    FlySpeed = 1000,
-    ReturnSpeed = 1000,
+    -- ✅ Speed តែមួយ (ពី TextBox)
+    TeleportSpeed = 300,
 
-    -- ✅ Tween Duration ថេរ
-    TweenDuration = 0.10,
+    -- Tween
+    TweenDuration = 0.5,
+    NearOffset = 20,
 
-    FlyOffset = 15,
+    -- Distances
+    FlyOffset = 5,
     ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
-    NearOffset = 20,
 
+    -- Timing
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 10000,
 
+    -- BodyV / BodyG
     BodyVelocityP = 5000,
     BodyGyroP = 50000,
     BodyGyroD = 2000,
 
+    -- Positions
     SafeZone = Vector3.new(533, 70, -366),
     LockPosition = Vector3.new(607.6259155273438, 70.57420349121094, -326.8830261230469),
 
+    -- Search
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 }
@@ -298,8 +304,10 @@ end
 
 -- ==================================================
 -- TWEEN + BODYV + BODYG FLY TP
+-- ✅ Speed តែមួយ (ពី Config.TeleportSpeed)
+-- ✅ UseShotTP: true = មាន Shot TP | false = គ្មាន
 -- ==================================================
-local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
     local Seq = State.FlySequence
 
@@ -313,7 +321,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween ទៅ Near Position (Duration 0.5s ថេរ)
+    -- ✅ Step 1: Tween → Near Position (Duration 0.5s ថេរ)
     local StartPos = Root.Position
     local Direction = (FlyPos - StartPos)
     local TotalDist = Direction.Magnitude
@@ -338,7 +346,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
 
-        -- ✅ Step 2: BodyV + BodyG → Destination (Speed 1000/s)
+        -- ✅ Step 2: BodyV + BodyG → Destination (Speed ថេរ)
         State.BodyVelocity = Instance.new("BodyVelocity")
         State.BodyVelocity.Name = "YokudoBV"
         State.BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -393,7 +401,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 return
             end
 
-            -- ✅ Shot TP
+            -- ✅ Shot TP (តែពេល UseShotTP = true)
             if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
                 ShotDone = true
                 if State.BodyVelocity then
@@ -445,9 +453,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 return
             end
 
-            -- ✅ បន្តហោះ (Speed ថេរ 1000/s)
+            -- ✅ បន្តហោះ (Speed ថេរ — ពី Config.TeleportSpeed)
             if TotalDist2 > 1 then
-                State.BodyVelocity.Velocity = Dir.Unit * Speed
+                State.BodyVelocity.Velocity = Dir.Unit * Config.TeleportSpeed
             else
                 State.BodyVelocity.Velocity = Vector3.zero
             end
@@ -490,8 +498,8 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantTP(TargetPos, Callback)
     else
-        print("[YOKUDO] Tween + BodyV + BodyG to Target (Speed 1000/s)")
-        FlyTP(TargetPos, Config.FlySpeed, true, false, Callback)
+        print("[YOKUDO] Tween + BodyV + BodyG to Target")
+        FlyTP(TargetPos, false, false, Callback)  -- ✅ No Shot TP សម្រាប់ Target
     end
 end
 
@@ -732,7 +740,8 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    FlyTP(TargetPos, Config.FlySpeed, false, false, function()
+    -- ✅ No Shot TP សម្រាប់ Recovery
+    FlyTP(TargetPos, false, false, function()
         print("[YOKUDO] Recovery #" .. State.RecoveryAttempts .. " Arrived")
         State.TargetCollected = false
         State.CollectTime = 0
@@ -745,16 +754,17 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Reset + Stop ពេលមកដល់)
+-- SAFE ZONE (Reset + Stop ពេលមកដល់ — No Shot TP)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[YOKUDO] Tween + BodyV + BodyG to Safe Zone")
+    print("[YOKUDO] Tween + BodyV + BodyG to Safe Zone (No Shot TP)")
 
-    FlyTP(Config.SafeZone, Config.ReturnSpeed, false, true, function()
+    -- ✅ No Shot TP សម្រាប់ Safe Zone
+    FlyTP(Config.SafeZone, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset + Stop")
 
         if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
@@ -951,8 +961,9 @@ local function StartProcess()
     State.Step = "fly_first"
     StartActiveHeartbeat()
 
-    print("[YOKUDO] Tween + BodyV + BodyG to First Egg (Speed 1000/s)")
-    FlyTP(EggPos, Config.FlySpeed, true, false, function()
+    -- ✅ First Egg: មាន Shot TP
+    print("[YOKUDO] Tween + BodyV + BodyG to First Egg (Shot TP)")
+    FlyTP(EggPos, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
         State.Step = "collect_first"
@@ -1023,11 +1034,11 @@ function TeleportSystem.SetTargetId(Id)
     print("[YOKUDO] Target ID: " .. tostring(Id))
 end
 
+-- ✅ Speed តែមួយ (ពី TextBox)
 function TeleportSystem.SetSpeed(Value)
     Value = math.clamp(Value, 50, 1100)
-    Config.FlySpeed = Value
-    Config.ReturnSpeed = Value
-    print("[YOKUDO] Speed: " .. tostring(Value))
+    Config.TeleportSpeed = Value
+    print("[YOKUDO] Teleport Speed: " .. tostring(Value))
 end
 
 function TeleportSystem.SetMethod(Method)
@@ -1036,10 +1047,10 @@ function TeleportSystem.SetMethod(Method)
 end
 
 function TeleportSystem.GetMethod() return State.Method end
-function TeleportSystem.GetSpeed() return Config.FlySpeed end
+function TeleportSystem.GetSpeed() return Config.TeleportSpeed end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Tween Duration 0.5s + BodyV + BodyG)")
+print("✅ TeleportSystem Loaded (Tween + BodyV + BodyG | Speed from TextBox)")
