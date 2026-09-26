@@ -1,9 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ✅ Tween Teleport (Linear + Out) → Near
--- ✅ BodyVelocity + BodyGyro → Destination (1000/s)
--- ✅ Instant TP ទៅ Egg Target
--- ✅ Safe Zone → រក UID ថ្មីភ្លាម (No Repeat)
+-- ✅ ឯករាជ្យ — Speed ថេរ 1000/s ក្នុង file ខ្លួនឯង
+-- ✅ Tween + BodyV + BodyG — គណនា Duration ដោយផ្ទាល់
+-- ✅ First Egg: Shot TP | Target: Instant TP
+-- ✅ Recovery: Tween Direct ទៅ Egg Drop (គ្មានកន្រ្ដាក់)
+-- ✅ Safe Zone: Fix CFrame → រក UID ថ្មីភ្លាម
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -15,33 +16,26 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG
+-- CONFIG (ឯករាជ្យ — Speed ថេរ)
 -- ==================================================
 local Config = {
-    -- ✅ Speed ថេរ 1000/s សម្រាប់ទាំងអស់
+    -- ✅ Speed ថេរ 1000/s (កំណត់ក្នុង file ខ្លួនឯង)
     TeleportSpeed = 1000,
 
+    NearOffset = 20,
+
     FlyOffset = 5,
+    ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
-    NearOffset = 20,          -- Tween ទៅ Near មុន
 
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
-    MaxRecoveryAttempts = 10,
+    MaxRecoveryAttempts = 10000,
 
-    -- Tween
-    TweenEasing = Enum.EasingStyle.Linear,
-    TweenDirection = Enum.EasingDirection.Out,
-    MinTweenDuration = 0.05,
-    MaxTweenDuration = 3,
-
-    -- BodyVelocity
     BodyVelocityP = 5000,
-
-    -- BodyGyro
     BodyGyroP = 50000,
     BodyGyroD = 2000,
 
@@ -65,7 +59,7 @@ if not CollectEvent then
     return
 end
 
-print("[VIPTP] CollectEvent OK")
+print("[VIPTP] CollectEvent OK | Speed:", Config.TeleportSpeed)
 
 -- ==================================================
 -- STATE
@@ -323,9 +317,68 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- TWEEN + BODYV + BODYG FLY TP (Speed 1000/s)
+-- ✅ TWEEN TELEPORT DIRECT (សម្រាប់ RECOVERY)
+-- ✅ គណនា Duration ដោយផ្ទាល់ = ចម្ងាយ ÷ Speed
 -- ==================================================
-local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+local function TweenTeleportDirect(Destination, Callback)
+    State.FlySequence = State.FlySequence + 1
+    local Seq = State.FlySequence
+
+    CleanupMovers()
+
+    local Hum = GetHum()
+    local Root = GetRoot()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + Config.FlyOffset, Destination.Z)
+    local TargetCFrame = CFrame.new(FlyPos)
+
+    Hum.PlatformStand = true
+
+    -- ✅ គណនា Duration ដោយផ្ទាល់
+    local Distance = (FlyPos - Root.Position).Magnitude
+    local Duration = Distance / Config.TeleportSpeed
+
+    print(string.format("[VIPTP] Tween Direct | Dist: %.0f | Speed: %d | Duration: %.3fs",
+        Distance, Config.TeleportSpeed, Duration))
+
+    local Tween = TweenService:Create(
+        Root,
+        TweenInfo.new(Duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+        { CFrame = TargetCFrame }
+    )
+    State.TweenConnection = Tween
+    Tween:Play()
+
+    Tween.Completed:Wait()
+
+    if Seq ~= State.FlySequence then return end
+    if not State.Running then CleanupMovers() return end
+
+    local Hum2 = GetHum()
+    local Root2 = GetRoot()
+    if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+
+    Root2.CFrame = TargetCFrame
+    Root2.AssemblyLinearVelocity = Vector3.zero
+    Root2.AssemblyAngularVelocity = Vector3.zero
+
+    task.wait(0.05)
+
+    CleanupMovers(true)
+
+    if Callback then Callback() end
+end
+
+-- ==================================================
+-- TWEEN + BODYV + BODYG FLY TP
+-- ✅ គណនា Duration ដោយផ្ទាល់ = ចម្ងាយ ÷ Speed
+-- ✅ First Egg: Shot TP | Safe Zone: No Shot TP
+-- ==================================================
+local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
     local Seq = State.FlySequence
 
@@ -340,7 +393,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween ទៅ Near Position (Linear + Out, Speed 1000)
+    -- ✅ Step 1: Tween → Near Position (គណនា Duration ដោយផ្ទាល់)
     local StartPos = Root.Position
     local Direction = (FlyPos - StartPos)
     local TotalDist = Direction.Magnitude
@@ -348,11 +401,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     local NearPos = FlyPos - (DirUnit * Config.NearOffset)
     local NearDist = (NearPos - StartPos).Magnitude
-    local NearDuration = math.clamp(NearDist / Speed, Config.MinTweenDuration, Config.MaxTweenDuration)
+    local NearDuration = NearDist / Config.TeleportSpeed
+
+    print(string.format("[VIPTP] Tween Near | Dist: %.0f | Speed: %d | Duration: %.3fs",
+        NearDist, Config.TeleportSpeed, NearDuration))
 
     local TweenNear = TweenService:Create(
         Root,
-        TweenInfo.new(NearDuration, Config.TweenEasing, Config.TweenDirection),
+        TweenInfo.new(NearDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
         { CFrame = CFrame.new(NearPos, FlyPos) }
     )
     State.TweenConnection = TweenNear
@@ -364,11 +420,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         if Seq ~= State.FlySequence then return end
         if not State.Running then CleanupMovers() return end
 
+        task.wait(0.03)
+
         local Hum2 = GetHum()
         local Root2 = GetRoot()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
 
-        -- ✅ Step 2: BodyVelocity + BodyGyro → Destination (Speed 1000/s)
+        -- ✅ Step 2: BodyV + BodyG
         State.BodyVelocity = Instance.new("BodyVelocity")
         State.BodyVelocity.Name = "YokudoBV"
         State.BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -383,6 +441,11 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         State.BodyGyro.D = Config.BodyGyroD
         State.BodyGyro.CFrame = Root2.CFrame
         State.BodyGyro.Parent = Root2
+
+        local InitDir = (FlyPos - Root2.Position)
+        if InitDir.Magnitude > 1 then
+            State.BodyVelocity.Velocity = InitDir.Unit * Config.TeleportSpeed
+        end
 
         local StartTime = tick()
         local ShotDone = false
@@ -406,7 +469,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Dir.Y)
             local TotalDist2 = Dir.Magnitude
 
-            -- ✅ Safe Zone
+            -- ✅ Safe Zone: Fix CFrame ភ្លាម → មិនខ្ទាយ
             if IsSafeZone and HorizDist <= Config.SafeStopDistance then
                 if State.BodyVelocity then
                     State.BodyVelocity.Velocity = Vector3.zero
@@ -415,17 +478,20 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
                 if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
+                Root3.CFrame = CFrame.new(Config.SafeZone + Vector3.new(0, Config.FlyOffset, 0))
+                Root3.AssemblyLinearVelocity = Vector3.zero
+                Root3.AssemblyAngularVelocity = Vector3.zero
+
                 task.spawn(function()
-                    task.wait(0.05)
-                    CleanupMovers(true)
-                    task.wait(0.05)
+                    task.wait(0.1)
+                    CleanupMovers()
                     if Callback then Callback() end
                 end)
                 return
             end
 
             -- ✅ Shot TP
-            if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= 25 then
+            if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
                 ShotDone = true
                 if State.BodyVelocity then
                     State.BodyVelocity.Velocity = Vector3.zero
@@ -476,9 +542,8 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 return
             end
 
-            -- ✅ បន្តហោះ (Speed ថេរ 1000/s)
             if TotalDist2 > 1 then
-                State.BodyVelocity.Velocity = Dir.Unit * Speed
+                State.BodyVelocity.Velocity = Dir.Unit * Config.TeleportSpeed
             else
                 State.BodyVelocity.Velocity = Vector3.zero
             end
@@ -492,25 +557,20 @@ end
 -- INSTANT TP
 -- ==================================================
 local function InstantTP(Destination, Callback)
-    if not Destination then
-        if Callback then Callback() end
-        return
-    end
+    if not Destination then if Callback then Callback() end return end
 
     State.FlySequence = State.FlySequence + 1
     CleanupMovers()
 
     local Hum = GetHum()
     local Root = GetRoot()
-    if not Hum or not Root or Hum.Health <= 0 then
-        if Callback then Callback() end
-        return
-    end
+    if not Hum or not Root or Hum.Health <= 0 then return end
 
     local LockCFrame = CFrame.new(Destination + Vector3.new(0, Config.LockAbove, 0))
     Hum.PlatformStand = true
 
     task.spawn(function()
+        task.wait(0.03)
         Root.CFrame = LockCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -696,7 +756,7 @@ local function ResetForRepeat(Location)
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (Callback → FarmingManager)
 -- ==================================================
 local function AutoStop()
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
@@ -787,7 +847,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY (Tween + BodyV + BodyG, No Shot TP)
+-- RECOVERY (Tween Direct ទៅ Egg Drop — Speed 1000/s)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -828,7 +888,8 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    FlyTP(TargetPos, Config.TeleportSpeed, false, false, function()
+    print("[VIPTP] Recovery → Tween Direct to Egg Drop")
+    TweenTeleportDirect(TargetPos, function()
         print("[VIPTP] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived")
         State.TargetCollected = false
         State.CollectTime = 0
@@ -841,22 +902,21 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Tween + BodyV + BodyG → រក UID ថ្មីភ្លាម)
+-- SAFE ZONE (Fix CFrame → រក UID ថ្មីភ្លាម)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[VIPTP] Tween + BodyV + BodyG to Safe Zone (Speed 1000)")
+    print("[VIPTP] Tween + BodyV + BodyG to Safe Zone")
 
-    FlyTP(Config.SafeZone, Config.TeleportSpeed, false, true, function()
+    FlyTP(Config.SafeZone, false, true, function()
         print("[VIPTP] ✅ Arrived Safe Zone")
 
         task.spawn(function()
             task.wait(Config.RepeatCheckDelay)
 
-            -- ✅ រក UID ថ្មីភ្លាម (ដក Repeat)
             print("[VIPTP] Finding New UID from FarmingManager...")
 
             local NewUid = nil
@@ -993,7 +1053,9 @@ end
 function StartProcess()
     State.Running = true
     State.Step = "search"
-    State.FlySequence = State.FlySequence + 1
+    State.FlySequence = 0
+
+    -- ✅ ឯករាជ្យ — មិនយក Speed ពី Tab Setting
 
     State.CollectAttempts = 0
     State.CollectTime = 0
@@ -1048,9 +1110,8 @@ function StartProcess()
     State.Step = "fly_first"
     StartActiveTask()
 
-    -- ✅ Tween + BodyV + BodyG ទៅ First Egg (Speed 1000)
-    print("[VIPTP] Tween + BodyV + BodyG to First Egg (Speed 1000)")
-    FlyTP(EggPos, Config.TeleportSpeed, true, false, function()
+    print("[VIPTP] Tween + BodyV + BodyG to First Egg (Shot TP | Speed 1000/s)")
+    FlyTP(EggPos, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
         State.Step = "collect_first"
@@ -1141,4 +1202,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (Tween + BodyV + BodyG | Speed 1000/s)")
+print("✅ VIPTP Loaded (Independent | Speed 1000/s | Tween + BodyV + BodyG)")
