@@ -20,7 +20,7 @@ local Config = {
     ReturnSpeed = 1000,
 
     -- ✅ Tween Duration ថេរ
-    TweenDuration = 0.5,
+    TweenDuration = 0.10,
 
     FlyOffset = 5,
     ShotDistance = 25,
