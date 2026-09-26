@@ -1,6 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (BODYPOSITION DIRECT)
--- BodyPosition Direct → Shot TP → Lock
+-- YOKUDO HUB | TELEPORT SYSTEM (BODYVELOCITY)
+-- BodyVelocity Speed 1000/s | No BodyGyro
+-- CFrame Lock សម្រាប់ទប់ទិសដៅ
 -- Safe Zone → Stop at 5 → Reset + Stop
 -- ==================================================
 
@@ -15,9 +16,9 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    -- Speeds
+    -- Speeds (ថេរ 1000/s)
     FlySpeed = 1000,
-    ReturnSpeed = 800,
+    ReturnSpeed = 1000,
 
     -- Distances
     FlyOffset = 5,
@@ -25,7 +26,6 @@ local Config = {
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
-    NearOffset = 15,
 
     -- Timing
     Timeout = 20,
@@ -33,9 +33,8 @@ local Config = {
     TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 10,
 
-    -- BodyPosition (លឿន + នឹងនរ)
-    BodyPositionP = 80000,
-    BodyPositionD = 3000,
+    -- BodyVelocity
+    BodyVelocityP = 5000,
 
     -- Positions
     SafeZone = Vector3.new(533, 70, -366),
@@ -73,7 +72,7 @@ local State = {
 
     FlyConnection = nil,
     LockConnection = nil,
-    BodyPosition = nil,
+    BodyVelocity = nil,
     ActiveHeartbeat = nil,
 
     FirstEggList = {},
@@ -231,19 +230,19 @@ local function CleanupMovers(KeepPlatformStand)
         State.LockConnection:Disconnect()
         State.LockConnection = nil
     end
-    if State.BodyPosition then
+    if State.BodyVelocity then
         pcall(function()
-            State.BodyPosition.Position = Vector3.zero
-            State.BodyPosition.MaxForce = Vector3.zero
+            State.BodyVelocity.Velocity = Vector3.zero
+            State.BodyVelocity.MaxForce = Vector3.zero
         end)
-        State.BodyPosition:Destroy()
-        State.BodyPosition = nil
+        State.BodyVelocity:Destroy()
+        State.BodyVelocity = nil
     end
 
     local Hum, Root = GetHumanoid()
     if Root then
         for _, c in ipairs(Root:GetChildren()) do
-            if c.Name == "YokudoBP" then
+            if c.Name == "YokudoBV" then
                 pcall(function() c:Destroy() end)
             end
         end
@@ -265,7 +264,7 @@ local function CleanupMovers(KeepPlatformStand)
 end
 
 -- ==================================================
--- LOCK AT TARGET
+-- LOCK AT TARGET (CFrame Lock ជំនួស BodyGyro)
 -- ==================================================
 local function StartLock(Position)
     if not Position then return end
@@ -287,7 +286,7 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- BODYPOSITION DIRECT FLY TP
+-- BODYVELOCITY FLY TP (Speed ថេរ 1000/s | No BodyGyro)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -303,14 +302,13 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ BodyPosition Direct — ទាញ Player ទៅ Destination ភ្លាម
-    State.BodyPosition = Instance.new("BodyPosition")
-    State.BodyPosition.Name = "YokudoBP"
-    State.BodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    State.BodyPosition.P = Config.BodyPositionP
-    State.BodyPosition.D = Config.BodyPositionD
-    State.BodyPosition.Position = FlyPos
-    State.BodyPosition.Parent = Root
+    -- ✅ BodyVelocity ជំនួស BodyPosition (Speed ថេរ 1000/s)
+    State.BodyVelocity = Instance.new("BodyVelocity")
+    State.BodyVelocity.Name = "YokudoBV"
+    State.BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    State.BodyVelocity.P = Config.BodyVelocityP
+    State.BodyVelocity.Velocity = Vector3.zero
+    State.BodyVelocity.Parent = Root
 
     local StartTime = tick()
     local ShotDone = false
@@ -325,18 +323,25 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
-        if not State.BodyPosition then CleanupMovers() return end
+        if not State.BodyVelocity then CleanupMovers() return end
 
         local CurrentPos = Root2.Position
-        local Dir = FlyPos - CurrentPos
-        local HorizDist = Vector3.new(Dir.X, 0, Dir.Z).Magnitude
-        local VertDist = math.abs(Dir.Y)
+        local Direction = FlyPos - CurrentPos
+        local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
+        local VertDist = math.abs(Direction.Y)
+        local TotalDist = Direction.Magnitude
+
+        -- ✅ CFrame Lock សម្រាប់ទប់ទិសដៅ (ជំនួស BodyGyro)
+        if TotalDist > 1 then
+            Root2.CFrame = CFrame.new(CurrentPos, FlyPos)
+            Root2.AssemblyAngularVelocity = Vector3.zero
+        end
 
         -- ✅ Safe Zone: Stop at 5 → មិន Lock, មិន Set CFrame
         if IsSafeZone and HorizDist <= Config.SafeStopDistance then
-            if State.BodyPosition then
-                State.BodyPosition.Position = CurrentPos
-                State.BodyPosition.MaxForce = Vector3.zero
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
             end
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
@@ -352,9 +357,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         -- ✅ Shot TP
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
             ShotDone = true
-            if State.BodyPosition then
-                State.BodyPosition.Position = FlyPos
-                State.BodyPosition.MaxForce = Vector3.zero
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
             end
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
@@ -373,9 +378,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
         -- ✅ Arrived
         if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
-            if State.BodyPosition then
-                State.BodyPosition.Position = FlyPos
-                State.BodyPosition.MaxForce = Vector3.zero
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
             end
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
@@ -399,8 +404,12 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- ✅ បន្តទាញ
-        State.BodyPosition.Position = FlyPos
+        -- ✅ បន្តហោះ (Speed ថេរ 1000/s)
+        if TotalDist > 1 then
+            State.BodyVelocity.Velocity = Direction.Unit * Speed
+        else
+            State.BodyVelocity.Velocity = Vector3.zero
+        end
     end)
 end
 
@@ -437,7 +446,7 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantTP(TargetPos, Callback)
     else
-        print("[YOKUDO] BodyPosition Direct to Target")
+        print("[YOKUDO] BodyVelocity to Target (Speed 1000/s)")
         FlyTP(TargetPos, Config.FlySpeed, true, false, Callback)
     end
 end
@@ -574,25 +583,15 @@ end
 -- AUTO STOP
 -- ==================================================
 local function AutoStop()
-    -- ✅ ១. Stop Lock ភ្លាម
-    if State.LockConnection then
-        State.LockConnection:Disconnect()
-        State.LockConnection = nil
-    end
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
     State.TargetLockedCFrame = nil
 
-    -- ✅ ២. Stop Heartbeat
-    if State.ActiveHeartbeat then
-        State.ActiveHeartbeat:Disconnect()
-        State.ActiveHeartbeat = nil
-    end
+    if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
 
-    -- ✅ ៣. Cleanup
     CleanupMovers()
     DisableRagdollBypass()
     RestoreStats()
 
-    -- ✅ ៤. Reset State
     State.Running = false
     State.Step = "done"
     State.FlySequence = State.FlySequence + 1
@@ -650,7 +649,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY (BodyPosition Direct — លឿន)
+-- RECOVERY (BodyVelocity — លឿន)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -689,7 +688,7 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[YOKUDO] Recovery → BodyPosition Direct")
+    print("[YOKUDO] Recovery → BodyVelocity")
 
     FlyTP(TargetPos, Config.FlySpeed, true, false, function()
         print("[YOKUDO] Recovery #" .. State.RecoveryAttempts .. " Arrived")
@@ -711,30 +710,20 @@ local function FlyToSafeZone()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[YOKUDO] BodyPosition Direct to Safe Zone")
+    print("[YOKUDO] BodyVelocity to Safe Zone (Speed 1000/s)")
 
     FlyTP(Config.SafeZone, Config.ReturnSpeed, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset State + Stop")
 
-        -- ✅ ១. Stop Lock ភ្លាម
-        if State.LockConnection then
-            State.LockConnection:Disconnect()
-            State.LockConnection = nil
-        end
+        if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
         State.TargetLockedCFrame = nil
 
-        -- ✅ ២. Stop Heartbeat
-        if State.ActiveHeartbeat then
-            State.ActiveHeartbeat:Disconnect()
-            State.ActiveHeartbeat = nil
-        end
+        if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
 
-        -- ✅ ៣. Cleanup
         CleanupMovers()
         DisableRagdollBypass()
         RestoreStats()
 
-        -- ✅ ៤. Reset State
         State.Running = false
         State.Step = "idle"
         State.Mode = "none"
@@ -920,7 +909,7 @@ local function StartProcess()
     State.Step = "fly_first"
     StartActiveHeartbeat()
 
-    print("[YOKUDO] BodyPosition Direct to First Egg")
+    print("[YOKUDO] BodyVelocity to First Egg (Speed 1000/s)")
     FlyTP(EggPos, Config.FlySpeed, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
@@ -932,14 +921,11 @@ end
 -- PUBLIC API
 -- ==================================================
 local function FullReset()
-    -- ✅ Stop Lock
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
     State.TargetLockedCFrame = nil
 
-    -- ✅ Stop Heartbeat
     if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
 
-    -- ✅ Stop DropHeldEgg
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
         State.DropHeldEggConnection = nil
@@ -947,12 +933,10 @@ local function FullReset()
     State.DropHeldEgg = nil
     State.PlayerGui = nil
 
-    -- ✅ Cleanup
     CleanupMovers()
     DisableRagdollBypass()
     RestoreStats()
 
-    -- ✅ Reset State
     State.Running = false
     State.Step = "idle"
     State.Mode = "none"
@@ -1016,4 +1000,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (BodyPosition Direct)")
+print("✅ TeleportSystem Loaded (BodyVelocity Speed 1000/s | No BodyGyro)")
