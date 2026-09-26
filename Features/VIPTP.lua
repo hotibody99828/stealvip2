@@ -1,39 +1,59 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ដាច់ដោយឡែកសម្រាប់ AFK Farm
--- Speed កំណត់ក្នុង file ខ្លួនឯង
--- Method: InstantTeleport (Fixed)
--- Fly Speed: 1000 | Return Speed: 1000 | Fly Offset: 10
--- Shot Distance: 15 | Lock Above: 1
--- ✅ ដក GetHumanoid — ប្រើ GetChar/GetRoot/GetHum
--- ✅ ដក Register — មិន Register ជាមួយ CharacterSystem
--- ✅ ដក Heartbeat — ប្រើ task.spawn + task.wait
--- ✅ Auto Recovery — ពេល Egg Drop (Tween Teleport + FlyTP)
--- ✅ Check Collect — DropHeldEgg Signal
--- ✅ Auto Callback ទៅ FarmingManager ពេល AutoStop (មាន pcall)
+-- BodyVelocity + BodyGyro | Speed 1000/s
+-- Shot TP → Lock | Safe Zone → Reset + Stop
+-- សម្រាប់ Tab Farming (FarmingManager)
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
+-- CONFIG
+-- ==================================================
+local Config = {
+    -- Speeds (ថេរ 1000/s)
+    FlySpeed = 1000,
+    ReturnSpeed = 1000,
+
+    -- Distances
+    FlyOffset = 5,
+    ShotDistance = 25,
+    LockAbove = 1,
+    ArriveDistance = 2,
+    SafeStopDistance = 5,
+
+    -- Timing
+    Timeout = 20,
+    CollectInterval = 0.05,
+    TargetCollectTimeout = 10,
+    MaxRecoveryAttempts = 10,
+
+    -- BodyVelocity
+    BodyVelocityP = 5000,
+
+    -- BodyGyro
+    BodyGyroP = 50000,
+    BodyGyroD = 2000,
+
+    -- Positions
+    SafeZone = Vector3.new(533, 70, -366),
+    LockPosition = Vector3.new(607.6259155273438, 70.57420349121094, -326.8830261230469),
+
+    -- Search
+    SearchPrefix = "FirstAreaEgg",
+    PositionThreshold = 1,
+}
+
+-- ==================================================
 -- REMOTES
 -- ==================================================
-local CollectEvent = nil
-local ForestStrike = nil
-
-pcall(function()
-    CollectEvent = ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
-end)
-
-pcall(function()
-    ForestStrike = ReplicatedStorage.Packages.Networking["RE/GuardPatrol/ForestStrike"]
-end)
+local CollectEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggCarry")
+local ForestStrike = ReplicatedStorage.Packages.Networking:FindFirstChild("RE/GuardPatrol/ForestStrike")
 
 if not CollectEvent then
     warn("[VIPTP] CollectEvent not found")
@@ -43,110 +63,53 @@ end
 print("[VIPTP] CollectEvent OK")
 
 -- ==================================================
--- SETTINGS
--- ==================================================
-local TARGET_UID = nil
-local SAFE_ZONE = Vector3.new(533, 70, -366)
-
-local FLY_SPEED = 1000          -- Fixed
-local RETURN_SPEED = 1000       -- Fixed
-local FLY_OFFSET = 10           -- ✅ Offset 10
-local CurrentMethod = "InstantTeleport"  -- Fixed
-
-local SHOT_DISTANCE = 15        -- ✅ Shot Distance 15
-local LOCK_ABOVE = 1            -- ✅ Lock Above 1
-
-local ARRIVE_DISTANCE = 2
-local SAFE_LOCK_DISTANCE = 3
-local TIMEOUT_SECONDS = 30
-
-local COLLECT_INTERVAL = 0.2
-local SEARCH_PREFIX = "FirstAreaEgg"
-local POSITION_THRESHOLD = 1
-
-local MAX_RECOVERY_ATTEMPTS = 10
-local TARGET_COLLECT_TIMEOUT = 15
-
-local TWEEN_DURATION = 0.50
-local NEAR_OFFSET = 20
-
-local LOCK_POSITION = Vector3.new(
-    607.6259155273438,
-    70.57420349121094,
-    -326.8830261230469
-)
-
--- ==================================================
--- BODY SETTINGS
--- ==================================================
-local BODY_VELOCITY_P = 5000
-local BODY_GYRO_P = 50000
-local BODY_GYRO_D = 2000
-
--- ==================================================
--- RAGDOLL BYPASS
--- ==================================================
-local RagdollEnabled = false
-local RagdollConnection = nil
-local ForceUpConnection = nil
-
--- ==================================================
--- DROPHELDEGG
--- ==================================================
-local PlayerGui = nil
-local DropHeldEgg = nil
-local DropHeldEggConnection = nil
-local LastDropState = false
-
--- ==================================================
 -- STATE
 -- ==================================================
-local Running = false
-local CurrentStep = "idle"
-local CurrentMode = "none"
+local State = {
+    Running = false,
+    Step = "idle",
+    Mode = "none",
+    TargetUid = nil,
 
-local FlyConnection = nil
-local BodyVelocity = nil
-local BodyGyro = nil
-local ActiveTask = nil
-local LockConnection = nil
+    FlySequence = 0,
 
-local FirstEggList = {}
-local FirstEggUid = nil
-local FirstEggSlotKey = nil
+    FlyConnection = nil,
+    LockConnection = nil,
+    BodyVelocity = nil,
+    BodyGyro = nil,
+    ActiveTask = nil,
 
-local CollectAttempts = 0
-local CollectTime = 0
-local TargetCollectStartTime = 0
+    FirstEggList = {},
+    FirstEggUid = nil,
+    FirstEggSlotKey = nil,
 
-local FlyTargetStarted = false
-local CollectDone = false
-local TargetCollected = false
-local RemotesFired = false
-local RecoveryTriggered = false
-local RecoveryAttempts = 0
+    SavedTargetPosition = nil,
+    TargetLockedCFrame = nil,
 
-local SavedTargetPosition = nil
-local TargetLockedCFrame = nil
+    FlyTargetStarted = false,
+    CollectDone = false,
+    TargetCollected = false,
+    RemotesFired = false,
+    RecoveryTriggered = false,
+    RecoveryAttempts = 0,
 
-local SavedWalkSpeed = nil
-local SavedJumpPower = nil
-local SavedJumpHeight = nil
-local SavedUseJumpPower = nil
+    CollectAttempts = 0,
+    CollectTime = 0,
+    TargetCollectStartTime = 0,
 
--- ==================================================
--- ✅ FORWARD DECLARATIONS
--- ==================================================
-local CleanupMovers
-local DisableRagdollBypass
-local StopActiveTask
-local RestoreStats
-local AutoStop
-local FlyToTargetAgain
-local FlyToSafeZone
-local StartFlyToTarget
-local StartActiveTask
-local StartProcess
+    PlayerGui = nil,
+    DropHeldEgg = nil,
+    DropHeldEggConnection = nil,
+
+    RagdollEnabled = false,
+    RagdollConnection = nil,
+    ForceUpConnection = nil,
+
+    SavedWalkSpeed = nil,
+    SavedJumpPower = nil,
+    SavedJumpHeight = nil,
+    SavedUseJumpPower = nil,
+}
 
 -- ==================================================
 -- ✅ GET CHAR / ROOT / HUM
@@ -168,194 +131,6 @@ local function GetHum()
 end
 
 -- ==================================================
--- RAGDOLL BYPASS
--- ==================================================
-local function ForceUp()
-    local Hum = GetHum()
-    local Root = GetRoot()
-    if not Hum or not Root then return end
-
-    pcall(function()
-        if Hum:GetState() == Enum.HumanoidStateType.Physics then
-            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-
-        Hum.PlatformStand = false
-        Hum.Sit = false
-
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-
-        Root.CanCollide = true
-
-        Hum.BreakJointsOnDeath = false
-        Hum.RequiresNeck = false
-    end)
-end
-
-local function CleanupRagdollConstraints()
-    local Char = GetChar()
-    if not Char then return end
-
-    pcall(function()
-        for _, descendant in ipairs(Char:GetDescendants()) do
-            if descendant.Name:find("RagdollConstraint") then
-                descendant:Destroy()
-            end
-            if descendant.Name:find("RagdollAttachment") then
-                descendant:Destroy()
-            end
-        end
-
-        for _, descendant in ipairs(Char:GetDescendants()) do
-            if descendant:IsA("Motor6D") then
-                descendant.Enabled = true
-            end
-        end
-    end)
-end
-
-local function EnableRagdollBypass()
-    if RagdollEnabled then return end
-    RagdollEnabled = true
-
-    RagdollConnection = RunService.Heartbeat:Connect(function()
-        if not RagdollEnabled then return end
-        ForceUp()
-    end)
-
-    ForceUpConnection = task.spawn(function()
-        while RagdollEnabled do
-            task.wait(0.1)
-            ForceUp()
-            CleanupRagdollConstraints()
-        end
-    end)
-
-    print("[VIPTP] Ragdoll Bypass: ON")
-end
-
-DisableRagdollBypass = function()
-    if not RagdollEnabled then return end
-    RagdollEnabled = false
-
-    if RagdollConnection then
-        RagdollConnection:Disconnect()
-        RagdollConnection = nil
-    end
-
-    print("[VIPTP] Ragdoll Bypass: OFF")
-end
-
--- ==================================================
--- SAVE / RESTORE STATS
--- ==================================================
-local function SaveStats()
-    local Hum = GetHum()
-    if not Hum then return end
-
-    if SavedWalkSpeed == nil then SavedWalkSpeed = Hum.WalkSpeed end
-    if SavedJumpPower == nil then SavedJumpPower = Hum.JumpPower end
-    if SavedJumpHeight == nil then SavedJumpHeight = Hum.JumpHeight end
-    if SavedUseJumpPower == nil then SavedUseJumpPower = Hum.UseJumpPower end
-end
-
-RestoreStats = function()
-    local Hum = GetHum()
-    if not Hum then return end
-
-    if SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = SavedWalkSpeed end) end
-    if SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = SavedJumpPower end) end
-    if SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = SavedJumpHeight end) end
-    if SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = SavedUseJumpPower end) end
-end
-
--- ==================================================
--- CLEANUP
--- ==================================================
-CleanupMovers = function(KeepPlatformStand)
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
-    end
-    if LockConnection then
-        LockConnection:Disconnect()
-        LockConnection = nil
-    end
-    if BodyVelocity then
-        pcall(function()
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
-        end)
-        BodyVelocity:Destroy()
-        BodyVelocity = nil
-    end
-    if BodyGyro then
-        pcall(function()
-            BodyGyro.MaxTorque = Vector3.zero
-        end)
-        BodyGyro:Destroy()
-        BodyGyro = nil
-    end
-
-    local Root = GetRoot()
-    if Root then
-        for _, Child in ipairs(Root:GetChildren()) do
-            if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
-                pcall(function() Child:Destroy() end)
-            end
-        end
-    end
-
-    local Hum = GetHum()
-    if Hum and not KeepPlatformStand then
-        pcall(function()
-            Hum.PlatformStand = false
-            Hum.Sit = false
-        end)
-    end
-
-    if Root then
-        pcall(function()
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
-end
-
--- ==================================================
--- LOCK AT TARGET (Y+1)
--- ==================================================
-local function StartLock(TargetPosition)
-    if not TargetPosition then return end
-
-    TargetLockedCFrame = CFrame.new(TargetPosition + Vector3.new(0, LOCK_ABOVE, 0))
-
-    if LockConnection then
-        LockConnection:Disconnect()
-    end
-
-    LockConnection = RunService.Heartbeat:Connect(function()
-        if not Running then
-            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
-            return
-        end
-
-        local Root = GetRoot()
-        if not Root then return end
-
-        Root.CFrame = TargetLockedCFrame
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end)
-end
-
--- ==================================================
 -- GET POSITION
 -- ==================================================
 local function GetPosition(Object)
@@ -374,270 +149,338 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- SETUP DROPHELDEGG
+-- SAVE / RESTORE STATS
 -- ==================================================
-local function SetupDropHeldEgg()
-    PlayerGui = Player:FindFirstChild("PlayerGui")
-    if not PlayerGui then
-        PlayerGui = Player:WaitForChild("PlayerGui", 5)
+local function SaveStats()
+    local Hum = GetHum()
+    if not Hum then return end
+    if State.SavedWalkSpeed == nil then State.SavedWalkSpeed = Hum.WalkSpeed end
+    if State.SavedJumpPower == nil then State.SavedJumpPower = Hum.JumpPower end
+    if State.SavedJumpHeight == nil then State.SavedJumpHeight = Hum.JumpHeight end
+    if State.SavedUseJumpPower == nil then State.SavedUseJumpPower = Hum.UseJumpPower end
+end
+
+local function RestoreStats()
+    local Hum = GetHum()
+    if not Hum then return end
+    if State.SavedWalkSpeed ~= nil then pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end) end
+    if State.SavedJumpPower ~= nil then pcall(function() Hum.JumpPower = State.SavedJumpPower end) end
+    if State.SavedJumpHeight ~= nil then pcall(function() Hum.JumpHeight = State.SavedJumpHeight end) end
+    if State.SavedUseJumpPower ~= nil then pcall(function() Hum.UseJumpPower = State.SavedUseJumpPower end) end
+end
+
+-- ==================================================
+-- RAGDOLL BYPASS
+-- ==================================================
+local function ForceUp()
+    local Hum = GetHum()
+    local Root = GetRoot()
+    if not Hum or not Root then return end
+    pcall(function()
+        if Hum:GetState() == Enum.HumanoidStateType.Physics then
+            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+        Hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+        Hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        Hum.PlatformStand = false
+        Hum.Sit = false
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+        Root.CanCollide = true
+        Hum.BreakJointsOnDeath = false
+        Hum.RequiresNeck = false
+    end)
+end
+
+local function CleanupRagdollConstraints()
+    local Char = GetChar()
+    if not Char then return end
+    pcall(function()
+        for _, d in ipairs(Char:GetDescendants()) do
+            if d.Name:find("RagdollConstraint") or d.Name:find("RagdollAttachment") then
+                d:Destroy()
+            end
+        end
+        for _, d in ipairs(Char:GetDescendants()) do
+            if d:IsA("Motor6D") then d.Enabled = true end
+        end
+    end)
+end
+
+local function EnableRagdollBypass()
+    if State.RagdollEnabled then return end
+    State.RagdollEnabled = true
+
+    State.RagdollConnection = RunService.Heartbeat:Connect(function()
+        if not State.RagdollEnabled then return end
+        ForceUp()
+    end)
+
+    State.ForceUpConnection = task.spawn(function()
+        while State.RagdollEnabled do
+            task.wait(0.1)
+            ForceUp()
+            CleanupRagdollConstraints()
+        end
+    end)
+
+    print("[VIPTP] Ragdoll Bypass: ON")
+end
+
+local function DisableRagdollBypass()
+    if not State.RagdollEnabled then return end
+    State.RagdollEnabled = false
+    if State.RagdollConnection then
+        State.RagdollConnection:Disconnect()
+        State.RagdollConnection = nil
+    end
+    print("[VIPTP] Ragdoll Bypass: OFF")
+end
+
+-- ==================================================
+-- CLEANUP MOVERS
+-- ==================================================
+local function CleanupMovers(KeepPlatformStand)
+    if State.FlyConnection then
+        State.FlyConnection:Disconnect()
+        State.FlyConnection = nil
+    end
+    if State.LockConnection then
+        State.LockConnection:Disconnect()
+        State.LockConnection = nil
+    end
+    if State.BodyVelocity then
+        pcall(function()
+            State.BodyVelocity.Velocity = Vector3.zero
+            State.BodyVelocity.MaxForce = Vector3.zero
+        end)
+        State.BodyVelocity:Destroy()
+        State.BodyVelocity = nil
+    end
+    if State.BodyGyro then
+        pcall(function() State.BodyGyro.MaxTorque = Vector3.zero end)
+        State.BodyGyro:Destroy()
+        State.BodyGyro = nil
     end
 
-    if not PlayerGui then
-        warn("[VIPTP] PlayerGui not found!")
-        return
+    local Hum = GetHum()
+    local Root = GetRoot()
+    if Root then
+        for _, c in ipairs(Root:GetChildren()) do
+            if c.Name == "YokudoBV" or c.Name == "YokudoBG" then
+                pcall(function() c:Destroy() end)
+            end
+        end
     end
 
-    DropHeldEgg = PlayerGui:FindFirstChild("DropHeldEgg")
-    if not DropHeldEgg then
-        warn("[VIPTP] DropHeldEgg not found!")
-        return
+    if Hum and not KeepPlatformStand then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
     end
 
-    LastDropState = DropHeldEgg.Enabled
-    print("[VIPTP] DropHeldEgg found | Enabled: " .. tostring(DropHeldEgg.Enabled))
-
-    if DropHeldEggConnection then
-        DropHeldEggConnection:Disconnect()
-        DropHeldEggConnection = nil
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
     end
+end
 
-    DropHeldEggConnection = DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
-        print("[VIPTP] DropHeldEgg.Enabled changed: " .. tostring(LastDropState) .. " → " .. tostring(DropHeldEgg.Enabled))
-        LastDropState = DropHeldEgg.Enabled
+-- ==================================================
+-- LOCK AT TARGET
+-- ==================================================
+local function StartLock(Position)
+    if not Position then return end
+    State.TargetLockedCFrame = CFrame.new(Position + Vector3.new(0, Config.LockAbove, 0))
+
+    if State.LockConnection then State.LockConnection:Disconnect() end
+
+    State.LockConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then
+            if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+            return
+        end
+        local Root = GetRoot()
+        if not Root then return end
+        Root.CFrame = State.TargetLockedCFrame
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
     end)
 end
 
 -- ==================================================
--- CHECK TARGET COLLECTED
--- ==================================================
-local function IsTargetCollectedByDropHeldEgg()
-    if not DropHeldEgg then return false end
-    return DropHeldEgg.Enabled == true
-end
-
--- ==================================================
--- SEARCH FIRST EGGS
--- ==================================================
-local function SearchFirstEggs()
-    FirstEggList = {}
-    if not Container then return end
-
-    for _, Slot in ipairs(Container:GetChildren()) do
-        if string.find(Slot.Name, SEARCH_PREFIX) then
-            local SlotNum = string.match(Slot.Name, "Slot_(%d+)")
-            if SlotNum then
-                table.insert(FirstEggList, {
-                    Slot = Slot,
-                    Uid = Slot.Name,
-                    SlotKey = "Forest:Slot_" .. SlotNum,
-                    SlotNum = tonumber(SlotNum)
-                })
-            end
-        end
-    end
-end
-
-local function FindClosestEgg()
-    local Root = GetRoot()
-    if not Root then return nil end
-
-    local Closest = nil
-    local ClosestDistance = 9999
-
-    for _, Egg in ipairs(FirstEggList) do
-        local Pos = GetPosition(Egg.Slot)
-        if Pos then
-            local Dist = (Pos - Root.Position).Magnitude
-            if Dist < ClosestDistance then
-                ClosestDistance = Dist
-                Closest = Egg
-            end
-        end
-    end
-
-    if Closest then
-        FirstEggUid = Closest.Uid
-        FirstEggSlotKey = Closest.SlotKey
-    end
-
-    return Closest
-end
-
--- ==================================================
--- ✅ FLY TP (No Heartbeat — ប្រើ task.spawn)
+-- BODYV + BODYG FLY TP
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
+    State.FlySequence = State.FlySequence + 1
+    local Seq = State.FlySequence
+
     CleanupMovers()
 
     local Hum = GetHum()
     local Root = GetRoot()
-    if not Hum or not Root then return end
-    if Hum.Health <= 0 then return end
+    if not Hum or not Root or Hum.Health <= 0 then return end
 
-    local FlyPos = Vector3.new(Destination.X, Destination.Y + FLY_OFFSET, Destination.Z)
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
+    local FlyPos = Vector3.new(Destination.X, Destination.Y + Config.FlyOffset, Destination.Z)
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, Config.LockAbove, 0))
 
     Hum.PlatformStand = true
 
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = BODY_VELOCITY_P
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
+    -- ✅ BodyVelocity
+    State.BodyVelocity = Instance.new("BodyVelocity")
+    State.BodyVelocity.Name = "YokudoBV"
+    State.BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    State.BodyVelocity.P = Config.BodyVelocityP
+    State.BodyVelocity.Velocity = Vector3.zero
+    State.BodyVelocity.Parent = Root
 
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = BODY_GYRO_P
-    BodyGyro.D = BODY_GYRO_D
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    -- ✅ BodyGyro
+    State.BodyGyro = Instance.new("BodyGyro")
+    State.BodyGyro.Name = "YokudoBG"
+    State.BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    State.BodyGyro.P = Config.BodyGyroP
+    State.BodyGyro.D = Config.BodyGyroD
+    State.BodyGyro.CFrame = Root.CFrame
+    State.BodyGyro.Parent = Root
 
     local StartTime = tick()
     local ShotDone = false
 
-    -- ✅ ប្រើ task.spawn ជំនួស Heartbeat
-    ActiveTask = task.spawn(function()
-        while Running do
-            task.wait(0.01)
-
-            local Hum2 = GetHum()
-            local Root2 = GetRoot()
-            if not Hum2 or not Root2 then
-                CleanupMovers()
-                return
-            end
-            if Hum2.Health <= 0 then return end
-
-            if not BodyVelocity or not BodyGyro then
-                CleanupMovers()
-                return
-            end
-
-            local CurrentPos = Root2.Position
-            local Direction = (FlyPos - CurrentPos)
-            local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
-            local VertDist = math.abs(Direction.Y)
-            local TotalDist = Direction.Magnitude
-
-            if IsSafeZone then
-                if HorizDist <= SAFE_LOCK_DISTANCE then
-                    CleanupMovers()
-                    Root2.CFrame = LockCFrame
-                    Root2.AssemblyLinearVelocity = Vector3.zero
-                    Root2.AssemblyAngularVelocity = Vector3.zero
-                    StartLock(Destination)
-                    if Callback then Callback() end
-                    return
-                end
-            end
-
-            if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= SHOT_DISTANCE then
-                ShotDone = true
-                CleanupMovers()
-                Root2.CFrame = LockCFrame
-                Root2.AssemblyLinearVelocity = Vector3.zero
-                Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
-                if Callback then Callback() end
-                return
-            end
-
-            if HorizDist <= ARRIVE_DISTANCE and VertDist <= 2 then
-                CleanupMovers()
-                Root2.CFrame = LockCFrame
-                Root2.AssemblyLinearVelocity = Vector3.zero
-                Root2.AssemblyAngularVelocity = Vector3.zero
-                StartLock(Destination)
-                if Callback then Callback() end
-                return
-            end
-
-            if tick() - StartTime > TIMEOUT_SECONDS then
-                CleanupMovers()
-                if Callback then Callback() end
-                return
-            end
-
-            if TotalDist > 1 then
-                BodyVelocity.Velocity = Direction.Unit * Speed
-            else
-                BodyVelocity.Velocity = Vector3.zero
-            end
-
-            BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
+        if Seq ~= State.FlySequence then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            return
         end
+
+        if not State.Running then CleanupMovers() return end
+
+        local Hum2 = GetHum()
+        local Root2 = GetRoot()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        if not State.BodyVelocity or not State.BodyGyro then CleanupMovers() return end
+
+        local CurrentPos = Root2.Position
+        local Direction = FlyPos - CurrentPos
+        local HorizDist = Vector3.new(Direction.X, 0, Direction.Z).Magnitude
+        local VertDist = math.abs(Direction.Y)
+        local TotalDist = Direction.Magnitude
+
+        -- ✅ Safe Zone: Stop at 5 → មិន Lock, មិន Set CFrame
+        if IsSafeZone and HorizDist <= Config.SafeStopDistance then
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
+            end
+            if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                task.wait(0.1)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Shot TP
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
+            ShotDone = true
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
+            end
+            if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+                task.wait(0.1)
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Arrived
+        if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
+            if State.BodyVelocity then
+                State.BodyVelocity.Velocity = Vector3.zero
+                State.BodyVelocity.MaxForce = Vector3.zero
+            end
+            if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+                task.wait(0.1)
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Timeout
+        if tick() - StartTime > Config.Timeout then
+            CleanupMovers()
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ បន្តហោះ (Speed ថេរ 1000/s)
+        if TotalDist > 1 then
+            State.BodyVelocity.Velocity = Direction.Unit * Speed
+        else
+            State.BodyVelocity.Velocity = Vector3.zero
+        end
+
+        State.BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
     end)
 end
 
 -- ==================================================
--- INSTANT FLY TP
--- ==================================================
-local function InstantFlyTP(Destination, Callback)
-    CleanupMovers()
-
-    local Hum = GetHum()
-    local Root = GetRoot()
-    if not Hum or not Root then return end
-    if Hum.Health <= 0 then return end
-
-    local LockCFrame = CFrame.new(Destination + Vector3.new(0, LOCK_ABOVE, 0))
-
-    Root.CFrame = LockCFrame
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-
-    StartLock(Destination)
-
-    if Callback then Callback() end
-end
-
--- ==================================================
--- TELEPORT TO TARGET (Instant Only)
--- ==================================================
-local function TeleportToTarget(TargetPos, Callback)
-    print("[VIPTP] Instant TP to Target")
-    InstantFlyTP(TargetPos, Callback)
-end
-
--- ==================================================
--- REMOTE COLLECT
+-- REMOTES
 -- ==================================================
 local function RemoteCollectFirst()
-    if not CollectEvent or not FirstEggSlotKey or not FirstEggUid then return false end
+    if not CollectEvent or not State.FirstEggSlotKey or not State.FirstEggUid then return false end
     local success = pcall(function()
         return CollectEvent:InvokeServer({
-            FirstAreaSlotKey = FirstEggSlotKey,
-            Uid = FirstEggUid
+            FirstAreaSlotKey = State.FirstEggSlotKey,
+            Uid = State.FirstEggUid
         })
     end)
     return success
 end
 
 local function RemoteCollectTarget()
-    if not CollectEvent or not TARGET_UID then return false end
+    if not CollectEvent or not State.TargetUid then return false end
     local success = pcall(function()
-        return CollectEvent:InvokeServer({
-            Uid = TARGET_UID
-        })
+        return CollectEvent:InvokeServer({ Uid = State.TargetUid })
     end)
     return success
 end
 
--- ==================================================
--- FIRE FOREST STRIKE
--- ==================================================
 local function FireForestStrike()
-    if RemotesFired then return end
-    RemotesFired = true
-
+    if State.RemotesFired then return end
+    State.RemotesFired = true
     EnableRagdollBypass()
 
     pcall(function()
         ForestStrike:FireServer({
-            EggUid = FirstEggUid,
-            GuardCFrame = CFrame.new(LOCK_POSITION)
+            EggUid = State.FirstEggUid,
+            GuardCFrame = CFrame.new(Config.LockPosition)
         })
     end)
 
@@ -653,55 +496,125 @@ local function FireForestStrike()
 end
 
 -- ==================================================
--- CHECK EGG
+-- DROPHELDEGG
 -- ==================================================
-local function IsFirstEggInWorkspace()
-    if not FirstEggUid then return false end
-    return workspace:FindFirstChild(FirstEggUid) ~= nil
+local function SetupDropHeldEgg()
+    State.PlayerGui = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
+    if not State.PlayerGui then return end
+
+    State.DropHeldEgg = State.PlayerGui:FindFirstChild("DropHeldEgg")
+    if not State.DropHeldEgg then warn("[VIPTP] DropHeldEgg not found!") return end
+
+    if State.DropHeldEggConnection then State.DropHeldEggConnection:Disconnect() end
+    State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
+        print("[VIPTP] DropHeldEgg.Enabled:", State.DropHeldEgg.Enabled)
+    end)
 end
 
-local function IsFirstEggInContainer()
-    if not FirstEggUid then return false end
-    if not Container then return false end
-    return Container:FindFirstChild(FirstEggUid) ~= nil
-end
-
-local function IsTargetInContainer()
-    if not TARGET_UID or not Container then return false end
-    return Container:FindFirstChild(TARGET_UID) ~= nil
-end
-
-local function IsTargetInWorkspace()
-    if not TARGET_UID then return false end
-    return workspace:FindFirstChild(TARGET_UID) ~= nil
+local function IsTargetCollected()
+    return State.DropHeldEgg and State.DropHeldEgg.Enabled == true
 end
 
 -- ==================================================
--- ✅ STOP ACTIVE TASK
+-- SEARCH FIRST EGGS
 -- ==================================================
-StopActiveTask = function()
-    if ActiveTask then
-        pcall(function()
-            task.cancel(ActiveTask)
-        end)
-        ActiveTask = nil
+local function SearchFirstEggs()
+    State.FirstEggList = {}
+    if not Container then return end
+
+    for _, Slot in ipairs(Container:GetChildren()) do
+        if string.find(Slot.Name, Config.SearchPrefix) then
+            local SlotNum = string.match(Slot.Name, "Slot_(%d+)")
+            if SlotNum then
+                table.insert(State.FirstEggList, {
+                    Slot = Slot,
+                    Uid = Slot.Name,
+                    SlotKey = "Forest:Slot_" .. SlotNum,
+                })
+            end
+        end
     end
 end
 
+local function FindClosestEgg()
+    local Root = GetRoot()
+    if not Root then return nil end
+
+    local Closest, ClosestDist = nil, 9999
+    for _, Egg in ipairs(State.FirstEggList) do
+        local Pos = GetPosition(Egg.Slot)
+        if Pos then
+            local Dist = (Pos - Root.Position).Magnitude
+            if Dist < ClosestDist then
+                ClosestDist = Dist
+                Closest = Egg
+            end
+        end
+    end
+
+    if Closest then
+        State.FirstEggUid = Closest.Uid
+        State.FirstEggSlotKey = Closest.SlotKey
+    end
+    return Closest
+end
+
 -- ==================================================
--- ✅ AUTO STOP (មាន Callback + pcall)
+-- CHECK HELPERS
 -- ==================================================
-AutoStop = function()
-    Running = false
-    CurrentStep = "done"
+local function IsFirstEggInWorkspace()
+    return State.FirstEggUid and workspace:FindFirstChild(State.FirstEggUid) ~= nil
+end
+
+local function IsFirstEggInContainer()
+    return State.FirstEggUid and Container and Container:FindFirstChild(State.FirstEggUid) ~= nil
+end
+
+local function IsTargetInContainer()
+    return State.TargetUid and Container and Container:FindFirstChild(State.TargetUid) ~= nil
+end
+
+local function IsTargetInWorkspace()
+    return State.TargetUid and workspace:FindFirstChild(State.TargetUid) ~= nil
+end
+
+-- ==================================================
+-- AUTO STOP (មាន Callback ទៅ FarmingManager)
+-- ==================================================
+local function AutoStop()
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+    State.TargetLockedCFrame = nil
+
+    if State.ActiveTask then
+        pcall(function() task.cancel(State.ActiveTask) end)
+        State.ActiveTask = nil
+    end
 
     CleanupMovers()
     DisableRagdollBypass()
-    StopActiveTask()
     RestoreStats()
+
+    State.Running = false
+    State.Step = "done"
+    State.FlySequence = State.FlySequence + 1
+
+    State.FirstEggList = {}
+    State.FirstEggUid = nil
+    State.FirstEggSlotKey = nil
+    State.CollectAttempts = 0
+    State.CollectTime = 0
+    State.TargetCollectStartTime = 0
+    State.FlyTargetStarted = false
+    State.CollectDone = false
+    State.TargetCollected = false
+    State.RemotesFired = false
+    State.RecoveryTriggered = false
+    State.RecoveryAttempts = 0
+    State.SavedTargetPosition = nil
 
     print("[VIPTP] Auto Stop")
 
+    -- ✅ Callback ទៅ FarmingManager
     task.spawn(function()
         task.wait(0.5)
         if _G.YOKUDO_FarmingManager then
@@ -722,257 +635,203 @@ AutoStop = function()
 end
 
 -- ==================================================
--- START FLY TO TARGET
+-- FLY TO TARGET
 -- ==================================================
-StartFlyToTarget = function()
-    if FlyTargetStarted then return end
-    FlyTargetStarted = true
+local function StartFlyToTarget()
+    if State.FlyTargetStarted then return end
+    State.FlyTargetStarted = true
+    State.Step = "to_target"
 
-    CurrentStep = "to_target"
-
-    local TargetPos = nil
-
-    if CurrentMode == "spawn" then
-        local TargetEgg = Container and Container:FindFirstChild(TARGET_UID)
-        if TargetEgg then
-            TargetPos = GetPosition(TargetEgg)
-        end
-    elseif CurrentMode == "workspace" then
-        if SavedTargetPosition then
-            TargetPos = SavedTargetPosition
-        else
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
-            if WSEgg then
-                TargetPos = GetPosition(WSEgg)
-                SavedTargetPosition = TargetPos
+    local TargetPos
+    if State.Mode == "spawn" then
+        local Egg = Container and Container:FindFirstChild(State.TargetUid)
+        if Egg then TargetPos = GetPosition(Egg) end
+    elseif State.Mode == "workspace" then
+        TargetPos = State.SavedTargetPosition
+        if not TargetPos then
+            local Egg = workspace:FindFirstChild(State.TargetUid)
+            if Egg then
+                TargetPos = GetPosition(Egg)
+                State.SavedTargetPosition = TargetPos
             end
         end
     end
 
-    if not TargetPos then
-        AutoStop()
-        return
-    end
+    if not TargetPos then AutoStop() return end
 
-    TeleportToTarget(TargetPos, function()
-        TargetCollected = false
-        CollectTime = 0
-        CollectAttempts = 0
-        RecoveryTriggered = false
-        TargetCollectStartTime = tick()
-        CurrentStep = "collect_target"
+    FlyTP(TargetPos, Config.FlySpeed, true, false, function()
+        State.TargetCollected = false
+        State.CollectTime = 0
+        State.CollectAttempts = 0
+        State.RecoveryTriggered = false
+        State.TargetCollectStartTime = tick()
+        State.Step = "collect_target"
     end)
 end
 
 -- ==================================================
--- ✅ FLY TO TARGET AGAIN (Recovery — Tween Teleport)
+-- RECOVERY (BodyV + BodyG — លឿន)
 -- ==================================================
-FlyToTargetAgain = function()
-    RecoveryAttempts = RecoveryAttempts + 1
-
-    if RecoveryAttempts > MAX_RECOVERY_ATTEMPTS then
-        print("[VIPTP] ⚠️ Max Recovery Attempts → AutoStop")
+local function FlyToTargetAgain()
+    State.RecoveryAttempts = State.RecoveryAttempts + 1
+    if State.RecoveryAttempts > Config.MaxRecoveryAttempts then
+        print("[VIPTP] Max Recovery → AutoStop")
         AutoStop()
         return
     end
 
-    print("[VIPTP] ⚠️ Egg Dropped → Recovery #" .. RecoveryAttempts .. " (Tween Teleport)")
-    CurrentStep = "recovery"
+    print("[VIPTP] Recovery #" .. State.RecoveryAttempts)
+    State.Step = "recovery"
 
-    -- ✅ ១. Stop FlyTP ដើម ភ្លាម
-    StopActiveTask()
-    if BodyVelocity then
-        BodyVelocity.Velocity = Vector3.zero
-        BodyVelocity.MaxForce = Vector3.zero
-    end
-    if BodyGyro then
-        BodyGyro.MaxTorque = Vector3.zero
-    end
+    State.FlySequence = State.FlySequence + 1
+    CleanupMovers()
 
-    -- ✅ ២. រក TargetPos
-    local TargetPos = nil
-
+    local TargetPos
     if IsTargetInContainer() then
-        CurrentMode = "spawn"
-        local TargetEgg = Container:FindFirstChild(TARGET_UID)
-        if TargetEgg then
-            TargetPos = GetPosition(TargetEgg)
-        end
+        State.Mode = "spawn"
+        local Egg = Container:FindFirstChild(State.TargetUid)
+        if Egg then TargetPos = GetPosition(Egg) end
     elseif IsTargetInWorkspace() then
-        CurrentMode = "workspace"
-        local WSEgg = workspace:FindFirstChild(TARGET_UID)
-        if WSEgg then
-            TargetPos = GetPosition(WSEgg)
-            SavedTargetPosition = TargetPos
+        State.Mode = "workspace"
+        local Egg = workspace:FindFirstChild(State.TargetUid)
+        if Egg then
+            TargetPos = GetPosition(Egg)
+            State.SavedTargetPosition = TargetPos
         end
     else
-        print("[VIPTP] ✅ Target Gone (Both) → AutoStop")
+        print("[VIPTP] Target Gone → AutoStop")
         AutoStop()
         return
     end
 
-    if not TargetPos then
-        print("[VIPTP] Target Pos not found → AutoStop")
-        AutoStop()
-        return
-    end
+    if not TargetPos then AutoStop() return end
 
-    -- ✅ ៣. Tween Player ទៅ Near Position (Recovery)
-    local Hum = GetHum()
-    local Root = GetRoot()
-    if not Hum or not Root then
-        AutoStop()
-        return
-    end
+    State.RecoveryTriggered = false
+    State.TargetCollected = false
 
-    Hum.PlatformStand = true
+    print("[VIPTP] Recovery → BodyV + BodyG")
 
-    local Direction = (TargetPos - Root.Position).Unit
-    local NearPos = TargetPos - (Direction * NEAR_OFFSET)
-
-    local TweenInfoObj = TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    local Tween = TweenService:Create(Root, TweenInfoObj, {
-        CFrame = CFrame.new(NearPos, TargetPos)
-    })
-
-    Tween:Play()
-    Tween.Completed:Wait()
-
-    -- ✅ ៤. FlyTP ទៅ Target (No Shot TP)
-    RecoveryTriggered = false
-    TargetCollected = false
-
-    print("[VIPTP] Recovery Tween Done → FlyTP to Target (No Shot)")
-    FlyTP(TargetPos, FLY_SPEED, false, false, function()
-        print("[VIPTP] ✅ Recovery #" .. RecoveryAttempts .. " Arrived → collect_target")
-
-        TargetCollected = false
-        CollectTime = 0
-        CollectAttempts = 0
-        RecoveryTriggered = false
-        RemotesFired = false
-        TargetCollectStartTime = tick()
-
-        CurrentStep = "collect_target"
+    FlyTP(TargetPos, Config.FlySpeed, true, false, function()
+        print("[VIPTP] Recovery #" .. State.RecoveryAttempts .. " Arrived")
+        State.TargetCollected = false
+        State.CollectTime = 0
+        State.CollectAttempts = 0
+        State.RecoveryTriggered = false
+        State.RemotesFired = false
+        State.TargetCollectStartTime = tick()
+        State.Step = "collect_target"
     end)
 end
 
 -- ==================================================
--- FLY TO SAFE (NO SHOT TP)
+-- SAFE ZONE (Reset + Stop + Callback)
 -- ==================================================
-FlyToSafeZone = function()
-    CurrentStep = "to_safe"
+local function FlyToSafeZone()
+    State.Step = "to_safe"
+    State.RecoveryTriggered = false
+    State.TargetCollected = false
 
-    print("[VIPTP] FlyTP to Safe Zone (No Shot TP)")
+    print("[VIPTP] BodyV + BodyG to Safe Zone")
 
-    FlyTP(SAFE_ZONE, RETURN_SPEED, false, true, function()
+    FlyTP(Config.SafeZone, Config.ReturnSpeed, false, true, function()
+        print("[VIPTP] ✅ Arrived Safe Zone → AutoStop")
         AutoStop()
     end)
 end
 
 -- ==================================================
--- ✅ START ACTIVE TASK (មិនប្រើ Heartbeat)
+-- ACTIVE TASK (មិនប្រើ Heartbeat)
 -- ==================================================
-StartActiveTask = function()
-    StopActiveTask()
+local function StartActiveTask()
+    if State.ActiveTask then
+        pcall(function() task.cancel(State.ActiveTask) end)
+        State.ActiveTask = nil
+    end
 
-    ActiveTask = task.spawn(function()
-        while Running do
+    State.ActiveTask = task.spawn(function()
+        while State.Running do
             task.wait(0.05)
 
             local Hum = GetHum()
             local Root = GetRoot()
-            if not Hum or not Root then break end
-            if Hum.Health <= 0 then break end
+            if not Hum or not Root or Hum.Health <= 0 then break end
 
-            -- Step 1: Collect First Egg
-            if CurrentStep == "collect_first" and not CollectDone then
+            -- Step 1: Collect First
+            if State.Step == "collect_first" and not State.CollectDone then
                 if IsFirstEggInWorkspace() then
-                    CollectDone = true
+                    State.CollectDone = true
                     FireForestStrike()
-                    CurrentStep = "wait_spawn_back"
-                elseif tick() - CollectTime > COLLECT_INTERVAL then
-                    CollectTime = tick()
-
+                    State.Step = "wait_spawn_back"
+                elseif tick() - State.CollectTime > Config.CollectInterval then
+                    State.CollectTime = tick()
                     if IsFirstEggInContainer() then
                         RemoteCollectFirst()
-                        CollectAttempts = CollectAttempts + 1
-                    else
-                        if IsFirstEggInWorkspace() then
-                            CollectDone = true
-                            FireForestStrike()
-                            CurrentStep = "wait_spawn_back"
-                        end
+                        State.CollectAttempts = State.CollectAttempts + 1
+                    elseif IsFirstEggInWorkspace() then
+                        State.CollectDone = true
+                        FireForestStrike()
+                        State.Step = "wait_spawn_back"
                     end
                 end
             end
 
-            -- Step 2: Wait First Egg Spawn Back
-            if CurrentStep == "wait_spawn_back" and not FlyTargetStarted then
+            -- Step 2: Wait First Egg Spawn
+            if State.Step == "wait_spawn_back" and not State.FlyTargetStarted then
                 if IsFirstEggInContainer() then
                     task.spawn(function() StartFlyToTarget() end)
                 end
             end
 
-            -- Step 3: Collect Target Egg (DropHeldEgg + Mode ដើម)
-            if CurrentStep == "collect_target" and not TargetCollected then
-
-                -- ✅ DropHeldEgg Check
-                if IsTargetCollectedByDropHeldEgg() then
-                    print("[VIPTP] ✅ DropHeldEgg.Enabled = true → Target Collected!")
-                    TargetCollected = true
-                    RecoveryTriggered = false
+            -- Step 3: Collect Target
+            if State.Step == "collect_target" and not State.TargetCollected then
+                if IsTargetCollected() then
+                    print("[VIPTP] Target Collected (DropHeldEgg)")
+                    State.TargetCollected = true
+                    State.RecoveryTriggered = false
                     task.spawn(function() FlyToSafeZone() end)
                 else
-                    if CurrentMode == "spawn" then
-                        if workspace:FindFirstChild(TARGET_UID) then
-                            TargetCollected = true
-                            RecoveryTriggered = false
+                    if State.Mode == "spawn" then
+                        if workspace:FindFirstChild(State.TargetUid) then
+                            State.TargetCollected = true
                             task.spawn(function() FlyToSafeZone() end)
                         end
-                    elseif CurrentMode == "workspace" then
-                        if SavedTargetPosition then
-                            local WSEgg = workspace:FindFirstChild(TARGET_UID)
-                            if WSEgg then
-                                local CurrentPos = GetPosition(WSEgg)
-                                if CurrentPos then
-                                    local Dist = (CurrentPos - SavedTargetPosition).Magnitude
-                                    if Dist >= POSITION_THRESHOLD then
-                                        TargetCollected = true
-                                        RecoveryTriggered = false
-                                        task.spawn(function() FlyToSafeZone() end)
-                                    end
-                                end
+                    elseif State.Mode == "workspace" and State.SavedTargetPosition then
+                        local Egg = workspace:FindFirstChild(State.TargetUid)
+                        if Egg then
+                            local Pos = GetPosition(Egg)
+                            if Pos and (Pos - State.SavedTargetPosition).Magnitude >= Config.PositionThreshold then
+                                State.TargetCollected = true
+                                task.spawn(function() FlyToSafeZone() end)
                             end
                         end
                     end
 
-                    if tick() - CollectTime > COLLECT_INTERVAL then
-                        CollectTime = tick()
+                    if tick() - State.CollectTime > Config.CollectInterval then
+                        State.CollectTime = tick()
                         RemoteCollectTarget()
-                        CollectAttempts = CollectAttempts + 1
+                        State.CollectAttempts = State.CollectAttempts + 1
                     end
 
-                    if tick() - TargetCollectStartTime > TARGET_COLLECT_TIMEOUT then
-                        print("[VIPTP] ⚠️ Target Collect Timeout → Recovery")
-                        if not RecoveryTriggered then
-                            RecoveryTriggered = true
+                    if tick() - State.TargetCollectStartTime > Config.TargetCollectTimeout then
+                        print("[VIPTP] Target Timeout → Recovery")
+                        if not State.RecoveryTriggered then
+                            State.RecoveryTriggered = true
                             task.spawn(function() FlyToTargetAgain() end)
                         end
                     end
                 end
             end
 
-            -- Step 4: Recovery (Egg Drop តាមផ្លូវ)
-            if CurrentStep == "to_safe" then
-                if not IsTargetCollectedByDropHeldEgg() then
-                    if not RecoveryTriggered then
-                        RecoveryTriggered = true
-                        print("[VIPTP] ⚠️ Egg Dropped on Way → Recovery!")
+            -- Step 4: Recovery on Way to Safe
+            if State.Step == "to_safe" then
+                if not IsTargetCollected() then
+                    if not State.RecoveryTriggered then
+                        State.RecoveryTriggered = true
+                        print("[VIPTP] Egg Dropped → Recovery")
                         task.spawn(function() FlyToTargetAgain() end)
                     end
                 else
-                    RecoveryTriggered = false
+                    State.RecoveryTriggered = false
                 end
             end
         end
@@ -982,87 +841,68 @@ end
 -- ==================================================
 -- MAIN PROCESS
 -- ==================================================
-StartProcess = function()
-    Running = true
-    CurrentStep = "search"
+local function StartProcess()
+    State.Running = true
+    State.Step = "search"
+    State.FlySequence = 0
 
-    CollectAttempts = 0
-    CollectTime = 0
-    TargetCollectStartTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    RecoveryTriggered = false
-    RecoveryAttempts = 0
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
-    LastDropState = false
+    State.CollectAttempts = 0
+    State.CollectTime = 0
+    State.TargetCollectStartTime = 0
+    State.FlyTargetStarted = false
+    State.CollectDone = false
+    State.TargetCollected = false
+    State.RemotesFired = false
+    State.RecoveryTriggered = false
+    State.RecoveryAttempts = 0
+    State.SavedTargetPosition = nil
+    State.TargetLockedCFrame = nil
 
     SetupDropHeldEgg()
-
     SaveStats()
     EnableRagdollBypass()
 
     if IsTargetInContainer() then
-        CurrentMode = "spawn"
-        print("[VIPTP] Target found in Container → spawn mode")
+        State.Mode = "spawn"
+        print("[VIPTP] Mode: spawn")
     elseif IsTargetInWorkspace() then
-        CurrentMode = "workspace"
-        local WSEgg = workspace:FindFirstChild(TARGET_UID)
-        if WSEgg then
-            SavedTargetPosition = GetPosition(WSEgg)
-        end
-        print("[VIPTP] Target found in Workspace → workspace mode")
+        State.Mode = "workspace"
+        local Egg = workspace:FindFirstChild(State.TargetUid)
+        if Egg then State.SavedTargetPosition = GetPosition(Egg) end
+        print("[VIPTP] Mode: workspace")
     else
-        local WaitTime = 0
-        while Running and not IsTargetInContainer() and not IsTargetInWorkspace() do
+        local Waited = 0
+        while State.Running and not IsTargetInContainer() and not IsTargetInWorkspace() do
             task.wait(0.5)
-            WaitTime = WaitTime + 0.5
-            if WaitTime > 60 then
-                AutoStop()
-                return
-            end
+            Waited = Waited + 0.5
+            if Waited > 60 then AutoStop() return end
         end
-
         if IsTargetInContainer() then
-            CurrentMode = "spawn"
+            State.Mode = "spawn"
         elseif IsTargetInWorkspace() then
-            CurrentMode = "workspace"
-            local WSEgg = workspace:FindFirstChild(TARGET_UID)
-            if WSEgg then
-                SavedTargetPosition = GetPosition(WSEgg)
-            end
+            State.Mode = "workspace"
+            local Egg = workspace:FindFirstChild(State.TargetUid)
+            if Egg then State.SavedTargetPosition = GetPosition(Egg) end
         end
     end
 
     SearchFirstEggs()
-
-    if #FirstEggList == 0 then
-        AutoStop()
-        return
-    end
+    if #State.FirstEggList == 0 then AutoStop() return end
 
     local Closest = FindClosestEgg()
-
-    if not Closest then
-        AutoStop()
-        return
-    end
+    if not Closest then AutoStop() return end
 
     local EggPos = GetPosition(Closest.Slot)
-    if not EggPos then
-        AutoStop()
-        return
-    end
+    if not EggPos then AutoStop() return end
 
-    CurrentStep = "fly_first"
-
+    State.Step = "fly_first"
     StartActiveTask()
 
-    print("[VIPTP] FlyTP to First Egg (Shot TP)")
-    FlyTP(EggPos, FLY_SPEED, true, false, function()
-        CurrentStep = "collect_first"
+    print("[VIPTP] BodyV + BodyG to First Egg (Speed 1000/s)")
+    FlyTP(EggPos, Config.FlySpeed, true, false, function()
+        State.CollectDone = false
+        State.CollectTime = 0
+        State.Step = "collect_first"
     end)
 end
 
@@ -1070,37 +910,43 @@ end
 -- FULL RESET
 -- ==================================================
 local function FullReset()
-    Running = false
-    CurrentStep = "idle"
-    CurrentMode = "none"
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+    State.TargetLockedCFrame = nil
 
-    FirstEggList = {}
-    FirstEggUid = nil
-    FirstEggSlotKey = nil
-    CollectAttempts = 0
-    CollectTime = 0
-    TargetCollectStartTime = 0
-    FlyTargetStarted = false
-    CollectDone = false
-    TargetCollected = false
-    RemotesFired = false
-    RecoveryTriggered = false
-    RecoveryAttempts = 0
-    SavedTargetPosition = nil
-    TargetLockedCFrame = nil
-    LastDropState = false
-
-    if DropHeldEggConnection then
-        DropHeldEggConnection:Disconnect()
-        DropHeldEggConnection = nil
+    if State.ActiveTask then
+        pcall(function() task.cancel(State.ActiveTask) end)
+        State.ActiveTask = nil
     end
-    DropHeldEgg = nil
-    PlayerGui = nil
 
-    if CleanupMovers then CleanupMovers() end
-    if DisableRagdollBypass then DisableRagdollBypass() end
-    if StopActiveTask then StopActiveTask() end
-    if RestoreStats then RestoreStats() end
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
+    end
+    State.DropHeldEgg = nil
+    State.PlayerGui = nil
+
+    CleanupMovers()
+    DisableRagdollBypass()
+    RestoreStats()
+
+    State.Running = false
+    State.Step = "idle"
+    State.Mode = "none"
+    State.FlySequence = State.FlySequence + 1
+
+    State.FirstEggList = {}
+    State.FirstEggUid = nil
+    State.FirstEggSlotKey = nil
+    State.CollectAttempts = 0
+    State.CollectTime = 0
+    State.TargetCollectStartTime = 0
+    State.FlyTargetStarted = false
+    State.CollectDone = false
+    State.TargetCollected = false
+    State.RemotesFired = false
+    State.RecoveryTriggered = false
+    State.RecoveryAttempts = 0
+    State.SavedTargetPosition = nil
 
     print("[VIPTP] Full Reset")
 end
@@ -1109,14 +955,14 @@ end
 -- ENABLE / DISABLE / SET
 -- ==================================================
 local function Enable()
-    if Running then return end
+    if State.Running then return end
     if not CollectEvent then warn("[VIPTP] CollectEvent not found") return end
-    if not TARGET_UID then warn("[VIPTP] No Target ID") return end
+    if not State.TargetUid then warn("[VIPTP] No Target ID") return end
 
     FullReset()
     StartProcess()
 
-    print("[VIPTP] ON | Target: " .. tostring(TARGET_UID))
+    print("[VIPTP] ON | Target: " .. tostring(State.TargetUid))
 end
 
 local function Disable()
@@ -1125,7 +971,7 @@ local function Disable()
 end
 
 local function SetTargetId(Id)
-    TARGET_UID = Id
+    State.TargetUid = Id
     print("[VIPTP] Target ID: " .. tostring(Id))
 end
 
@@ -1136,13 +982,13 @@ _G.YOKUDO_VIPTP = {
     Enable = Enable,
     Disable = Disable,
     SetTargetId = SetTargetId,
-    IsEnabled = function() return Running end,
-    GetTargetId = function() return TARGET_UID end,
-    GetMode = function() return CurrentMode end,
-    FLY_SPEED = FLY_SPEED,
-    RETURN_SPEED = RETURN_SPEED,
-    FLY_OFFSET = FLY_OFFSET,
-    SAFE_ZONE = SAFE_ZONE,
+    IsEnabled = function() return State.Running end,
+    GetTargetId = function() return State.TargetUid end,
+    GetMode = function() return State.Mode end,
+    FLY_SPEED = Config.FlySpeed,
+    RETURN_SPEED = Config.ReturnSpeed,
+    FLY_OFFSET = Config.FlyOffset,
+    SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (Fly Offset 10 | Speed 1000/1000 | Shot Distance 15 | Lock Above 1 | Tween Recovery)")
+print("✅ VIPTP Loaded (BodyV + BodyG | Speed 1000/s)")
