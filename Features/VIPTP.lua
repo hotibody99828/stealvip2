@@ -24,7 +24,7 @@ local Config = {
 
     NearOffset = 20,
 
-    FlyOffset = 5,
+    FlyOffset = 2,
     ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
