@@ -287,26 +287,5 @@ _G.YOKUDO_AutoFarm = {
     end,
 }
 
---==================================================
--- REGISTER
---==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "AutoFarm",
-        Enable = EnableAutoFarm,
-        Disable = DisableAutoFarm,
-        IsEnabled = function() return AutoFarmEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if AutoFarmEnabled and SelectedEgg then
-                task.wait(2)
-                pcall(function()
-                    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-                        StartTeleport()
-                    end
-                end)
-            end
-        end
-    })
-end
 
 print("✅ AutoFarm Feature Loaded (FAST + CACHE)")
