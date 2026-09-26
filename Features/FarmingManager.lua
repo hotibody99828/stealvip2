@@ -1,9 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (FAST + CLEAR)
+-- ✅ Spawn Path First → Workspace Backup
 -- ✅ Cache System → លឿន
--- ✅ Fast Check → Night 0.03s / Day 0.05s
--- ✅ Uid Cache → មិន Loop MeshId រាល់ដង
--- ✅ PetData Cache → មិន Require រាល់ដង
+-- ✅ Callback → AFK ពេលអស់ Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -21,11 +20,15 @@ pcall(function()
     AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
 end)
 
+if not AreaEggCycle then
+    warn("[FarmingManager] AreaEggCycle not found! Using fallback.")
+end
+
 -- ==================================================
 -- SETTINGS (FAST)
 -- ==================================================
-local NIGHT_CHECK_INTERVAL = 0.03      -- ✅ លឿន
-local DAY_CHECK_INTERVAL = 0.05        -- ✅ លឿន
+local NIGHT_CHECK_INTERVAL = 0.03
+local DAY_CHECK_INTERVAL = 0.05
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
@@ -39,10 +42,10 @@ local METHOD = "InstantTeleport"
 -- CACHE SYSTEM
 -- ==================================================
 local Cache = {
-    MeshIdMap = {},          -- MeshId → Category
+    MeshIdMap = {},
     MeshIdMapBuilt = false,
-    PetData = {},            -- Category → { Rarity, EarningRate, DisplayName }
-    UidCategory = {},        -- Uid → Category
+    PetData = {},
+    UidCategory = {},
 }
 
 local SelectedRarities = { Divine = true, Eternal = true, Secret = true }
@@ -97,7 +100,6 @@ end
 local function GetPetData(AssetCategory)
     if not AssetCategory then return nil end
 
-    -- ✅ Cache Hit
     if Cache.PetData[AssetCategory] then
         return Cache.PetData[AssetCategory]
     end
@@ -121,7 +123,6 @@ local function GetPetData(AssetCategory)
         DisplayName = Module.DisplayName or AssetCategory
     }
 
-    -- ✅ Save Cache
     Cache.PetData[AssetCategory] = Data
     return Data
 end
@@ -132,7 +133,6 @@ end
 local function FindAssetCategory(EggModel)
     if not EggModel then return nil end
 
-    -- ✅ Cache Hit តាម Uid
     local Uid = EggModel.Name
     if Cache.UidCategory[Uid] then
         return Cache.UidCategory[Uid]
@@ -173,52 +173,55 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- FIND BEST EGG (FAST)
+-- FIND BEST EGG (Spawn Path First → Workspace Backup)
 -- ==================================================
 local function FindBestEgg()
-    local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if not Container then return nil end
-
     local EggList = {}
 
-    -- ✅ Check Container (Spawn)
-    for _, Slot in ipairs(Container:GetChildren()) do
-        if Slot:IsA("Model") then
-            local Category = FindAssetCategory(Slot)
-            if Category then
-                local Data = GetPetData(Category)
-                if Data and SelectedRarities[Data.Rarity] then
-                    table.insert(EggList, {
-                        Slot = Slot,
-                        Uid = Slot.Name,
-                        Rarity = Data.Rarity,
-                        EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName,
-                        Location = "spawn"
-                    })
+    -- ✅ ១. Check Spawn Path (AreaEggSlotsClient) ជាមុន
+    local Container = workspace:FindFirstChild("AreaEggSlotsClient")
+    if Container then
+        for _, Slot in ipairs(Container:GetChildren()) do
+            if Slot:IsA("Model") then
+                local Category = FindAssetCategory(Slot)
+                if Category then
+                    local Data = GetPetData(Category)
+                    if Data and SelectedRarities[Data.Rarity] then
+                        table.insert(EggList, {
+                            Slot = Slot,
+                            Uid = Slot.Name,
+                            Rarity = Data.Rarity,
+                            EarningRate = Data.EarningRate,
+                            DisplayName = Data.DisplayName,
+                            Location = "spawn"
+                        })
+                    end
                 end
             end
         end
     end
 
-    -- ✅ Check Workspace (Egg ធ្លាក់)
+    -- ✅ ២. បើឃើញក្នុង Spawn រួច → Return ភ្លាម
+    if #EggList > 0 then
+        SortEggs(EggList)
+        return EggList[1]
+    end
+
+    -- ✅ ៣. បើអត់ឃើញក្នុង Spawn → Check Workspace (Backup)
     for _, Obj in ipairs(workspace:GetChildren()) do
         if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
-            local IsInContainer = Container:FindFirstChild(Obj.Name)
-            if not IsInContainer then
-                local Category = FindAssetCategory(Obj)
-                if Category then
-                    local Data = GetPetData(Category)
-                    if Data and SelectedRarities[Data.Rarity] then
-                        table.insert(EggList, {
-                            Slot = Obj,
-                            Uid = Obj.Name,
-                            Rarity = Data.Rarity,
-                            EarningRate = Data.EarningRate,
-                            DisplayName = Data.DisplayName,
-                            Location = "workspace"
-                        })
-                    end
+            local Category = FindAssetCategory(Obj)
+            if Category then
+                local Data = GetPetData(Category)
+                if Data and SelectedRarities[Data.Rarity] then
+                    table.insert(EggList, {
+                        Slot = Obj,
+                        Uid = Obj.Name,
+                        Rarity = Data.Rarity,
+                        EarningRate = Data.EarningRate,
+                        DisplayName = Data.DisplayName,
+                        Location = "workspace"
+                    })
                 end
             end
         end
@@ -464,7 +467,7 @@ local function FlyToSafeZoneAndWait()
             local Dist = (Root2.Position - SAFE_ZONE).Magnitude
             if Dist <= SAFE_ZONE_DIST then return true end
         end
-        task.wait(0.05)  -- ✅ លឿន
+        task.wait(0.05)
         WaitTime = WaitTime + 0.05
     end
 
@@ -491,8 +494,14 @@ end
 -- CALLBACK ពី VIPTP
 -- ==================================================
 local function OnVIPTPComplete()
-    if not FarmingEnabled then return end
-    if not WaitingForVIPTP then return end
+    if not FarmingEnabled then
+        print("[FarmingManager] OnVIPTPComplete: Farming not enabled → Skip")
+        return
+    end
+    if not WaitingForVIPTP then
+        print("[FarmingManager] OnVIPTPComplete: Not waiting → Skip")
+        return
+    end
 
     WaitingForVIPTP = false
     AFKStarted = false
@@ -501,7 +510,7 @@ local function OnVIPTPComplete()
     local BestEgg = FindBestEgg()
 
     if BestEgg then
-        print("[FarmingManager] New Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
+        print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Location:", BestEgg.Location)
         PendingEggUid = BestEgg.Uid
 
         task.spawn(function()
@@ -510,13 +519,27 @@ local function OnVIPTPComplete()
                 task.wait(SAFE_WAIT_AFTER_REACH)
                 StartVIPTP(PendingEggUid)
                 PendingEggUid = nil
+            else
+                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
+                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+                    _G.YOKUDO_AFKSystem.Enable()
+                    AFKStarted = true
+                end
             end
         end)
     else
-        print("[FarmingManager] No Egg → AFK")
-        if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-            _G.YOKUDO_AFKSystem.Enable()
-            AFKStarted = true
+        print("[FarmingManager] ❌ No Egg → Enable AFK")
+
+        if _G.YOKUDO_AFKSystem then
+            if not _G.YOKUDO_AFKSystem.IsEnabled() then
+                _G.YOKUDO_AFKSystem.Enable()
+                AFKStarted = true
+                print("[FarmingManager] ✅ AFKSystem Enabled")
+            else
+                print("[FarmingManager] AFKSystem already enabled")
+            end
+        else
+            warn("[FarmingManager] AFKSystem not loaded!")
         end
     end
 end
@@ -553,7 +576,7 @@ local function NightLoop()
             PendingEggUid = BestEgg.Uid
 
             StopAll()
-            task.wait(0.3)  -- ✅ លឿន
+            task.wait(0.3)
 
             local ReachedSafe = FlyToSafeZoneAndWait()
             if ReachedSafe then
@@ -563,7 +586,7 @@ local function NightLoop()
                     StartVIPTP(PendingEggUid)
                     PendingEggUid = nil
                     while WaitingForVIPTP and FarmingEnabled do
-                        task.wait(0.2)  -- ✅ លឿន
+                        task.wait(0.2)
                     end
                 end
             end
@@ -636,7 +659,7 @@ local function MainLoop()
             NightLoop()
         end
 
-        task.wait(0.05)  -- ✅ លឿន
+        task.wait(0.05)
     end
     print("[FarmingManager] MainLoop Stopped")
 end
@@ -697,7 +720,7 @@ _G.YOKUDO_FarmingManager = {
     GetPhase = function() return CurrentPhase end,
     FindBestEgg = FindBestEgg,
 
-    -- ✅ ផ្ដល់ Egg Data តាម UID
+    -- ✅ Get Egg Data តាម UID
     GetEggData = function(Uid)
         if not Uid then return nil end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -708,15 +731,15 @@ _G.YOKUDO_FarmingManager = {
         return GetPetData(Category)
     end,
 
+    -- ✅ Get UID Location
     GetUidLocation = function(Uid)
         if not Uid then return "none" end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
         local InContainer = Container and Container:FindFirstChild(Uid) ~= nil
+        if InContainer then return "spawn" end
         local InWorkspace = workspace:FindFirstChild(Uid) ~= nil
-        if InContainer and InWorkspace then return "both"
-        elseif InContainer then return "spawn"
-        elseif InWorkspace then return "workspace"
-        else return "none" end
+        if InWorkspace then return "workspace" end
+        return "none"
     end,
 
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
@@ -738,4 +761,14 @@ task.spawn(function()
     print("[FarmingManager] Cache Ready")
 end)
 
-print("✅ FarmingManager Loaded (FAST + CLEAR + CACHE)")
+-- ==================================================
+-- PERIODIC CACHE CLEANUP (រាល់ 30s)
+-- ==================================================
+task.spawn(function()
+    while task.wait(30) do
+        Cache.UidCategory = {}
+        print("[FarmingManager] Uid Cache Cleared")
+    end
+end)
+
+print("✅ FarmingManager Loaded (FAST + CLEAR + Spawn Path First)")
