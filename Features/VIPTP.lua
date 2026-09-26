@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- BodyVelocity + BodyGyro | Speed 1000/s
--- Shot TP → Lock | Safe Zone → Reset + Stop
--- សម្រាប់ Tab Farming (FarmingManager)
+-- First Egg: BodyV + BodyG (Shot TP)
+-- Target: Instant TP
+-- Recovery: BodyV + BodyG (No Shot TP)
+-- Safe Zone: BodyV + BodyG → Reset + Stop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -16,35 +17,27 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    -- Speeds (ថេរ 1000/s)
     FlySpeed = 1000,
     ReturnSpeed = 800,
 
-    -- Distances
     FlyOffset = 5,
     ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
 
-    -- Timing
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 1000,
 
-    -- BodyVelocity
     BodyVelocityP = 5000,
-
-    -- BodyGyro
     BodyGyroP = 50000,
     BodyGyroD = 2000,
 
-    -- Positions
     SafeZone = Vector3.new(533, 70, -366),
     LockPosition = Vector3.new(607.6259155273438, 70.57420349121094, -326.8830261230469),
 
-    -- Search
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 }
@@ -112,7 +105,7 @@ local State = {
 }
 
 -- ==================================================
--- ✅ GET CHAR / ROOT / HUM
+-- GET CHAR / ROOT / HUM
 -- ==================================================
 local function GetChar()
     return Player.Character
@@ -313,7 +306,7 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- BODYV + BODYG FLY TP
+-- BODYV + BODYG FLY TP (Shot TP Optional)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -330,7 +323,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ BodyVelocity
     State.BodyVelocity = Instance.new("BodyVelocity")
     State.BodyVelocity.Name = "YokudoBV"
     State.BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -338,7 +330,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.BodyVelocity.Velocity = Vector3.zero
     State.BodyVelocity.Parent = Root
 
-    -- ✅ BodyGyro
     State.BodyGyro = Instance.new("BodyGyro")
     State.BodyGyro.Name = "YokudoBG"
     State.BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
@@ -369,7 +360,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- ✅ Safe Zone: Stop at 5 → មិន Lock, មិន Set CFrame
+        -- Safe Zone: Stop at 5 → No Lock
         if IsSafeZone and HorizDist <= Config.SafeStopDistance then
             if State.BodyVelocity then
                 State.BodyVelocity.Velocity = Vector3.zero
@@ -387,7 +378,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- ✅ Shot TP
+        -- Shot TP (តែពេល UseShotTP = true)
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
             ShotDone = true
             if State.BodyVelocity then
@@ -410,7 +401,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- ✅ Arrived
+        -- Arrived
         if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
             if State.BodyVelocity then
                 State.BodyVelocity.Velocity = Vector3.zero
@@ -432,14 +423,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             return
         end
 
-        -- ✅ Timeout
+        -- Timeout
         if tick() - StartTime > Config.Timeout then
             CleanupMovers()
             if Callback then Callback() end
             return
         end
 
-        -- ✅ បន្តហោះ (Speed ថេរ 1000/s)
+        -- Continue
         if TotalDist > 1 then
             State.BodyVelocity.Velocity = Direction.Unit * Speed
         else
@@ -447,6 +438,42 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         end
 
         State.BodyGyro.CFrame = CFrame.new(CurrentPos, CurrentPos + Vector3.new(Direction.X, 0, Direction.Z))
+    end)
+end
+
+-- ==================================================
+-- INSTANT TP (សម្រាប់ Target Egg)
+-- ==================================================
+local function InstantTP(Destination, Callback)
+    if not Destination then
+        if Callback then Callback() end
+        return
+    end
+
+    State.FlySequence = State.FlySequence + 1
+    CleanupMovers()
+
+    local Hum = GetHum()
+    local Root = GetRoot()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    local LockCFrame = CFrame.new(Destination + Vector3.new(0, Config.LockAbove, 0))
+
+    Hum.PlatformStand = true
+
+    task.spawn(function()
+        Root.CFrame = LockCFrame
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+
+        task.wait(0.1)
+
+        StartLock(Destination)
+
+        if Callback then Callback() end
     end)
 end
 
@@ -579,7 +606,7 @@ local function IsTargetInWorkspace()
 end
 
 -- ==================================================
--- AUTO STOP (មាន Callback ទៅ FarmingManager)
+-- AUTO STOP (Callback → FarmingManager)
 -- ==================================================
 local function AutoStop()
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
@@ -614,7 +641,6 @@ local function AutoStop()
 
     print("[VIPTP] Auto Stop")
 
-    -- ✅ Callback ទៅ FarmingManager
     task.spawn(function()
         task.wait(0.5)
         if _G.YOKUDO_FarmingManager then
@@ -635,7 +661,7 @@ local function AutoStop()
 end
 
 -- ==================================================
--- FLY TO TARGET
+-- FLY TO TARGET (Instant TP)
 -- ==================================================
 local function StartFlyToTarget()
     if State.FlyTargetStarted then return end
@@ -659,7 +685,11 @@ local function StartFlyToTarget()
 
     if not TargetPos then AutoStop() return end
 
-    FlyTP(TargetPos, Config.FlySpeed, true, false, function()
+    print("[VIPTP] Instant TP to Target Egg")
+
+    InstantTP(TargetPos, function()
+        print("[VIPTP] ✅ Instant TP Arrived Target")
+
         State.TargetCollected = false
         State.CollectTime = 0
         State.CollectAttempts = 0
@@ -670,7 +700,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY (BodyV + BodyG — លឿន)
+-- RECOVERY (BodyV + BodyG | No Shot TP)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -680,7 +710,7 @@ local function FlyToTargetAgain()
         return
     end
 
-    print("[VIPTP] Recovery #" .. State.RecoveryAttempts)
+    print("[VIPTP] Recovery #" .. State.RecoveryAttempts .. " → BodyV + BodyG (No Shot TP)")
     State.Step = "recovery"
 
     State.FlySequence = State.FlySequence + 1
@@ -709,10 +739,10 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[VIPTP] Recovery → BodyV + BodyG")
+    -- ✅ UseShotTP = false → គ្មាន Shot TP ទេ
+    FlyTP(TargetPos, Config.FlySpeed, false, false, function()
+        print("[VIPTP] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived → collect_target")
 
-    FlyTP(TargetPos, Config.FlySpeed, true, false, function()
-        print("[VIPTP] Recovery #" .. State.RecoveryAttempts .. " Arrived")
         State.TargetCollected = false
         State.CollectTime = 0
         State.CollectAttempts = 0
@@ -724,7 +754,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Reset + Stop + Callback)
+-- SAFE ZONE (BodyV + BodyG → Reset + Stop)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
@@ -740,7 +770,7 @@ local function FlyToSafeZone()
 end
 
 -- ==================================================
--- ACTIVE TASK (មិនប្រើ Heartbeat)
+-- ACTIVE TASK
 -- ==================================================
 local function StartActiveTask()
     if State.ActiveTask then
@@ -898,7 +928,7 @@ local function StartProcess()
     State.Step = "fly_first"
     StartActiveTask()
 
-    print("[VIPTP] BodyV + BodyG to First Egg (Speed 1000/s)")
+    print("[VIPTP] BodyV + BodyG to First Egg (Shot TP)")
     FlyTP(EggPos, Config.FlySpeed, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
@@ -991,4 +1021,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (BodyV + BodyG | Speed 1000/s)")
+print("✅ VIPTP Loaded (First: BodyV+BodyG+Shot | Target: Instant | Recovery: BodyV+BodyG No Shot | Safe: BodyV+BodyG)")
