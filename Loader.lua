@@ -219,6 +219,9 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(58)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
+Loading.Update(59)
+loadstring(GetScript("Features/DontUseIt.lua"))()
+
 -- ✅ ConfigSystem
 Loading.Update(60)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
