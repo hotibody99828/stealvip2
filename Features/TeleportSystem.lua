@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (TWEEN + BODYV + BODYG)
--- Tween Duration 0.5s ថេរ | BodyV + BodyG Speed 1000/s
+-- Tween Speed 350 | BodyV + BodyG Speed 1000/s
 -- Shot TP → Lock | Safe Zone → Reset + Stop
 -- ==================================================
 
@@ -19,8 +19,10 @@ local Config = {
     FlySpeed = 1000,
     ReturnSpeed = 1000,
 
-    -- ✅ Tween Duration ថេរ
-    TweenDuration = 0.5,
+    -- ✅ Tween Speed (គណនា Duration តាមចម្ងាយ)
+    TweenSpeed = 350,
+    MinTweenDuration = 0.1,
+    MaxTweenDuration = 5,
 
     FlyOffset = 5,
     ShotDistance = 25,
@@ -297,7 +299,7 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- TWEEN + BODYV + BODYG FLY TP
+-- TWEEN + BODYV + BODYG FLY TP (Speed 350)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -313,17 +315,27 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween ទៅ Near Position (Duration 0.5s ថេរ)
+    -- ✅ Step 1: Tween ទៅ Near Position (TweenSpeed = 350)
     local StartPos = Root.Position
     local Direction = (FlyPos - StartPos)
     local TotalDist = Direction.Magnitude
     local DirUnit = TotalDist > 0 and Direction.Unit or Vector3.new(0, 0, -1)
 
     local NearPos = FlyPos - (DirUnit * Config.NearOffset)
+    local NearDist = (NearPos - StartPos).Magnitude
+
+    -- ✅ Duration = ចម្ងាយ ÷ TweenSpeed
+    local NearDuration = math.clamp(
+        NearDist / Config.TweenSpeed,
+        Config.MinTweenDuration,
+        Config.MaxTweenDuration
+    )
+
+    print("[YOKUDO] Tween Near | Dist:", math.floor(NearDist), "| Duration:", string.format("%.2f", NearDuration) .. "s")
 
     local TweenNear = TweenService:Create(
         Root,
-        TweenInfo.new(Config.TweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+        TweenInfo.new(NearDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
         { CFrame = CFrame.new(NearPos, FlyPos) }
     )
     State.TweenConnection = TweenNear
@@ -490,7 +502,7 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantTP(TargetPos, Callback)
     else
-        print("[YOKUDO] Tween + BodyV + BodyG to Target (Speed 1000/s)")
+        print("[YOKUDO] Tween Speed 350 + BodyV + BodyG to Target")
         FlyTP(TargetPos, Config.FlySpeed, true, false, Callback)
     end
 end
@@ -693,7 +705,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY (Tween + BodyV + BodyG — No Shot TP)
+-- RECOVERY (Tween Speed 350 + BodyV + BodyG)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -752,7 +764,7 @@ local function FlyToSafeZone()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[YOKUDO] Tween + BodyV + BodyG to Safe Zone")
+    print("[YOKUDO] Tween Speed 350 to Safe Zone")
 
     FlyTP(Config.SafeZone, Config.ReturnSpeed, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset + Stop")
@@ -951,7 +963,7 @@ local function StartProcess()
     State.Step = "fly_first"
     StartActiveHeartbeat()
 
-    print("[YOKUDO] Tween + BodyV + BodyG to First Egg (Speed 1000/s)")
+    print("[YOKUDO] Tween Speed 350 + BodyV + BodyG to First Egg")
     FlyTP(EggPos, Config.FlySpeed, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
@@ -1042,4 +1054,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Tween Duration 0.5s + BodyV + BodyG)")
+print("✅ TeleportSystem Loaded (Tween Speed 350 + BodyV + BodyG)")
