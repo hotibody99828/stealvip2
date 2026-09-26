@@ -30,7 +30,7 @@ local Config = {
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
-    MaxRecoveryAttempts = 10,
+    MaxRecoveryAttempts = 10000,
 
     -- BodyVelocity
     BodyVelocityP = 5000,
