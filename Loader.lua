@@ -1,7 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader
--- ✅ Load CharacterSystem មុន Features
--- ✅ FarmingManager មុន VIPTP (ដោះស្រាយ Callback nil)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED)
+-- ✅ Don't Use It Feature + Tab
+-- ❌ គ្មាន CharacterSystem
+-- ❌ គ្មាន Config
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -151,9 +152,6 @@ local function CreateLoadingScreen()
     }
 end
 
--- ==================================================
--- CREATE LOADING SCREEN
--- ==================================================
 local Loading = CreateLoadingScreen()
 Loading.Update(5)
 
@@ -202,11 +200,11 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ FarmingManager មុន VIPTP (ដោះស្រាយ Callback nil)
+-- ✅ FarmingManager មុន VIPTP
 Loading.Update(50)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
--- ✅ VIPTP (AFK Farm Only)
+-- ✅ VIPTP
 Loading.Update(51)
 loadstring(GetScript("Features/VIPTP.lua"))()
 
@@ -219,6 +217,7 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(58)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
+-- ✅ Don't Use It Feature
 Loading.Update(59)
 loadstring(GetScript("Features/DontUseIt.lua"))()
 
@@ -250,6 +249,7 @@ loadstring(GetScript("Tabs/HopServer.lua"))()
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
+-- ✅ Don't Use It Tab
 Loading.Update(91)
 loadstring(GetScript("Tabs/DontUseIt.lua"))()
 
