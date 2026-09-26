@@ -1,13 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (TWEEN + BODYPOSITION)
--- Tween Near → Tween Out 0.5 → BodyPosition
--- Safe Zone → Reset State + Stop
+-- YOKUDO HUB | TELEPORT SYSTEM (BODYPOSITION DIRECT)
+-- BodyPosition Direct → Shot TP → Lock
+-- Safe Zone → Stop at 5 → Reset + Stop
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
@@ -19,7 +18,6 @@ local Config = {
     -- Speeds
     FlySpeed = 1000,
     ReturnSpeed = 800,
-    OutDuration = 0.5,        -- ✅ Tween ចេញពី Near ទៅ Destination
 
     -- Distances
     FlyOffset = 5,
@@ -27,18 +25,17 @@ local Config = {
     LockAbove = 1,
     ArriveDistance = 2,
     SafeStopDistance = 5,
-    NearOffset = 20,
+    NearOffset = 15,
 
     -- Timing
-    Timeout = 30,
+    Timeout = 20,
     CollectInterval = 0.05,
-    TargetCollectTimeout = 15,
+    TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 10,
-    TweenDuration = 0.50,
 
-    -- BodyPosition
-    BodyPositionP = 50000,
-    BodyPositionD = 2000,
+    -- BodyPosition (លឿន + នឹងនរ)
+    BodyPositionP = 80000,
+    BodyPositionD = 3000,
 
     -- Positions
     SafeZone = Vector3.new(533, 70, -366),
@@ -74,7 +71,7 @@ local State = {
 
     FlySequence = 0,
 
-    TweenConnection = nil,
+    FlyConnection = nil,
     LockConnection = nil,
     BodyPosition = nil,
     ActiveHeartbeat = nil,
@@ -226,12 +223,9 @@ end
 -- CLEANUP MOVERS
 -- ==================================================
 local function CleanupMovers(KeepPlatformStand)
-    if State.TweenConnection then
-        pcall(function() State.TweenConnection:Cancel() end)
-        if typeof(State.TweenConnection) == "RBXScriptConnection" then
-            State.TweenConnection:Disconnect()
-        end
-        State.TweenConnection = nil
+    if State.FlyConnection then
+        State.FlyConnection:Disconnect()
+        State.FlyConnection = nil
     end
     if State.LockConnection then
         State.LockConnection:Disconnect()
@@ -293,7 +287,7 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- TWEEN + BODYPOSITION FLY TP (SPEED ថេរ + NEAR + OUT 0.5)
+-- BODYPOSITION DIRECT FLY TP
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -309,144 +303,104 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween ទៅ Near Position (Speed ថេរ)
-    local StartPos = Root.Position
-    local Direction = (FlyPos - StartPos)
-    local TotalDist = Direction.Magnitude
-    local DirUnit = TotalDist > 0 and Direction.Unit or Vector3.new(0, 0, -1)
+    -- ✅ BodyPosition Direct — ទាញ Player ទៅ Destination ភ្លាម
+    State.BodyPosition = Instance.new("BodyPosition")
+    State.BodyPosition.Name = "YokudoBP"
+    State.BodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    State.BodyPosition.P = Config.BodyPositionP
+    State.BodyPosition.D = Config.BodyPositionD
+    State.BodyPosition.Position = FlyPos
+    State.BodyPosition.Parent = Root
 
-    local NearPos = FlyPos - (DirUnit * Config.NearOffset)
+    local StartTime = tick()
+    local ShotDone = false
 
-    local NearDist = (NearPos - StartPos).Magnitude
-    local NearDuration = math.clamp(NearDist / Speed, 0.05, 5)
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
+        if Seq ~= State.FlySequence then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            return
+        end
 
-    local TweenNear = TweenService:Create(Root,
-        TweenInfo.new(NearDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-        { CFrame = CFrame.new(NearPos, FlyPos) }
-    )
-    State.TweenConnection = TweenNear
-    TweenNear:Play()
-
-    task.spawn(function()
-        TweenNear.Completed:Wait()
-
-        if Seq ~= State.FlySequence then return end
         if not State.Running then CleanupMovers() return end
 
-        -- ✅ Step 2: Tween ចេញពី Near ទៅ Destination (Out Duration 0.5)
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        if not State.BodyPosition then CleanupMovers() return end
 
-        local TweenOut = TweenService:Create(Root2,
-            TweenInfo.new(Config.OutDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-            { CFrame = LockCFrame }
-        )
-        State.TweenConnection = TweenOut
-        TweenOut:Play()
+        local CurrentPos = Root2.Position
+        local Dir = FlyPos - CurrentPos
+        local HorizDist = Vector3.new(Dir.X, 0, Dir.Z).Magnitude
+        local VertDist = math.abs(Dir.Y)
 
-        TweenOut.Completed:Wait()
-
-        if Seq ~= State.FlySequence then return end
-        if not State.Running then CleanupMovers() return end
-
-        -- ✅ Step 3: BodyPosition ទប់នៅ Destination
-        State.BodyPosition = Instance.new("BodyPosition")
-        State.BodyPosition.Name = "YokudoBP"
-        State.BodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-        State.BodyPosition.P = Config.BodyPositionP
-        State.BodyPosition.D = Config.BodyPositionD
-        State.BodyPosition.Position = FlyPos
-        State.BodyPosition.Parent = Root2
-
-        local StartTime = tick()
-        local ShotDone = false
-
-        State.TweenConnection = RunService.Heartbeat:Connect(function()
-            if Seq ~= State.FlySequence then
-                if State.TweenConnection then State.TweenConnection:Disconnect() State.TweenConnection = nil end
-                return
+        -- ✅ Safe Zone: Stop at 5 → មិន Lock, មិន Set CFrame
+        if IsSafeZone and HorizDist <= Config.SafeStopDistance then
+            if State.BodyPosition then
+                State.BodyPosition.Position = CurrentPos
+                State.BodyPosition.MaxForce = Vector3.zero
             end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
-            if not State.Running then CleanupMovers() return end
-
-            local Hum3, Root3 = GetHumanoid()
-            if not Hum3 or not Root3 or Hum3.Health <= 0 then CleanupMovers() return end
-            if not State.BodyPosition then CleanupMovers() return end
-
-            local CurrentPos = Root3.Position
-            local Dir = FlyPos - CurrentPos
-            local HorizDist = Vector3.new(Dir.X, 0, Dir.Z).Magnitude
-            local VertDist = math.abs(Dir.Y)
-
-            -- ✅ Safe Zone: Stop at 5 → Reset + Stop
-            if IsSafeZone and HorizDist <= Config.SafeStopDistance then
-                if State.BodyPosition then
-                    State.BodyPosition.Position = CurrentPos
-                    State.BodyPosition.MaxForce = Vector3.zero
-                end
-                if State.TweenConnection then State.TweenConnection:Disconnect() State.TweenConnection = nil end
-
-                task.spawn(function()
-                    task.wait(0.1)
-                    CleanupMovers(true)
-                    task.wait(0.1)
-                    if Callback then Callback() end
-                end)
-                return
-            end
-
-            -- ✅ Shot TP
-            if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
-                ShotDone = true
-                if State.BodyPosition then
-                    State.BodyPosition.Position = FlyPos
-                    State.BodyPosition.MaxForce = Vector3.zero
-                end
-                if State.TweenConnection then State.TweenConnection:Disconnect() State.TweenConnection = nil end
-
-                task.spawn(function()
-                    task.wait(0.1)
-                    CleanupMovers(true)
-                    Root3.CFrame = LockCFrame
-                    Root3.AssemblyLinearVelocity = Vector3.zero
-                    Root3.AssemblyAngularVelocity = Vector3.zero
-                    task.wait(0.1)
-                    StartLock(Destination)
-                    if Callback then Callback() end
-                end)
-                return
-            end
-
-            -- ✅ Arrived
-            if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
-                if State.BodyPosition then
-                    State.BodyPosition.Position = FlyPos
-                    State.BodyPosition.MaxForce = Vector3.zero
-                end
-                if State.TweenConnection then State.TweenConnection:Disconnect() State.TweenConnection = nil end
-
-                task.spawn(function()
-                    task.wait(0.1)
-                    CleanupMovers(true)
-                    Root3.CFrame = LockCFrame
-                    Root3.AssemblyLinearVelocity = Vector3.zero
-                    Root3.AssemblyAngularVelocity = Vector3.zero
-                    task.wait(0.1)
-                    StartLock(Destination)
-                    if Callback then Callback() end
-                end)
-                return
-            end
-
-            -- ✅ Timeout
-            if tick() - StartTime > Config.Timeout then
-                CleanupMovers()
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                task.wait(0.1)
                 if Callback then Callback() end
-                return
-            end
+            end)
+            return
+        end
 
-            State.BodyPosition.Position = FlyPos
-        end)
+        -- ✅ Shot TP
+        if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
+            ShotDone = true
+            if State.BodyPosition then
+                State.BodyPosition.Position = FlyPos
+                State.BodyPosition.MaxForce = Vector3.zero
+            end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+                task.wait(0.1)
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Arrived
+        if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
+            if State.BodyPosition then
+                State.BodyPosition.Position = FlyPos
+                State.BodyPosition.MaxForce = Vector3.zero
+            end
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+
+            task.spawn(function()
+                task.wait(0.1)
+                CleanupMovers(true)
+                Root2.CFrame = LockCFrame
+                Root2.AssemblyLinearVelocity = Vector3.zero
+                Root2.AssemblyAngularVelocity = Vector3.zero
+                task.wait(0.1)
+                StartLock(Destination)
+                if Callback then Callback() end
+            end)
+            return
+        end
+
+        -- ✅ Timeout
+        if tick() - StartTime > Config.Timeout then
+            CleanupMovers()
+            if Callback then Callback() end
+            return
+        end
+
+        -- ✅ បន្តទាញ
+        State.BodyPosition.Position = FlyPos
     end)
 end
 
@@ -483,7 +437,7 @@ local function TeleportToTarget(TargetPos, Callback)
         print("[YOKUDO] Instant TP to Target")
         InstantTP(TargetPos, Callback)
     else
-        print("[YOKUDO] Tween + BodyPosition to Target")
+        print("[YOKUDO] BodyPosition Direct to Target")
         FlyTP(TargetPos, Config.FlySpeed, true, false, Callback)
     end
 end
@@ -620,18 +574,28 @@ end
 -- AUTO STOP
 -- ==================================================
 local function AutoStop()
+    -- ✅ ១. Stop Lock ភ្លាម
+    if State.LockConnection then
+        State.LockConnection:Disconnect()
+        State.LockConnection = nil
+    end
+    State.TargetLockedCFrame = nil
+
+    -- ✅ ២. Stop Heartbeat
+    if State.ActiveHeartbeat then
+        State.ActiveHeartbeat:Disconnect()
+        State.ActiveHeartbeat = nil
+    end
+
+    -- ✅ ៣. Cleanup
+    CleanupMovers()
+    DisableRagdollBypass()
+    RestoreStats()
+
+    -- ✅ ៤. Reset State
     State.Running = false
     State.Step = "done"
     State.FlySequence = State.FlySequence + 1
-
-    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
-    State.TargetLockedCFrame = nil
-
-    CleanupMovers()
-    DisableRagdollBypass()
-
-    if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
-    RestoreStats()
 
     State.FirstEggList = {}
     State.FirstEggUid = nil
@@ -686,7 +650,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY
+-- RECOVERY (BodyPosition Direct — លឿន)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -722,23 +686,10 @@ local function FlyToTargetAgain()
 
     if not TargetPos then AutoStop() return end
 
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then AutoStop() return end
-
-    Hum.PlatformStand = true
-
-    local Direction = (TargetPos - Root.Position).Unit
-    local NearPos = TargetPos - (Direction * Config.NearOffset)
-
-    local Tween = TweenService:Create(Root,
-        TweenInfo.new(Config.TweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-        { CFrame = CFrame.new(NearPos, TargetPos) }
-    )
-    Tween:Play()
-    Tween.Completed:Wait()
-
     State.RecoveryTriggered = false
     State.TargetCollected = false
+
+    print("[YOKUDO] Recovery → BodyPosition Direct")
 
     FlyTP(TargetPos, Config.FlySpeed, true, false, function()
         print("[YOKUDO] Recovery #" .. State.RecoveryAttempts .. " Arrived")
@@ -760,12 +711,30 @@ local function FlyToSafeZone()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[YOKUDO] Tween + BodyPosition to Safe Zone")
+    print("[YOKUDO] BodyPosition Direct to Safe Zone")
 
     FlyTP(Config.SafeZone, Config.ReturnSpeed, false, true, function()
         print("[YOKUDO] ✅ Arrived Safe Zone → Reset State + Stop")
 
-        -- ✅ Reset State ទាំងអស់
+        -- ✅ ១. Stop Lock ភ្លាម
+        if State.LockConnection then
+            State.LockConnection:Disconnect()
+            State.LockConnection = nil
+        end
+        State.TargetLockedCFrame = nil
+
+        -- ✅ ២. Stop Heartbeat
+        if State.ActiveHeartbeat then
+            State.ActiveHeartbeat:Disconnect()
+            State.ActiveHeartbeat = nil
+        end
+
+        -- ✅ ៣. Cleanup
+        CleanupMovers()
+        DisableRagdollBypass()
+        RestoreStats()
+
+        -- ✅ ៤. Reset State
         State.Running = false
         State.Step = "idle"
         State.Mode = "none"
@@ -784,14 +753,6 @@ local function FlyToSafeZone()
         State.RecoveryTriggered = false
         State.RecoveryAttempts = 0
         State.SavedTargetPosition = nil
-        State.TargetLockedCFrame = nil
-
-        -- ✅ Stop ទាំងអស់
-        if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
-        CleanupMovers()
-        DisableRagdollBypass()
-        if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
-        RestoreStats()
 
         print("[YOKUDO] TeleportSystem: Reset + Stopped")
     end)
@@ -959,7 +920,7 @@ local function StartProcess()
     State.Step = "fly_first"
     StartActiveHeartbeat()
 
-    print("[YOKUDO] Tween + BodyPosition to First Egg")
+    print("[YOKUDO] BodyPosition Direct to First Egg")
     FlyTP(EggPos, Config.FlySpeed, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
@@ -971,6 +932,27 @@ end
 -- PUBLIC API
 -- ==================================================
 local function FullReset()
+    -- ✅ Stop Lock
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+    State.TargetLockedCFrame = nil
+
+    -- ✅ Stop Heartbeat
+    if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
+
+    -- ✅ Stop DropHeldEgg
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
+    end
+    State.DropHeldEgg = nil
+    State.PlayerGui = nil
+
+    -- ✅ Cleanup
+    CleanupMovers()
+    DisableRagdollBypass()
+    RestoreStats()
+
+    -- ✅ Reset State
     State.Running = false
     State.Step = "idle"
     State.Mode = "none"
@@ -983,24 +965,12 @@ local function FullReset()
     State.CollectTime = 0
     State.TargetCollectStartTime = 0
     State.FlyTargetStarted = false
-    State.CollectDone = false    State.TargetCollected = false
+    State.CollectDone = false
+    State.TargetCollected = false
     State.RemotesFired = false
     State.RecoveryTriggered = false
     State.RecoveryAttempts = 0
     State.SavedTargetPosition = nil
-    State.TargetLockedCFrame = nil
-
-    if State.DropHeldEggConnection then
-        State.DropHeldEggConnection:Disconnect()
-        State.DropHeldEggConnection = nil
-    end
-    State.DropHeldEgg = nil
-    State.PlayerGui = nil
-
-    CleanupMovers()
-    DisableRagdollBypass()
-    if State.ActiveHeartbeat then State.ActiveHeartbeat:Disconnect() State.ActiveHeartbeat = nil end
-    RestoreStats()
 
     print("[YOKUDO] TeleportSystem: Full Reset")
 end
@@ -1046,4 +1016,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Tween + BodyPosition + Safe Zone Reset)")
+print("✅ TeleportSystem Loaded (BodyPosition Direct)")
