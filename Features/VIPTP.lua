@@ -1,8 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ✅ Spawn Path → AreaEggSlotsClient
--- ✅ Workspace → Recovery (Egg ធ្លាក់)
--- ✅ Safe Zone → Check UID → Repeat / New UID / Callback
+-- ✅ VIPTP ទទួល UID → Check តែ Spawn Path
+-- ✅ Recovery → Check Workspace មុន → Spawn backup
+-- ✅ Safe Zone → Check ទាំង ២ (Spawn + Workspace)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -28,7 +28,7 @@ local Config = {
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
-    MaxRecoveryAttempts = 10,
+    MaxRecoveryAttempts = 100,
 
     BodyVelocityP = 5000,
     BodyGyroP = 50000,
@@ -40,7 +40,7 @@ local Config = {
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 
-    RepeatCheckDelay = 0.2,
+    RepeatCheckDelay = 0.05,
 }
 
 -- ==================================================
@@ -361,7 +361,6 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
         local VertDist = math.abs(Direction.Y)
         local TotalDist = Direction.Magnitude
 
-        -- Safe Zone: Stop at 5 → No Lock
         if IsSafeZone and HorizDist <= Config.SafeStopDistance then
             if State.BodyVelocity then
                 State.BodyVelocity.Velocity = Vector3.zero
@@ -371,15 +370,14 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
             task.spawn(function()
-                task.wait(0.1)
+                task.wait(0.05)
                 CleanupMovers(true)
-                task.wait(0.1)
+                task.wait(0.05)
                 if Callback then Callback() end
             end)
             return
         end
 
-        -- Shot TP
         if not IsSafeZone and UseShotTP and not ShotDone and HorizDist <= Config.ShotDistance then
             ShotDone = true
             if State.BodyVelocity then
@@ -390,19 +388,18 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
             task.spawn(function()
-                task.wait(0.1)
+                task.wait(0.05)
                 CleanupMovers(true)
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                task.wait(0.1)
+                task.wait(0.05)
                 StartLock(Destination)
                 if Callback then Callback() end
             end)
             return
         end
 
-        -- Arrived
         if HorizDist <= Config.ArriveDistance and VertDist <= 2 then
             if State.BodyVelocity then
                 State.BodyVelocity.Velocity = Vector3.zero
@@ -412,19 +409,18 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
             task.spawn(function()
-                task.wait(0.1)
+                task.wait(0.05)
                 CleanupMovers(true)
                 Root2.CFrame = LockCFrame
                 Root2.AssemblyLinearVelocity = Vector3.zero
                 Root2.AssemblyAngularVelocity = Vector3.zero
-                task.wait(0.1)
+                task.wait(0.05)
                 StartLock(Destination)
                 if Callback then Callback() end
             end)
             return
         end
 
-        -- Timeout
         if tick() - StartTime > Config.Timeout then
             CleanupMovers()
             if Callback then Callback() end
@@ -467,7 +463,7 @@ local function InstantTP(Destination, Callback)
         Root.CFrame = LockCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
-        task.wait(0.1)
+        task.wait(0.05)
         StartLock(Destination)
         if Callback then Callback() end
     end)
@@ -593,11 +589,13 @@ local function IsFirstEggInContainer()
     return State.FirstEggUid and Container and Container:FindFirstChild(State.FirstEggUid) ~= nil
 end
 
--- ✅ Check Target UID (Spawn Path មុន → Workspace)
-local function CheckTargetUID(TargetUid)
+-- ✅ Check Target UID
+-- Mode: "spawn_only" | "both"
+local function CheckTargetUID(TargetUid, Mode)
     if not TargetUid then return "none" end
+    Mode = Mode or "spawn_only"
 
-    -- ✅ ១. Check Spawn Path (AreaEggSlotsClient)
+    -- ✅ ១. Check Spawn Path
     local InContainer = false
     if Container then
         InContainer = Container:FindFirstChild(TargetUid) ~= nil
@@ -607,10 +605,12 @@ local function CheckTargetUID(TargetUid)
         return "spawn"
     end
 
-    -- ✅ ២. Check Workspace (Egg ធ្លាក់)
-    local InWorkspace = workspace:FindFirstChild(TargetUid) ~= nil
-    if InWorkspace then
-        return "workspace"
+    -- ✅ ២. Check Workspace (តែពេល Mode = "both")
+    if Mode == "both" then
+        local InWorkspace = workspace:FindFirstChild(TargetUid) ~= nil
+        if InWorkspace then
+            return "workspace"
+        end
     end
 
     return "none"
@@ -689,7 +689,7 @@ local function AutoStop()
     print("[VIPTP] Auto Stop → Callback FarmingManager")
 
     task.spawn(function()
-        task.wait(0.3)
+        task.wait(0.2)
         if _G.YOKUDO_FarmingManager then
             if type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
                 local Success, Err = pcall(function()
@@ -708,35 +708,30 @@ local function AutoStop()
 end
 
 -- ==================================================
--- FLY TO TARGET (Instant TP — Spawn Path មុន → Workspace)
+-- FLY TO TARGET (Instant TP — Check តែ Spawn Path)
 -- ==================================================
 local function StartFlyToTarget()
     if State.FlyTargetStarted then return end
     State.FlyTargetStarted = true
     State.Step = "to_target"
 
-    local TargetPos
-    local Location = CheckTargetUID(State.TargetUid)
+    -- ✅ Check តែ Spawn Path ប៉ុណ្ណោះ
+    local Location = CheckTargetUID(State.TargetUid, "spawn_only")
 
+    local TargetPos
     if Location == "spawn" then
         State.Mode = "spawn"
         local Egg = Container and Container:FindFirstChild(State.TargetUid)
         if Egg then TargetPos = GetPosition(Egg) end
-    elseif Location == "workspace" then
-        State.Mode = "workspace"
-        TargetPos = State.SavedTargetPosition
-        if not TargetPos then
-            local Egg = workspace:FindFirstChild(State.TargetUid)
-            if Egg then
-                TargetPos = GetPosition(Egg)
-                State.SavedTargetPosition = TargetPos
-            end
-        end
     end
 
-    if not TargetPos then AutoStop() return end
+    if not TargetPos then
+        print("[VIPTP] Target not in Spawn → AutoStop")
+        AutoStop()
+        return
+    end
 
-    print("[VIPTP] Instant TP to Target | Location:", Location)
+    print("[VIPTP] Instant TP to Target | Location: spawn")
 
     InstantTP(TargetPos, function()
         print("[VIPTP] ✅ Instant TP Arrived Target")
@@ -750,7 +745,7 @@ local function StartFlyToTarget()
 end
 
 -- ==================================================
--- RECOVERY (BodyV + BodyG — Workspace មុន → Spawn Path)
+-- RECOVERY (BodyV + BodyG — Check Workspace មុន → Spawn backup)
 -- ==================================================
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
@@ -766,10 +761,10 @@ local function FlyToTargetAgain()
     State.FlySequence = State.FlySequence + 1
     CleanupMovers()
 
+    -- ✅ Recovery: Check ទាំង ២ (Workspace មុន)
     local TargetPos
-    local Location = CheckTargetUID(State.TargetUid)
+    local Location = CheckTargetUID(State.TargetUid, "both")
 
-    -- ✅ Recovery: Check Workspace មុន (Egg ធ្លាក់)
     if Location == "workspace" then
         State.Mode = "workspace"
         local Egg = workspace:FindFirstChild(State.TargetUid)
@@ -777,7 +772,6 @@ local function FlyToTargetAgain()
             TargetPos = GetPosition(Egg)
             State.SavedTargetPosition = TargetPos
         end
-    -- ✅ Backup: Check Spawn Path
     elseif Location == "spawn" then
         State.Mode = "spawn"
         local Egg = Container:FindFirstChild(State.TargetUid)
@@ -806,7 +800,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Check UID → Repeat → Callback)
+-- SAFE ZONE (Check ទាំង ២ → Repeat / New UID / Callback)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
@@ -821,20 +815,19 @@ local function FlyToSafeZone()
         task.spawn(function()
             task.wait(Config.RepeatCheckDelay)
 
-            -- ✅ ១. Check UID បច្ចុប្បន្ន
-            local Location = CheckTargetUID(State.TargetUid)
+            -- ✅ Check ទាំង ២ ពេលមកដល់ Safe Zone
+            local Location = CheckTargetUID(State.TargetUid, "both")
             print("[VIPTP] Current UID:", State.TargetUid, "| Location:", Location)
 
             if Location ~= "none" then
                 print("[VIPTP] ✅ UID Still Exists → Repeat")
-
                 ResetForRepeat(Location)
-                task.wait(0.2)
+                task.wait(0.05)
                 StartProcess()
                 return
             end
 
-            -- ✅ ២. រក UID ថ្មីពី FarmingManager
+            -- រក UID ថ្មី
             print("[VIPTP] UID Gone → Find New UID")
 
             local NewUid = nil
@@ -844,19 +837,17 @@ local function FlyToSafeZone()
                 local BestEgg = _G.YOKUDO_FarmingManager.FindBestEgg()
                 if BestEgg then
                     NewUid = BestEgg.Uid
-                    NewLocation = CheckTargetUID(NewUid)
+                    NewLocation = CheckTargetUID(NewUid, "both")
                     print("[VIPTP] New UID:", NewUid, "| Location:", NewLocation)
                 end
             end
 
             if NewUid and NewLocation ~= "none" then
                 print("[VIPTP] ✅ New UID → Repeat")
-
                 State.TargetUid = NewUid
                 State.SavedTargetPosition = nil
-
                 ResetForRepeat(NewLocation)
-                task.wait(0.2)
+                task.wait(0.05)
                 StartProcess()
             else
                 print("[VIPTP] ❌ No UID → Callback Manager")
@@ -987,41 +978,38 @@ function StartProcess()
     SaveStats()
     EnableRagdollBypass()
 
-    -- ✅ Check Target Location (Spawn មុន → Workspace)
-    local Location = CheckTargetUID(State.TargetUid)
+    -- ✅ Check តែ Spawn Path ប៉ុណ្ណោះ
+    local Location = CheckTargetUID(State.TargetUid, "spawn_only")
     print("[VIPTP] Target Location:", Location)
 
     if Location == "spawn" then
         State.Mode = "spawn"
-    elseif Location == "workspace" then
-        State.Mode = "workspace"
-        local Egg = workspace:FindFirstChild(State.TargetUid)
-        if Egg then State.SavedTargetPosition = GetPosition(Egg) end
     else
-        -- ✅ Wait Egg លេចឡើង
+        -- ✅ បើអត់ឃើញ → Wait តែ 3s
         local Waited = 0
-        while State.Running and CheckTargetUID(State.TargetUid) == "none" do
-            task.wait(0.2)
-            Waited = Waited + 0.2
-            if Waited > 30 then
-                print("[VIPTP] ⚠️ Target not found 30s → AutoStop")
+        while State.Running and CheckTargetUID(State.TargetUid, "spawn_only") == "none" do
+            task.wait(0.1)
+            Waited = Waited + 0.1
+            if Waited > 3 then
+                print("[VIPTP] ⚠️ Target not found 3s → AutoStop")
                 AutoStop()
                 return
             end
         end
-
-        local NewLocation = CheckTargetUID(State.TargetUid)
-        if NewLocation == "spawn" then
-            State.Mode = "spawn"
-        elseif NewLocation == "workspace" then
-            State.Mode = "workspace"
-            local Egg = workspace:FindFirstChild(State.TargetUid)
-            if Egg then State.SavedTargetPosition = GetPosition(Egg) end
-        end
+        State.Mode = "spawn"
     end
 
+    -- ✅ FlyTP ទៅ First Egg ភ្លាម
     SearchFirstEggs()
-    if #State.FirstEggList == 0 then AutoStop() return end
+
+    if #State.FirstEggList == 0 then
+        task.wait(0.3)
+        SearchFirstEggs()
+        if #State.FirstEggList == 0 then
+            AutoStop()
+            return
+        end
+    end
 
     local Closest = FindClosestEgg()
     if not Closest then AutoStop() return end
@@ -1125,4 +1113,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (Spawn Path + Workspace Recovery + Safe Zone Check)")
+print("✅ VIPTP Loaded (Spawn Only → Recovery Both → Safe Both)")
