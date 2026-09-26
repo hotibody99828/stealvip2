@@ -18,7 +18,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 local Config = {
     -- Speeds (ថេរ 1000/s)
     FlySpeed = 1000,
-    ReturnSpeed = 1000,
+    ReturnSpeed = 800,
 
     -- Distances
     FlyOffset = 5,
@@ -31,7 +31,7 @@ local Config = {
     Timeout = 20,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
-    MaxRecoveryAttempts = 1000,
+    MaxRecoveryAttempts = 10,
 
     -- BodyVelocity
     BodyVelocityP = 5000,
