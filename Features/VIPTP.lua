@@ -1,9 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
--- ✅ ឯករាជ្យ — Speed កំណត់ក្នុង file
+-- ✅ ឯករាជ្យ — Speed ផ្សេងៗគ្នា
 -- ✅ First Egg: 1000/s | Recovery: 1000/s | Safe Zone: 700/s
--- ✅ Tween + BodyV + BodyG — គណនា Duration ដោយផ្ទាល់
--- ✅ ការពារធ្លាក់: Anchor Root ពេល Safe Zone
+-- ✅ ការពារធ្លាក់: wait 0.2s + Check Y
+-- ✅ Target Egg: Instant TP
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -15,13 +15,13 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG (ឯករាជ្យ — Speed កំណត់ក្នុង file)
+-- CONFIG (ឯករាជ្យ — Speed ផ្សេងៗគ្នា)
 -- ==================================================
 local Config = {
-    -- ✅ Speeds ខុសៗគ្នាតាមជំហាន
-    FirstEggSpeed = 1000,
-    RecoverySpeed = 1000,
-    SafeZoneSpeed = 700,
+    -- ✅ Speed ផ្សេងៗគ្នា (កំណត់ក្នុង file ខ្លួនឯង)
+    FirstEggSpeed = 1000,      -- ✅ First Egg
+    RecoverySpeed = 1000,      -- ✅ Recovery (Egg Drop)
+    SafeZoneSpeed = 700,       -- ✅ Safe Zone
 
     NearOffset = 20,
 
@@ -40,17 +40,18 @@ local Config = {
     BodyGyroP = 50000,
     BodyGyroD = 2000,
 
+    -- ✅ Safe Zone Y (ត្រូវដី)
     SafeZone = Vector3.new(533, 70, -366),
     LockPosition = Vector3.new(607.6259155273438, 70.57420349121094, -326.8830261230469),
+
+    -- ✅ ការពារធ្លាក់
+    MinSafeY = 60,              -- បើ Y < 60 → Fix
+    SafeZoneWait = 0.2,         -- រង់ចាំ 0.2s
 
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 
     RepeatCheckDelay = 0.05,
-
-    -- ✅ ការពារធ្លាក់
-    AnchorWaitTime = 0.3,
-    MinSafeY = 60,
 }
 
 -- ==================================================
@@ -64,7 +65,7 @@ if not CollectEvent then
     return
 end
 
-print("[VIPTP] CollectEvent OK | First: 1000 | Recovery: 1000 | Safe: 700")
+print("[VIPTP] CollectEvent OK | Speeds: First=1000, Recovery=1000, Safe=700")
 
 -- ==================================================
 -- STATE
@@ -291,8 +292,10 @@ local function CleanupMovers(KeepPlatformStand)
         end)
     end
 
+    -- ✅ ការពារធ្លាក់
     if Root then
         pcall(function()
+            Root.CanCollide = true
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -322,9 +325,7 @@ local function StartLock(Position)
 end
 
 -- ==================================================
--- ✅ TWEEN TELEPORT DIRECT (សម្រាប់ RECOVERY)
--- ✅ គណនា Duration ដោយផ្ទាល់ = ចម្ងាយ ÷ Speed
--- ✅ ការពារធ្លាក់: Anchor Root
+-- ✅ TWEEN TELEPORT DIRECT (សម្រាប់ RECOVERY — Speed 1000/s)
 -- ==================================================
 local function TweenTeleportDirect(Destination, Speed, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -344,7 +345,6 @@ local function TweenTeleportDirect(Destination, Speed, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ គណនា Duration ដោយផ្ទាល់
     local Distance = (FlyPos - Root.Position).Magnitude
     local Duration = Distance / Speed
 
@@ -380,10 +380,7 @@ local function TweenTeleportDirect(Destination, Speed, Callback)
 end
 
 -- ==================================================
--- TWEEN + BODYV + BODYG FLY TP
--- ✅ គណនា Duration ដោយផ្ទាល់ = ចម្ងាយ ÷ Speed
--- ✅ First Egg: Shot TP + Speed 1000
--- ✅ Safe Zone: No Shot TP + Speed 700 + Anchor Root
+-- TWEEN + BODYV + BODYG FLY TP (Speed ផ្សេងៗគ្នា)
 -- ==================================================
 local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -400,7 +397,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
 
     Hum.PlatformStand = true
 
-    -- ✅ Step 1: Tween → Near Position (គណនា Duration ដោយផ្ទាល់)
+    -- ✅ Step 1: Tween → Near Position
     local StartPos = Root.Position
     local Direction = (FlyPos - StartPos)
     local TotalDist = Direction.Magnitude
@@ -476,7 +473,7 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Dir.Y)
             local TotalDist2 = Dir.Magnitude
 
-            -- ✅ Safe Zone: Fix CFrame → Anchor Root → Reset
+            -- ✅ Safe Zone: Fix CFrame → ការពារធ្លាក់
             if IsSafeZone and HorizDist <= Config.SafeStopDistance then
                 if State.BodyVelocity then
                     State.BodyVelocity.Velocity = Vector3.zero
@@ -485,18 +482,16 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                 if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
                 if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
-                -- ✅ Fix CFrame នៅ Safe Zone
+                -- ✅ Fix CFrame នៅ Safe Zone (Y ត្រង់ — មិន + FlyOffset)
                 Root3.CFrame = CFrame.new(Config.SafeZone)
                 Root3.AssemblyLinearVelocity = Vector3.zero
                 Root3.AssemblyAngularVelocity = Vector3.zero
-
-                -- ✅ Anchor Root ការពារធ្លាក់
-                Root3.Anchored = true
+                Root3.CanCollide = true
 
                 task.spawn(function()
-                    task.wait(Config.AnchorWaitTime)
+                    task.wait(Config.SafeZoneWait)  -- ✅ រង់ចាំ 0.2s
 
-                    -- ✅ Check Y បើធ្លាក់ខ្លាំង → លើកឡើងវិញ
+                    -- ✅ ពិនិត្យ Y មុន Reset
                     local Root4 = GetRoot()
                     if Root4 and Root4.Position.Y < Config.MinSafeY then
                         Root4.CFrame = CFrame.new(Config.SafeZone)
@@ -504,25 +499,9 @@ local function FlyTP(Destination, Speed, UseShotTP, IsSafeZone, Callback)
                         Root4.AssemblyAngularVelocity = Vector3.zero
                     end
 
-                    -- ✅ Reset PlatformStand ខណៈ Anchor
-                    local Hum4 = GetHum()
-                    if Hum4 then
-                        pcall(function()
-                            Hum4.PlatformStand = false
-                            Hum4.Sit = false
-                        end)
-                    end
-
                     task.wait(0.1)
 
-                    -- ✅ Unanchor
-                    local Root5 = GetRoot()
-                    if Root5 then
-                        Root5.Anchored = false
-                    end
-
                     CleanupMovers()
-
                     if Callback then Callback() end
                 end)
                 return
@@ -926,7 +905,6 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    -- ✅ Tween Direct ទៅ Egg Drop (Speed 1000/s)
     print("[VIPTP] Recovery → Tween Direct to Egg Drop (Speed 1000)")
     TweenTeleportDirect(TargetPos, Config.RecoverySpeed, function()
         print("[VIPTP] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived")
@@ -941,7 +919,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- SAFE ZONE (Speed 700 + Anchor Root)
+-- SAFE ZONE (Speed 700/s → រក UID ថ្មីភ្លាម)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
@@ -1147,7 +1125,8 @@ function StartProcess()
     State.Step = "fly_first"
     StartActiveTask()
 
-    print("[VIPTP] Tween + BodyV + BodyG to First Egg (Speed 1000 | Shot TP)")
+    -- ✅ First Egg: Speed 1000
+    print("[VIPTP] Tween + BodyV + BodyG to First Egg (Speed 1000, Shot TP)")
     FlyTP(EggPos, Config.FirstEggSpeed, true, false, function()
         State.CollectDone = false
         State.CollectTime = 0
@@ -1241,4 +1220,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (First: 1000 | Recovery: 1000 | Safe: 700 | Anchor Root)")
+print("✅ VIPTP Loaded (First=1000, Recovery=1000, Safe=700 | ការពារធ្លាក់)")
