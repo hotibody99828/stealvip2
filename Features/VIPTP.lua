@@ -20,7 +20,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- ==================================================
 local Config = {
     -- ✅ Speed ថេរ 1000/s (កំណត់ក្នុង file ខ្លួនឯង)
-    TeleportSpeed = 1000,
+    TeleportSpeed = 800,
 
     NearOffset = 20,
 
