@@ -247,6 +247,9 @@ loadstring(GetScript("Tabs/HopServer.lua"))()
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
+Loading.Update(91)
+loadstring(GetScript("Tabs/DontUseIt.lua"))()
+
 -- ==================================================
 -- SELECT DEFAULT TAB
 -- ==================================================
