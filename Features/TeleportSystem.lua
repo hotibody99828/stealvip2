@@ -22,7 +22,7 @@ local Config = {
     -- ✅ Tween Duration ថេរ
     TweenDuration = 0.10,
 
-    FlyOffset = 5,
+    FlyOffset = 15,
     ShotDistance = 25,
     LockAbove = 1,
     ArriveDistance = 2,
