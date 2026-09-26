@@ -4,7 +4,7 @@
 -- ✅ Tween + BodyV + BodyG — គណនា Duration ដោយផ្ទាល់
 -- ✅ First Egg: Shot TP | Target: Instant TP
 -- ✅ Recovery: Tween Direct ទៅ Egg Drop (គ្មានកន្រ្ដាក់)
--- ✅ Safe Zone: Fix CFrame → រក UID ថ្មីភ្លាម
+-- ✅ Safe Zone: Fix CFrame → រង់ចាំ 0.2s → Check Y → Reset (មិនធ្លុះដី)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -46,6 +46,10 @@ local Config = {
     PositionThreshold = 1,
 
     RepeatCheckDelay = 0.05,
+
+    -- ✅ Safe Zone Fix Settings
+    SafeZoneFixDelay = 0.2,       -- រង់ចាំ Physics
+    SafeZoneMinY = 60,            -- Y អប្បបរមា (ក្រោមនេះ = ធ្លាក់)
 }
 
 -- ==================================================
@@ -240,7 +244,7 @@ local function DisableRagdollBypass()
 end
 
 -- ==================================================
--- CLEANUP MOVERS
+-- CLEANUP MOVERS (ការពារធ្លាក់)
 -- ==================================================
 local function CleanupMovers(KeepPlatformStand)
     if State.TweenConnection then
@@ -286,8 +290,10 @@ local function CleanupMovers(KeepPlatformStand)
         end)
     end
 
+    -- ✅ ការពារធ្លាក់
     if Root then
         pcall(function()
+            Root.CanCollide = true
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -376,7 +382,7 @@ end
 -- ==================================================
 -- TWEEN + BODYV + BODYG FLY TP
 -- ✅ គណនា Duration ដោយផ្ទាល់ = ចម្ងាយ ÷ Speed
--- ✅ First Egg: Shot TP | Safe Zone: No Shot TP
+-- ✅ Safe Zone: Fix CFrame → រង់ចាំ 0.2s → Check Y → Reset
 -- ==================================================
 local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
     State.FlySequence = State.FlySequence + 1
@@ -469,7 +475,7 @@ local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
             local VertDist = math.abs(Dir.Y)
             local TotalDist2 = Dir.Magnitude
 
-            -- ✅ Safe Zone: Fix CFrame ភ្លាម → មិនខ្ទាយ
+            -- ✅ Safe Zone: Fix CFrame → រង់ចាំ 0.2s → Check Y → Reset
             if IsSafeZone and HorizDist <= Config.SafeStopDistance then
                 if State.BodyVelocity then
                     State.BodyVelocity.Velocity = Vector3.zero
@@ -478,13 +484,32 @@ local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
                 if State.BodyGyro then State.BodyGyro.MaxTorque = Vector3.zero end
                 if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
 
-                Root3.CFrame = CFrame.new(Config.SafeZone + Vector3.new(0, Config.FlyOffset, 0))
+                -- ✅ Fix CFrame ត្រង់ Safe Zone (មិន + FlyOffset)
+                Root3.CFrame = CFrame.new(Config.SafeZone)
                 Root3.AssemblyLinearVelocity = Vector3.zero
                 Root3.AssemblyAngularVelocity = Vector3.zero
 
                 task.spawn(function()
+                    -- ✅ រង់ចាំ 0.2s ឲ្យ Physics នឹងនរ
+                    task.wait(Config.SafeZoneFixDelay)
+
+                    -- ✅ Check Y មុន Reset
+                    local Hum4 = GetHum()
+                    local Root4 = GetRoot()
+                    if Root4 then
+                        if Root4.Position.Y < Config.SafeZoneMinY then
+                            print("[VIPTP] ⚠️ Player ធ្លាក់ → Fix Y")
+                            Root4.CFrame = CFrame.new(Config.SafeZone)
+                            Root4.AssemblyLinearVelocity = Vector3.zero
+                            Root4.AssemblyAngularVelocity = Vector3.zero
+                        end
+                    end
+
                     task.wait(0.1)
+
+                    -- ✅ Reset PlatformStand បន្ទាប់ពី Player នឹងនរ
                     CleanupMovers()
+
                     if Callback then Callback() end
                 end)
                 return
@@ -506,7 +531,7 @@ local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
                     Root3.CFrame = LockCFrame
                     Root3.AssemblyLinearVelocity = Vector3.zero
                     Root3.AssemblyAngularVelocity = Vector3.zero
-                    task.wait(0.05)
+                    task.wait(0.1)  -- ✅ រង់ចាំ Physics
                     StartLock(Destination)
                     if Callback then Callback() end
                 end)
@@ -528,7 +553,7 @@ local function FlyTP(Destination, UseShotTP, IsSafeZone, Callback)
                     Root3.CFrame = LockCFrame
                     Root3.AssemblyLinearVelocity = Vector3.zero
                     Root3.AssemblyAngularVelocity = Vector3.zero
-                    task.wait(0.05)
+                    task.wait(0.1)  -- ✅ រង់ចាំ Physics
                     StartLock(Destination)
                     if Callback then Callback() end
                 end)
@@ -574,7 +599,7 @@ local function InstantTP(Destination, Callback)
         Root.CFrame = LockCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
-        task.wait(0.05)
+        task.wait(0.1)  -- ✅ រង់ចាំ Physics
         StartLock(Destination)
         if Callback then Callback() end
     end)
@@ -1055,8 +1080,6 @@ function StartProcess()
     State.Step = "search"
     State.FlySequence = 0
 
-    -- ✅ ឯករាជ្យ — មិនយក Speed ពី Tab Setting
-
     State.CollectAttempts = 0
     State.CollectTime = 0
     State.TargetCollectStartTime = 0
@@ -1202,4 +1225,4 @@ _G.YOKUDO_VIPTP = {
     SAFE_ZONE = Config.SafeZone,
 }
 
-print("✅ VIPTP Loaded (Independent | Speed 1000/s | Tween + BodyV + BodyG)")
+print("✅ VIPTP Loaded (Independent | Speed 1000/s | Safe Zone Fix Y)")
