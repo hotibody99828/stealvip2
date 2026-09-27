@@ -272,7 +272,7 @@ Loading.Update(95)
 -- LOAD ANTI CHEAT
 -- ==================================================
 Loading.Update(98)
-loadstring(GetScript("Features/BypassAntiCheat.lua"))()
+-=-loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 -- ==================================================
 -- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
