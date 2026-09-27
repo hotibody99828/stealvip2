@@ -1,5 +1,5 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Collect Egg New
+-- YOKUDO HUB | TAB | Collect Egg New (NO WARNING)
 -- Feature 1: For Event Drop Egg
 -- Feature 2: Anti Guard
 -- ==================================================
@@ -18,7 +18,7 @@ CreateSectionTitle(CollectEggNewPage, "Collect Egg new", 1)
 -- FEATURE 1: For Event Drop Egg (Checkbox)
 -- ==================================================
 local DropEggHolder = Instance.new("Frame")
-DropEggHolder.Size = UDim2.new(1, 0, 0, 60)
+DropEggHolder.Size = UDim2.new(1, 0, 0, 52)
 DropEggHolder.BackgroundTransparency = 1
 DropEggHolder.LayoutOrder = 2
 DropEggHolder.Parent = CollectEggNewPage
@@ -37,7 +37,7 @@ DropEggLabel.Parent = DropEggHolder
 
 local DropEggSub = Instance.new("TextLabel")
 DropEggSub.Size = UDim2.new(1, -50, 0, 16)
-DropEggSub.Position = UDim2.new(0, 0, 0, 22)
+DropEggSub.Position = UDim2.new(0, 0, 0, 24)
 DropEggSub.BackgroundTransparency = 1
 DropEggSub.Text = "Event Drop Egg Mode"
 DropEggSub.TextColor3 = Color3.fromRGB(150, 150, 170)
@@ -45,17 +45,6 @@ DropEggSub.TextSize = 10
 DropEggSub.TextXAlignment = Enum.TextXAlignment.Left
 DropEggSub.Font = Enum.Font.Gotham
 DropEggSub.Parent = DropEggHolder
-
-local DropEggWarn = Instance.new("TextLabel")
-DropEggWarn.Size = UDim2.new(1, -50, 0, 14)
-DropEggWarn.Position = UDim2.new(0, 0, 0, 38)
-DropEggWarn.BackgroundTransparency = 1
-DropEggWarn.Text = "⚠ Use at your own risk"
-DropEggWarn.TextColor3 = Color3.fromRGB(255, 80, 80)
-DropEggWarn.TextSize = 9
-DropEggWarn.TextXAlignment = Enum.TextXAlignment.Left
-DropEggWarn.Font = Enum.Font.Gotham
-DropEggWarn.Parent = DropEggHolder
 
 local DropEggButton = Instance.new("TextButton")
 DropEggButton.Size = UDim2.new(0, 26, 0, 26)
@@ -89,7 +78,7 @@ DropEggCheck.Parent = DropEggButton
 -- FEATURE 2: Anti Guard (Checkbox)
 -- ==================================================
 local AntiGuardHolder = Instance.new("Frame")
-AntiGuardHolder.Size = UDim2.new(1, 0, 0, 60)
+AntiGuardHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiGuardHolder.BackgroundTransparency = 1
 AntiGuardHolder.LayoutOrder = 3
 AntiGuardHolder.Parent = CollectEggNewPage
@@ -108,7 +97,7 @@ AntiGuardLabel.Parent = AntiGuardHolder
 
 local AntiGuardSub = Instance.new("TextLabel")
 AntiGuardSub.Size = UDim2.new(1, -50, 0, 16)
-AntiGuardSub.Position = UDim2.new(0, 0, 0, 22)
+AntiGuardSub.Position = UDim2.new(0, 0, 0, 24)
 AntiGuardSub.BackgroundTransparency = 1
 AntiGuardSub.Text = "Anti Guard Attack Protection"
 AntiGuardSub.TextColor3 = Color3.fromRGB(150, 150, 170)
@@ -116,17 +105,6 @@ AntiGuardSub.TextSize = 10
 AntiGuardSub.TextXAlignment = Enum.TextXAlignment.Left
 AntiGuardSub.Font = Enum.Font.Gotham
 AntiGuardSub.Parent = AntiGuardHolder
-
-local AntiGuardWarn = Instance.new("TextLabel")
-AntiGuardWarn.Size = UDim2.new(1, -50, 0, 14)
-AntiGuardWarn.Position = UDim2.new(0, 0, 0, 38)
-AntiGuardWarn.BackgroundTransparency = 1
-AntiGuardWarn.Text = "⚠ Use at your own risk"
-AntiGuardWarn.TextColor3 = Color3.fromRGB(255, 80, 80)
-AntiGuardWarn.TextSize = 9
-AntiGuardWarn.TextXAlignment = Enum.TextXAlignment.Left
-AntiGuardWarn.Font = Enum.Font.Gotham
-AntiGuardWarn.Parent = AntiGuardHolder
 
 local AntiGuardButton = Instance.new("TextButton")
 AntiGuardButton.Size = UDim2.new(0, 26, 0, 26)
@@ -286,4 +264,4 @@ _G.YOKUDO_RefreshCollectEggNewUI = function()
     print("[YOKUDO] Collect Egg new Tab UI Refreshed")
 end
 
-print("✅ Collect Egg new Tab Loaded")
+print("✅ Collect Egg new Tab Loaded (No Warning)")
