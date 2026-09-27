@@ -1,15 +1,34 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Anti Guard
--- ✅ Anti Ragdoll + Anti Knockback + God Mode
+-- ✅ Check DropHeldEgg.Enabled
+-- ✅ True → CFrame Safe Zone → Wait 1s → Return
+-- ✅ False → Reset
+-- ✅ Loop ដដែល
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local Player = Players.LocalPlayer
 
+-- ==================================================
+-- SETTINGS
+-- ==================================================
+local SAFE_ZONE = Vector3.new(550, 70, -431)
+local CHECK_INTERVAL = 0.01
+local WAIT_AT_SAFE = 1
+
+-- ==================================================
+-- STATE
+-- ==================================================
 local AntiGuardEnabled = false
-local AntiGuardConnection = nil
+local CheckThread = nil
+local FastClickConnection = nil
+local FastClickHeartbeat = nil
+local FastClickCounter = 0
+local LastState = false
+local OriginalCFrame = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -21,43 +40,146 @@ local function GetHumanoid()
 end
 
 -- ==================================================
+-- GET DROP HELD EGG
+-- ==================================================
+local function GetDropHeldEgg()
+    local PG = Player:FindFirstChild("PlayerGui")
+    if not PG then return nil end
+    return PG:FindFirstChild("DropHeldEgg", true)
+end
+
+-- ==================================================
+-- CLICK FAST
+-- ==================================================
+local function ApplyHoldDuration(prompt)
+    if not prompt then return end
+    pcall(function() prompt.HoldDuration = 0 end)
+end
+
+local function ScanAllPrompts()
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then ApplyHoldDuration(d) end
+    end
+    local PG = Player:FindFirstChild("PlayerGui")
+    if PG then
+        for _, d in ipairs(PG:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then ApplyHoldDuration(d) end
+        end
+    end
+end
+
+local function StartFastClick()
+    ScanAllPrompts()
+    if FastClickConnection then FastClickConnection:Disconnect() end
+    FastClickConnection = ProximityPromptService.PromptShown:Connect(function(prompt)
+        if not AntiGuardEnabled then return end
+        ApplyHoldDuration(prompt)
+    end)
+    if FastClickHeartbeat then FastClickHeartbeat:Disconnect() end
+    FastClickCounter = 0
+    FastClickHeartbeat = RunService.Heartbeat:Connect(function()
+        if not AntiGuardEnabled then return end
+        FastClickCounter = FastClickCounter + 1
+        if FastClickCounter >= 30 then
+            FastClickCounter = 0
+            ScanAllPrompts()
+        end
+    end)
+    print("[AntiGuard] Fast Click: ON")
+end
+
+local function StopFastClick()
+    if FastClickConnection then FastClickConnection:Disconnect() FastClickConnection = nil end
+    if FastClickHeartbeat then FastClickHeartbeat:Disconnect() FastClickHeartbeat = nil end
+    print("[AntiGuard] Fast Click: OFF")
+end
+
+-- ==================================================
+-- CFrame + Return (Anti Guard Protection)
+-- ==================================================
+local function CFrameAndReturn()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        print("[AntiGuard] ⚠️ Humanoid or Root not found!")
+        return
+    end
+
+    OriginalCFrame = Root.CFrame
+    print("[AntiGuard] 📍 Original Position:", OriginalCFrame.Position)
+
+    -- ✅ CFrame ទៅ Safe Zone
+    pcall(function()
+        Root.CFrame = CFrame.new(SAFE_ZONE)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+    print("[AntiGuard] ✅ CFrame → Safe Zone:", SAFE_ZONE)
+
+    -- ✅ Wait 1s
+    task.wait(WAIT_AT_SAFE)
+
+    -- ✅ Return មក Position ដើម
+    if OriginalCFrame then
+        pcall(function()
+            Root.CFrame = OriginalCFrame
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+        print("[AntiGuard] ✅ Return → Original Position")
+    end
+end
+
+-- ==================================================
+-- CHECK LOOP (True/False Loop)
+-- ==================================================
+local function CheckLoop()
+    print("[AntiGuard] CheckLoop Started")
+    local DropHeldEgg = nil
+
+    while AntiGuardEnabled do
+        task.wait(CHECK_INTERVAL)
+        if not AntiGuardEnabled then break end
+
+        if not DropHeldEgg or not DropHeldEgg.Parent then
+            DropHeldEgg = GetDropHeldEgg()
+        end
+
+        if DropHeldEgg then
+            local CurrentState = DropHeldEgg.Enabled == true
+
+            -- ✅ True → CFrame Safe Zone
+            if CurrentState and not LastState then
+                print("[AntiGuard] ✅ Egg Collect = TRUE → CFrame Safe Zone")
+                LastState = true
+                CFrameAndReturn()
+            end
+
+            -- ✅ False → Reset
+            if not CurrentState and LastState then
+                print("[AntiGuard] ❌ Egg Collect = FALSE → Reset")
+                LastState = false
+            end
+        end
+    end
+
+    print("[AntiGuard] CheckLoop Stopped")
+end
+
+-- ==================================================
 -- ENABLE
 -- ==================================================
 local function EnableAntiGuard()
     if AntiGuardEnabled then return end
     AntiGuardEnabled = true
+    LastState = false
 
-    if AntiGuardConnection then AntiGuardConnection:Disconnect() end
-    AntiGuardConnection = RunService.Heartbeat:Connect(function()
-        if not AntiGuardEnabled then return end
-        local Hum, Root = GetHumanoid()
-        if not Hum or not Root then return end
+    StartFastClick()
 
-        pcall(function()
-            -- ✅ បិទ Ragdoll States
-            Hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            Hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-            Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            Hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-
-            -- ✅ Reset Health
-            if Hum.Health < Hum.MaxHealth then
-                Hum.Health = Hum.MaxHealth
-            end
-
-            -- ✅ Reset Velocity
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-
-            -- ✅ Reset PlatformStand
-            Hum.PlatformStand = false
-            Hum.Sit = false
-
-            -- ✅ Disable BreakJoints
-            Hum.BreakJointsOnDeath = false
-            Hum.RequiresNeck = false
-        end)
-    end)
+    if CheckThread then
+        pcall(function() task.cancel(CheckThread) end)
+        CheckThread = nil
+    end
+    CheckThread = task.spawn(CheckLoop)
 
     print("[AntiGuard] ON")
 end
@@ -68,12 +190,14 @@ end
 local function DisableAntiGuard()
     if not AntiGuardEnabled then return end
     AntiGuardEnabled = false
+    LastState = false
 
-    if AntiGuardConnection then
-        AntiGuardConnection:Disconnect()
-        AntiGuardConnection = nil
+    if CheckThread then
+        pcall(function() task.cancel(CheckThread) end)
+        CheckThread = nil
     end
 
+    StopFastClick()
     print("[AntiGuard] OFF")
 end
 
@@ -92,6 +216,8 @@ _G.YOKUDO_AntiGuard = {
     Disable = DisableAntiGuard,
     Toggle = ToggleAntiGuard,
     IsEnabled = function() return AntiGuardEnabled end,
+    SAFE_ZONE = SAFE_ZONE,
+    WAIT_AT_SAFE = WAIT_AT_SAFE,
 }
 
 -- ==================================================
@@ -113,3 +239,5 @@ if _G.YOKUDO_CharacterSystem then
 end
 
 print("✅ AntiGuard Feature Loaded")
+print("   Safe Zone:", SAFE_ZONE)
+print("   Wait:", WAIT_AT_SAFE .. "s")
