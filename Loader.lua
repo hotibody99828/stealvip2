@@ -1,6 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED)
--- ✅ Don't Use It Feature + Tab
+-- ✅ Collect Egg new Feature + Tab
+-- ✅ DropEgg + AntiGuard Features
 -- ❌ គ្មាន CharacterSystem
 -- ❌ គ្មាន Config
 -- ==================================================
@@ -217,12 +218,16 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(58)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ Don't Use It Feature
+-- ✅ DropEgg Feature (ថ្មី)
 Loading.Update(59)
-loadstring(GetScript("Features/DontUseIt.lua"))()
+loadstring(GetScript("Features/DropEgg.lua"))()
+
+-- ✅ AntiGuard Feature (ថ្មី)
+Loading.Update(60)
+loadstring(GetScript("Features/AntiGuard.lua"))()
 
 -- ✅ ConfigSystem
-Loading.Update(60)
+Loading.Update(61)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
 -- ==================================================
@@ -249,9 +254,9 @@ loadstring(GetScript("Tabs/HopServer.lua"))()
 Loading.Update(90)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
--- ✅ Don't Use It Tab
+-- ✅ Collect Egg new Tab (ជំនួស Don't Use It)
 Loading.Update(91)
-loadstring(GetScript("Tabs/DontUseIt.lua"))()
+loadstring(GetScript("Tabs/CollectEggNew.lua"))()
 
 -- ==================================================
 -- SELECT DEFAULT TAB
