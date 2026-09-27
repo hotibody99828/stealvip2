@@ -1,274 +1,285 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Don't Use It
--- ✅ CheckBox → Show/Hide Floating Toggle
--- ✅ Floating Toggle ចុច ON/OFF → Feature Enable/Disable
+-- YOKUDO HUB | TAB | Collect Egg new
+-- Feature 1: For Event Drop Egg
+-- Feature 2: Anti Guard
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 
-local DontUseItTab, DontUseItPage = TabsManager:RegisterTab("Don't Use It", 8, "DONT_USE_IT")
+local CollectEggNewTab, CollectEggNewPage = TabsManager:RegisterTab("Collect Egg new", 8, "COLLECT_EGG_NEW")
 
 -- ==================================================
 -- CONTENT
 -- ==================================================
-CreateSectionTitle(DontUseItPage, "Don't Use It", 1)
+CreateSectionTitle(CollectEggNewPage, "Collect Egg new", 1)
 
 -- ==================================================
--- FEATURE: Show Floating Toggle (CheckBox)
+-- FEATURE 1: For Event Drop Egg (Checkbox)
 -- ==================================================
-local ShowHolder = Instance.new("Frame")
-ShowHolder.Size = UDim2.new(1, 0, 0, 52)
-ShowHolder.BackgroundTransparency = 1
-ShowHolder.LayoutOrder = 2
-ShowHolder.Parent = DontUseItPage
+local DropEggHolder = Instance.new("Frame")
+DropEggHolder.Size = UDim2.new(1, 0, 0, 60)
+DropEggHolder.BackgroundTransparency = 1
+DropEggHolder.LayoutOrder = 2
+DropEggHolder.Parent = CollectEggNewPage
 
-local ShowLabel = Instance.new("TextLabel")
-ShowLabel.Size = UDim2.new(1, -50, 0, 20)
-ShowLabel.Position = UDim2.new(0, 0, 0, 2)
-ShowLabel.BackgroundTransparency = 1
-ShowLabel.Text = "Show Floating Toggle"
-ShowLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-ShowLabel.TextSize = 13
-ShowLabel.TextXAlignment = Enum.TextXAlignment.Left
-ShowLabel.TextYAlignment = Enum.TextYAlignment.Center
-ShowLabel.Font = Enum.Font.GothamBold
-ShowLabel.Parent = ShowHolder
+local DropEggLabel = Instance.new("TextLabel")
+DropEggLabel.Size = UDim2.new(1, -50, 0, 20)
+DropEggLabel.Position = UDim2.new(0, 0, 0, 2)
+DropEggLabel.BackgroundTransparency = 1
+DropEggLabel.Text = "For Event Drop Egg"
+DropEggLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+DropEggLabel.TextSize = 13
+DropEggLabel.TextXAlignment = Enum.TextXAlignment.Left
+DropEggLabel.TextYAlignment = Enum.TextYAlignment.Center
+DropEggLabel.Font = Enum.Font.GothamBold
+DropEggLabel.Parent = DropEggHolder
 
-local ShowSub = Instance.new("TextLabel")
-ShowSub.Size = UDim2.new(1, -50, 0, 18)
-ShowSub.Position = UDim2.new(0, 0, 0, 24)
-ShowSub.BackgroundTransparency = 1
-ShowSub.Text = "Check to show floating toggle"
-ShowSub.TextColor3 = Color3.fromRGB(150, 150, 170)
-ShowSub.TextSize = 10
-ShowSub.TextXAlignment = Enum.TextXAlignment.Left
-ShowSub.Font = Enum.Font.Gotham
-ShowSub.Parent = ShowHolder
+local DropEggSub = Instance.new("TextLabel")
+DropEggSub.Size = UDim2.new(1, -50, 0, 16)
+DropEggSub.Position = UDim2.new(0, 0, 0, 22)
+DropEggSub.BackgroundTransparency = 1
+DropEggSub.Text = "Event Drop Egg Mode"
+DropEggSub.TextColor3 = Color3.fromRGB(150, 150, 170)
+DropEggSub.TextSize = 10
+DropEggSub.TextXAlignment = Enum.TextXAlignment.Left
+DropEggSub.Font = Enum.Font.Gotham
+DropEggSub.Parent = DropEggHolder
 
-local ShowButton = Instance.new("TextButton")
-ShowButton.Size = UDim2.new(0, 26, 0, 26)
-ShowButton.Position = UDim2.new(1, -26, 0.5, -13)
-ShowButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-ShowButton.BorderSizePixel = 0
-ShowButton.Text = ""
-ShowButton.AutoButtonColor = false
-ShowButton.Parent = ShowHolder
+local DropEggWarn = Instance.new("TextLabel")
+DropEggWarn.Size = UDim2.new(1, -50, 0, 14)
+DropEggWarn.Position = UDim2.new(0, 0, 0, 38)
+DropEggWarn.BackgroundTransparency = 1
+DropEggWarn.Text = "⚠ Use at your own risk"
+DropEggWarn.TextColor3 = Color3.fromRGB(255, 80, 80)
+DropEggWarn.TextSize = 9
+DropEggWarn.TextXAlignment = Enum.TextXAlignment.Left
+DropEggWarn.Font = Enum.Font.Gotham
+DropEggWarn.Parent = DropEggHolder
 
-local ShowCorner = Instance.new("UICorner")
-ShowCorner.CornerRadius = UDim.new(0, 6)
-ShowCorner.Parent = ShowButton
+local DropEggButton = Instance.new("TextButton")
+DropEggButton.Size = UDim2.new(0, 26, 0, 26)
+DropEggButton.Position = UDim2.new(1, -26, 0.5, -13)
+DropEggButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+DropEggButton.BorderSizePixel = 0
+DropEggButton.Text = ""
+DropEggButton.AutoButtonColor = false
+DropEggButton.Parent = DropEggHolder
 
-local ShowStroke = Instance.new("UIStroke")
-ShowStroke.Color = Color3.fromRGB(200, 200, 220)
-ShowStroke.Thickness = 1.5
-ShowStroke.Parent = ShowButton
+local DropEggCorner = Instance.new("UICorner")
+DropEggCorner.CornerRadius = UDim.new(0, 6)
+DropEggCorner.Parent = DropEggButton
 
-local ShowCheck = Instance.new("TextLabel")
-ShowCheck.Size = UDim2.new(1, 0, 1, 0)
-ShowCheck.BackgroundTransparency = 1
-ShowCheck.Text = "✓"
-ShowCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-ShowCheck.TextSize = 18
-ShowCheck.Font = Enum.Font.GothamBold
-ShowCheck.Visible = false
-ShowCheck.Parent = ShowButton
+local DropEggStroke = Instance.new("UIStroke")
+DropEggStroke.Color = Color3.fromRGB(200, 200, 220)
+DropEggStroke.Thickness = 1.5
+DropEggStroke.Parent = DropEggButton
+
+local DropEggCheck = Instance.new("TextLabel")
+DropEggCheck.Size = UDim2.new(1, 0, 1, 0)
+DropEggCheck.BackgroundTransparency = 1
+DropEggCheck.Text = "✓"
+DropEggCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+DropEggCheck.TextSize = 18
+DropEggCheck.Font = Enum.Font.GothamBold
+DropEggCheck.Visible = false
+DropEggCheck.Parent = DropEggButton
 
 -- ==================================================
--- FLOATING TOGGLE
+-- FEATURE 2: Anti Guard (Checkbox)
 -- ==================================================
-local FloatingGui = nil
-local FloatingFrame = nil
-local FloatingLabel = nil
-local FloatingEnabled = false
+local AntiGuardHolder = Instance.new("Frame")
+AntiGuardHolder.Size = UDim2.new(1, 0, 0, 60)
+AntiGuardHolder.BackgroundTransparency = 1
+AntiGuardHolder.LayoutOrder = 3
+AntiGuardHolder.Parent = CollectEggNewPage
 
-local function CreateFloatingToggle()
-    if FloatingGui then return end
+local AntiGuardLabel = Instance.new("TextLabel")
+AntiGuardLabel.Size = UDim2.new(1, -50, 0, 20)
+AntiGuardLabel.Position = UDim2.new(0, 0, 0, 2)
+AntiGuardLabel.BackgroundTransparency = 1
+AntiGuardLabel.Text = "Anti Guard"
+AntiGuardLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiGuardLabel.TextSize = 13
+AntiGuardLabel.TextXAlignment = Enum.TextXAlignment.Left
+AntiGuardLabel.TextYAlignment = Enum.TextYAlignment.Center
+AntiGuardLabel.Font = Enum.Font.GothamBold
+AntiGuardLabel.Parent = AntiGuardHolder
 
-    FloatingGui = Instance.new("ScreenGui")
-    FloatingGui.Name = "YokudoFloatingToggle"
-    FloatingGui.ResetOnSpawn = false
-    FloatingGui.IgnoreGuiInset = true
-    FloatingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    FloatingGui.DisplayOrder = 9999
-    FloatingGui.Parent = CoreGui
+local AntiGuardSub = Instance.new("TextLabel")
+AntiGuardSub.Size = UDim2.new(1, -50, 0, 16)
+AntiGuardSub.Position = UDim2.new(0, 0, 0, 22)
+AntiGuardSub.BackgroundTransparency = 1
+AntiGuardSub.Text = "Anti Guard Attack Protection"
+AntiGuardSub.TextColor3 = Color3.fromRGB(150, 150, 170)
+AntiGuardSub.TextSize = 10
+AntiGuardSub.TextXAlignment = Enum.TextXAlignment.Left
+AntiGuardSub.Font = Enum.Font.Gotham
+AntiGuardSub.Parent = AntiGuardHolder
 
-    FloatingFrame = Instance.new("TextButton")
-    FloatingFrame.Name = "Toggle"
-    FloatingFrame.Size = UDim2.new(0, 160, 0, 44)
-    FloatingFrame.Position = UDim2.new(0, 20, 0.5, -22)
-    FloatingFrame.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-    FloatingFrame.BorderSizePixel = 0
-    FloatingFrame.Text = ""
-    FloatingFrame.AutoButtonColor = false
-    FloatingFrame.Active = true
-    FloatingFrame.Parent = FloatingGui
+local AntiGuardWarn = Instance.new("TextLabel")
+AntiGuardWarn.Size = UDim2.new(1, -50, 0, 14)
+AntiGuardWarn.Position = UDim2.new(0, 0, 0, 38)
+AntiGuardWarn.BackgroundTransparency = 1
+AntiGuardWarn.Text = "⚠ Use at your own risk"
+AntiGuardWarn.TextColor3 = Color3.fromRGB(255, 80, 80)
+AntiGuardWarn.TextSize = 9
+AntiGuardWarn.TextXAlignment = Enum.TextXAlignment.Left
+AntiGuardWarn.Font = Enum.Font.Gotham
+AntiGuardWarn.Parent = AntiGuardHolder
 
-    local FrameCorner = Instance.new("UICorner")
-    FrameCorner.CornerRadius = UDim.new(0, 8)
-    FrameCorner.Parent = FloatingFrame
+local AntiGuardButton = Instance.new("TextButton")
+AntiGuardButton.Size = UDim2.new(0, 26, 0, 26)
+AntiGuardButton.Position = UDim2.new(1, -26, 0.5, -13)
+AntiGuardButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+AntiGuardButton.BorderSizePixel = 0
+AntiGuardButton.Text = ""
+AntiGuardButton.AutoButtonColor = false
+AntiGuardButton.Parent = AntiGuardHolder
 
-    local FrameStroke = Instance.new("UIStroke")
-    FrameStroke.Name = "Stroke"
-    FrameStroke.Color = Color3.fromRGB(200, 200, 220)
-    FrameStroke.Thickness = 1.5
-    FrameStroke.Parent = FloatingFrame
+local AntiGuardCorner = Instance.new("UICorner")
+AntiGuardCorner.CornerRadius = UDim.new(0, 6)
+AntiGuardCorner.Parent = AntiGuardButton
 
-    FloatingLabel = Instance.new("TextLabel")
-    FloatingLabel.Name = "Label"
-    FloatingLabel.Size = UDim2.new(1, -20, 1, 0)
-    FloatingLabel.Position = UDim2.new(0, 10, 0, 0)
-    FloatingLabel.BackgroundTransparency = 1
-    FloatingLabel.Text = "Don't use it : OFF"
-    FloatingLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-    FloatingLabel.TextSize = 12
-    FloatingLabel.TextXAlignment = Enum.TextXAlignment.Center
-    FloatingLabel.TextYAlignment = Enum.TextYAlignment.Center
-    FloatingLabel.Font = Enum.Font.GothamBold
-    FloatingLabel.Active = false
-    FloatingLabel.Parent = FloatingFrame
+local AntiGuardStroke = Instance.new("UIStroke")
+AntiGuardStroke.Color = Color3.fromRGB(200, 200, 220)
+AntiGuardStroke.Thickness = 1.5
+AntiGuardStroke.Parent = AntiGuardButton
 
-    -- ==================================================
-    -- CLICK TOGGLE ON/OFF
-    -- ==================================================
-    FloatingFrame.MouseButton1Click:Connect(function()
-        FloatingEnabled = not FloatingEnabled
+local AntiGuardCheck = Instance.new("TextLabel")
+AntiGuardCheck.Size = UDim2.new(1, 0, 1, 0)
+AntiGuardCheck.BackgroundTransparency = 1
+AntiGuardCheck.Text = "✓"
+AntiGuardCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+AntiGuardCheck.TextSize = 18
+AntiGuardCheck.Font = Enum.Font.GothamBold
+AntiGuardCheck.Visible = false
+AntiGuardCheck.Parent = AntiGuardButton
 
-        if FloatingEnabled then
-            FloatingFrame.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            FloatingFrame.Stroke.Color = Color3.fromRGB(135, 120, 225)
-            FloatingLabel.Text = "Don't use it : ON"
+-- ==================================================
+-- STATE
+-- ==================================================
+local DropEggEnabled = false
+local AntiGuardEnabled = false
 
-            -- ✅ Enable Feature
-            if _G.YOKUDO_DontUseIt then
-                _G.YOKUDO_DontUseIt.Enable()
-            end
+-- ==================================================
+-- TOGGLE DROP EGG
+-- ==================================================
+local function ToggleDropEgg()
+    DropEggEnabled = not DropEggEnabled
+    DropEggCheck.Visible = DropEggEnabled
 
-            print("[Don't Use It] Toggle: ON")
-        else
-            FloatingFrame.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-            FloatingFrame.Stroke.Color = Color3.fromRGB(200, 200, 220)
-            FloatingLabel.Text = "Don't use it : OFF"
+    if DropEggEnabled then
+        DropEggButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        DropEggStroke.Color = Color3.fromRGB(135, 120, 225)
 
-            -- ✅ Disable Feature
-            if _G.YOKUDO_DontUseIt then
-                _G.YOKUDO_DontUseIt.Disable()
-            end
-
-            print("[Don't Use It] Toggle: OFF")
+        if _G.YOKUDO_DropEgg then
+            _G.YOKUDO_DropEgg.Enable()
         end
-    end)
-
-    -- ==================================================
-    -- DRAG SYSTEM
-    -- ==================================================
-    local Dragging = false
-    local DragStart = nil
-    local StartPos = nil
-    local ActiveTouch = nil
-
-    FloatingFrame.InputBegan:Connect(function(Input)
-        if Input.UserInputType == Enum.UserInputType.MouseButton1
-        or Input.UserInputType == Enum.UserInputType.Touch then
-            if Dragging then return end
-            if Input.UserInputType == Enum.UserInputType.Touch then
-                ActiveTouch = Input
-            end
-            Dragging = true
-            DragStart = Input.Position
-            StartPos = FloatingFrame.Position
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(Input)
-        if not Dragging then return end
-        if Input.UserInputType == Enum.UserInputType.Touch then
-            if ActiveTouch and Input ~= ActiveTouch then return end
-        end
-        if not DragStart or not StartPos then return end
-        if Input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and Input.UserInputType ~= Enum.UserInputType.Touch then return end
-
-        local Delta = Input.Position - DragStart
-        FloatingFrame.Position = UDim2.new(
-            StartPos.X.Scale,
-            StartPos.X.Offset + Delta.X,
-            StartPos.Y.Scale,
-            StartPos.Y.Offset + Delta.Y
-        )
-    end)
-
-    UserInputService.InputEnded:Connect(function(Input)
-        if Input.UserInputType == Enum.UserInputType.Touch then
-            if ActiveTouch and Input == ActiveTouch then
-                Dragging = false
-                ActiveTouch = nil
-                DragStart = nil
-                StartPos = nil
-            end
-            return
-        end
-        if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if Dragging then
-                Dragging = false
-                DragStart = nil
-                StartPos = nil
-            end
-        end
-    end)
-
-    print("[Don't Use It] Floating Toggle Created")
-end
-
-local function ShowFloatingToggle()
-    CreateFloatingToggle()
-    if FloatingGui then
-        FloatingGui.Enabled = true
-    end
-end
-
-local function HideFloatingToggle()
-    if FloatingGui then
-        FloatingGui.Enabled = false
-    end
-end
-
--- ==================================================
--- CHECKBOX TOGGLE
--- ==================================================
-local ShowEnabled = false
-
-local function ToggleShow()
-    ShowEnabled = not ShowEnabled
-    ShowCheck.Visible = ShowEnabled
-
-    if ShowEnabled then
-        ShowButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        ShowStroke.Color = Color3.fromRGB(135, 120, 225)
-        ShowFloatingToggle()
-        print("[Don't Use It] Floating Toggle: SHOWN")
     else
-        ShowButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        ShowStroke.Color = Color3.fromRGB(200, 200, 220)
-        HideFloatingToggle()
-        print("[Don't Use It] Floating Toggle: HIDDEN")
+        DropEggButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        DropEggStroke.Color = Color3.fromRGB(200, 200, 220)
+
+        if _G.YOKUDO_DropEgg then
+            _G.YOKUDO_DropEgg.Disable()
+        end
+    end
+
+    if _G.YOKUDO_ConfigSystem then
+        _G.YOKUDO_ConfigSystem.Save()
     end
 end
 
-ShowButton.MouseButton1Click:Connect(function()
-    ToggleShow()
+DropEggButton.MouseButton1Click:Connect(function()
+    ToggleDropEgg()
 end)
 
 -- ==================================================
--- EXPORT
+-- TOGGLE ANTI GUARD
 -- ==================================================
-_G.YOKUDO_FloatingToggle = {
-    Show = ShowFloatingToggle,
-    Hide = HideFloatingToggle,
-    IsVisible = function() return ShowEnabled end,
-    IsToggled = function() return FloatingEnabled end,
-}
+local function ToggleAntiGuard()
+    AntiGuardEnabled = not AntiGuardEnabled
+    AntiGuardCheck.Visible = AntiGuardEnabled
 
-print("✅ Don't Use It Tab Loaded")
+    if AntiGuardEnabled then
+        AntiGuardButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        AntiGuardStroke.Color = Color3.fromRGB(135, 120, 225)
+
+        if _G.YOKUDO_AntiGuard then
+            _G.YOKUDO_AntiGuard.Enable()
+        end
+    else
+        AntiGuardButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        AntiGuardStroke.Color = Color3.fromRGB(200, 200, 220)
+
+        if _G.YOKUDO_AntiGuard then
+            _G.YOKUDO_AntiGuard.Disable()
+        end
+    end
+
+    if _G.YOKUDO_ConfigSystem then
+        _G.YOKUDO_ConfigSystem.Save()
+    end
+end
+
+AntiGuardButton.MouseButton1Click:Connect(function()
+    ToggleAntiGuard()
+end)
+
+-- ==================================================
+-- SYNC ON LOAD
+-- ==================================================
+task.spawn(function()
+    task.wait(1)
+    if _G.YOKUDO_DropEgg then
+        local State = _G.YOKUDO_DropEgg.IsEnabled()
+        DropEggEnabled = State
+        DropEggCheck.Visible = State
+        if State then
+            DropEggButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            DropEggStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
+    end
+    if _G.YOKUDO_AntiGuard then
+        local State = _G.YOKUDO_AntiGuard.IsEnabled()
+        AntiGuardEnabled = State
+        AntiGuardCheck.Visible = State
+        if State then
+            AntiGuardButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            AntiGuardStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
+    end
+end)
+
+-- ==================================================
+-- REFRESH FUNCTION
+-- ==================================================
+_G.YOKUDO_RefreshCollectEggNewUI = function()
+    if _G.YOKUDO_DropEgg then
+        local State = _G.YOKUDO_DropEgg.IsEnabled()
+        DropEggEnabled = State
+        DropEggCheck.Visible = State
+        if State then
+            DropEggButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            DropEggStroke.Color = Color3.fromRGB(135, 120, 225)
+        else
+            DropEggButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+            DropEggStroke.Color = Color3.fromRGB(200, 200, 220)
+        end
+    end
+    if _G.YOKUDO_AntiGuard then
+        local State = _G.YOKUDO_AntiGuard.IsEnabled()
+        AntiGuardEnabled = State
+        AntiGuardCheck.Visible = State
+        if State then
+            AntiGuardButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            AntiGuardStroke.Color = Color3.fromRGB(135, 120, 225)
+        else
+            AntiGuardButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+            AntiGuardStroke.Color = Color3.fromRGB(200, 200, 220)
+        end
+    end
+    print("[YOKUDO] Collect Egg new Tab UI Refreshed")
+end
+
+print("✅ Collect Egg new Tab Loaded")
