@@ -1,15 +1,16 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Anti Guard (Camera Lock)
+-- YOKUDO HUB | FEATURE | Anti Guard (Black Screen)
 -- ✅ Check DropHeldEgg.Enabled
--- ✅ True → CFrame Safe Zone → Lock Camera នៅ Position ដើម
--- ✅ Return → Unlock Camera
+-- ✅ True → Black Screen + CFrame Safe Zone → Wait 1s → Return + Unblack
+-- ✅ False → Reset
 -- ✅ Loop ដដែល
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ProximityPromptService = game:GetService("ProximityPromptService")
-local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 
@@ -30,10 +31,7 @@ local FastClickHeartbeat = nil
 local FastClickCounter = 0
 local LastState = false
 local OriginalCFrame = nil
-
--- Camera Lock
-local CameraLockConnection = nil
-local LockedCameraCFrame = nil
+local BlackScreenGui = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -51,6 +49,60 @@ local function GetDropHeldEgg()
     local PG = Player:FindFirstChild("PlayerGui")
     if not PG then return nil end
     return PG:FindFirstChild("DropHeldEgg", true)
+end
+
+-- ==================================================
+-- BLACK SCREEN
+-- ==================================================
+local function ShowBlackScreen()
+    if BlackScreenGui then
+        BlackScreenGui.Enabled = true
+        return
+    end
+
+    BlackScreenGui = Instance.new("ScreenGui")
+    BlackScreenGui.Name = "YokudoBlackScreen"
+    BlackScreenGui.ResetOnSpawn = false
+    BlackScreenGui.IgnoreGuiInset = true
+    BlackScreenGui.DisplayOrder = 99999
+    BlackScreenGui.Parent = CoreGui
+
+    local Frame = Instance.new("Frame")
+    Frame.Name = "BlackFrame"
+    Frame.Size = UDim2.new(1, 0, 1, 0)
+    Frame.Position = UDim2.new(0, 0, 0, 0)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Frame.BackgroundTransparency = 1
+    Frame.BorderSizePixel = 0
+    Frame.Parent = BlackScreenGui
+
+    -- ✅ Fade In
+    TweenService:Create(Frame, TweenInfo.new(0.2), {
+        BackgroundTransparency = 0
+    }):Play()
+
+    print("[AntiGuard] Black Screen: ON")
+end
+
+local function HideBlackScreen()
+    if not BlackScreenGui then return end
+
+    local Frame = BlackScreenGui:FindFirstChild("BlackFrame")
+    if Frame then
+        local Tween = TweenService:Create(Frame, TweenInfo.new(0.2), {
+            BackgroundTransparency = 1
+        })
+        Tween:Play()
+        Tween.Completed:Connect(function()
+            if BlackScreenGui then
+                BlackScreenGui.Enabled = false
+            end
+        end)
+    else
+        BlackScreenGui.Enabled = false
+    end
+
+    print("[AntiGuard] Black Screen: OFF")
 end
 
 -- ==================================================
@@ -100,42 +152,7 @@ local function StopFastClick()
 end
 
 -- ==================================================
--- CAMERA LOCK
--- ==================================================
-local function LockCamera()
-    if CameraLockConnection then return end
-
-    local Camera = Workspace.CurrentCamera
-    if not Camera then return end
-
-    -- ✅ Save Camera CFrame ដើម
-    LockedCameraCFrame = Camera.CFrame
-
-    -- ✅ Lock Camera នៅ Position ដើម
-    CameraLockConnection = RunService.RenderStepped:Connect(function()
-        if not AntiGuardEnabled then return end
-        if not LockedCameraCFrame then return end
-
-        local Cam = Workspace.CurrentCamera
-        if Cam then
-            Cam.CFrame = LockedCameraCFrame
-        end
-    end)
-
-    print("[AntiGuard] 📷 Camera: LOCKED")
-end
-
-local function UnlockCamera()
-    if CameraLockConnection then
-        CameraLockConnection:Disconnect()
-        CameraLockConnection = nil
-    end
-    LockedCameraCFrame = nil
-    print("[AntiGuard] 📷 Camera: UNLOCKED")
-end
-
--- ==================================================
--- CFrame + Return (Anti Guard Protection)
+-- CFrame + Black Screen + Return
 -- ==================================================
 local function CFrameAndReturn()
     local Hum, Root = GetHumanoid()
@@ -148,8 +165,8 @@ local function CFrameAndReturn()
     OriginalCFrame = Root.CFrame
     print("[AntiGuard] 📍 Original Position:", OriginalCFrame.Position)
 
-    -- ✅ Lock Camera នៅ Position ដើម
-    LockCamera()
+    -- ✅ Black Screen ភ្លាម
+    ShowBlackScreen()
 
     -- ✅ CFrame ទៅ Safe Zone
     pcall(function()
@@ -172,8 +189,9 @@ local function CFrameAndReturn()
         print("[AntiGuard] ✅ Return → Original Position")
     end
 
-    -- ✅ Unlock Camera
-    UnlockCamera()
+    -- ✅ Unblack Screen
+    task.wait(0.1)
+    HideBlackScreen()
 end
 
 -- ==================================================
@@ -194,11 +212,11 @@ local function CheckLoop()
         if DropHeldEgg then
             local CurrentState = DropHeldEgg.Enabled == true
 
-            -- ✅ True → CFrame Safe Zone + Lock Camera
+            -- ✅ True → Black Screen + CFrame Safe Zone
             if CurrentState and not LastState then
-                print("[AntiGuard] ✅ Egg Collect = TRUE → CFrame Safe Zone")
+                print("[AntiGuard] ✅ Egg Collect = TRUE → Black Screen + CFrame")
                 LastState = true
-                CFrameAndReturn()
+                task.spawn(CFrameAndReturn)
             end
 
             -- ✅ False → Reset
@@ -245,7 +263,14 @@ local function DisableAntiGuard()
     end
 
     StopFastClick()
-    UnlockCamera()
+
+    -- ✅ Hide Black Screen បើនៅមាន
+    if BlackScreenGui then
+        BlackScreenGui.Enabled = false
+        BlackScreenGui:Destroy()
+        BlackScreenGui = nil
+    end
+
     print("[AntiGuard] OFF")
 end
 
@@ -266,6 +291,8 @@ _G.YOKUDO_AntiGuard = {
     IsEnabled = function() return AntiGuardEnabled end,
     SAFE_ZONE = SAFE_ZONE,
     WAIT_AT_SAFE = WAIT_AT_SAFE,
+    ShowBlackScreen = ShowBlackScreen,
+    HideBlackScreen = HideBlackScreen,
 }
 
 -- ==================================================
@@ -286,7 +313,6 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AntiGuard Feature Loaded (Camera Lock)")
-print("   Safe Zone:", SAFE_ZONE)
-print("   Wait:", WAIT_AT_SAFE .. "s")
-print("   Camera Lock: ON (Lock នៅ Position ដើម)")
+print("✅ AntiGuard Feature Loaded (Black Screen)")
+print("   True → Black Screen + CFrame Safe Zone → Wait 1s → Return + Unblack")
+print("   False → Reset → Loop")
