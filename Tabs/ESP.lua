@@ -1,8 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (REWRITE)
+-- YOKUDO HUB | TAB | ESP (FIXED v2)
 -- ✅ ESP Name + ESP Distance (BillboardGui)
--- ✅ ESP Box + ESP Line (Drawing)
+-- ✅ ESP Box (Drawing) + ESP Line (Drawing)
 -- ✅ No Limit Distance
+-- ✅ Fix: Highlight.Enabled (not Visible)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -26,7 +27,7 @@ local Settings = {
     Box = false,
 }
 
-local ESPData = {}          -- [Player] = { Billboard, Drawings, Conn }
+local ESPData = {}
 local ActiveConns = {}
 
 -- ==================================================
@@ -100,7 +101,7 @@ local function CreateBillboard(Player)
 end
 
 -- ==================================================
--- CREATE DRAWINGS (Box + Line)
+-- CREATE DRAWINGS
 -- ==================================================
 local function CreateDrawings()
     local D = {}
@@ -138,8 +139,10 @@ local function AddESP(Player)
 
         if not IsAlive(Player) then
             if BB then BB.Enabled = false end
-            if D.Box then D.Box.Visible = false end
-            if D.Line then D.Line.Visible = false end
+            if Drawing and D then
+                if D.Box then D.Box.Visible = false end
+                if D.Line then D.Line.Visible = false end
+            end
             return
         end
 
@@ -374,4 +377,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (REWRITE)")
+print("✅ ESP Tab Loaded (FIXED v2 - No Highlight)")
