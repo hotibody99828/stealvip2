@@ -1,9 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (v5 - FULL FIX)
--- ✅ ESP Name (BillboardGui)
--- ✅ ESP Distance (ធំ ច្បាស់)
--- ✅ ESP Box (Screen-based, Scale with Distance)
--- ✅ ESP Line (Correct Position + Rotation)
+-- YOKUDO HUB | TAB | ESP (v6 - FINAL FIX)
+-- ✅ ESP Name + Distance (BillboardGui)
+-- ✅ ESP Box (Scale with Distance - Small far, Big close)
+-- ✅ ESP Line (Correct Position to Player)
 -- ✅ No Limit Distance
 -- ✅ Mobile + PC Support
 -- ==================================================
@@ -117,6 +116,7 @@ local function CreateESPBoxGui()
 
     local Box = Instance.new("Frame")
     Box.Name = "Box"
+    Box.AnchorPoint = Vector2.new(0.5, 0.5)
     Box.BackgroundTransparency = 1
     Box.BorderSizePixel = 0
     Box.Visible = false
@@ -145,7 +145,6 @@ local function CreateESPLineGui()
     ScreenGui.DisplayOrder = 999
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- ✅ Holder សម្រាប់ rotate ជុំវិញ top-left
     local Line = Instance.new("Frame")
     Line.Name = "Line"
     Line.AnchorPoint = Vector2.new(0, 0.5)
@@ -159,22 +158,21 @@ local function CreateESPLineGui()
 end
 
 -- ==================================================
--- UPDATE LINE FRAME (Correct Rotation)
+-- UPDATE LINE FRAME (Correct Rotation + Position)
 -- ==================================================
 local function UpdateLineFrame(LineFrame, From, To)
     local Delta = To - From
     local Length = Delta.Magnitude
     if Length <= 0 then return end
 
-    -- ✅ ដាក់ AnchorPoint នៅចំកណ្តាល ដើម្បី rotate ត្រូវ
-    LineFrame.AnchorPoint = Vector2.new(0, 0.5)
+    -- ✅ AnchorPoint (0, 0.5) → rotate ជុំវិញចំណុចចាប់ផ្ដើម
     LineFrame.Size = UDim2.new(0, Length, 0, 2)
     LineFrame.Position = UDim2.new(0, From.X, 0, From.Y)
     LineFrame.Rotation = math.deg(math.atan2(Delta.Y, Delta.X))
 end
 
 -- ==================================================
--- UPDATE BOX (Screen-based Size)
+-- UPDATE BOX (Scale with Distance)
 -- ==================================================
 local function UpdateBox(Box, Head, Root)
     local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
@@ -185,17 +183,24 @@ local function UpdateBox(Box, Head, Root)
         return
     end
 
-    -- ✅ គណនា Height/Width តាម Screen Space
+    -- ✅ គណនា Height តាម Screen Space (Scale with Distance)
     local ScreenHeight = math.abs(HeadPos.Y - RootPos.Y)
-    -- ✅ Humanoid Height ~ 5 studs → Box Height ~ ScreenHeight * 1.8
-    local BoxHeight = ScreenHeight * 1.8
-    local BoxWidth = BoxHeight * 0.6
+
+    -- ✅ Box តូចពេលឆ្ងាយ ធំពេលជិត (Screen Space Scale)
+    -- Humanoid Height ~ 5 studs → * 1.6
+    local BoxHeight = ScreenHeight * 1.6
+    local BoxWidth = BoxHeight * 0.55
+
+    -- ✅ កំណត់ min/max size
+    BoxHeight = math.clamp(BoxHeight, 20, 500)
+    BoxWidth = math.clamp(BoxWidth, 12, 300)
 
     local CenterX = HeadPos.X
     local CenterY = HeadPos.Y + (RootPos.Y - HeadPos.Y) / 2
 
+    -- ✅ ប្រើ AnchorPoint (0.5, 0.5) → Position ត្រូវ center
     Box.Size = UDim2.new(0, BoxWidth, 0, BoxHeight)
-    Box.Position = UDim2.new(0, CenterX - BoxWidth / 2, 0, CenterY - BoxHeight / 2)
+    Box.Position = UDim2.new(0, CenterX, 0, CenterY)
     Box.Visible = true
 end
 
@@ -259,7 +264,7 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Box (Screen-based)
+        -- ✅ Box (Scale with Distance)
         if BoxFrame then
             if Settings.Box then
                 UpdateBox(BoxFrame, Head, Root)
@@ -268,7 +273,7 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Line (Top Screen → Head)
+        -- ✅ Line (Top Screen → Head, Correct Position)
         if LineFrame then
             if Settings.Line then
                 local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
@@ -434,7 +439,7 @@ CreateFeature("ESP Distance", "Show distance in studs (No Limit)", 4, function(s
     Settings.Distance = s
 end)
 
-CreateFeature("ESP Box", "Draw box around player", 5, function(s)
+CreateFeature("ESP Box", "Draw box (Small far, Big close)", 5, function(s)
     Settings.Box = s
 end)
 
@@ -457,4 +462,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (v5 - Full Fix Line + Box)")
+print("✅ ESP Tab Loaded (v6 - Final Fix Box + Line)")
