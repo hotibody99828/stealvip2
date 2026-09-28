@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (v6 - FINAL FIX)
+-- YOKUDO HUB | TAB | ESP (v7 - COMPLETE REWRITE)
 -- ✅ ESP Name + Distance (BillboardGui)
--- ✅ ESP Box (Scale with Distance - Small far, Big close)
--- ✅ ESP Line (Correct Position to Player)
+-- ✅ ESP Box (Scale with Distance)
+-- ✅ ESP Line (Top Screen → Head, Correct)
 -- ✅ No Limit Distance
 -- ✅ Mobile + PC Support
 -- ==================================================
@@ -57,7 +57,7 @@ local function IsAlive(Player)
 end
 
 -- ==================================================
--- CREATE ESP BILLBOARD (Name + Distance)
+-- BILLBOARD (Name + Distance)
 -- ==================================================
 local function CreateESPBillboard(Player)
     local Head = GetHead(Player)
@@ -103,25 +103,28 @@ local function CreateESPBillboard(Player)
 end
 
 -- ==================================================
--- CREATE ESP BOX GUI (Screen-based)
+-- BOX + LINE SCREEN GUI (មួយ ScreenGui តែមួយ)
 -- ==================================================
-local function CreateESPBoxGui()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "YokudoESP_Box"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.DisplayOrder = 998
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local function CreateScreenGui()
+    local SG = Instance.new("ScreenGui")
+    SG.Name = "YokudoESP_Screen"
+    SG.ResetOnSpawn = false
+    SG.IgnoreGuiInset = true
+    SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    SG.DisplayOrder = 999
+    SG.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    return SG
+end
 
+local function CreateBoxFrame(Parent)
     local Box = Instance.new("Frame")
-    Box.Name = "Box"
+    Box.Name = "ESP_Box"
     Box.AnchorPoint = Vector2.new(0.5, 0.5)
     Box.BackgroundTransparency = 1
     Box.BorderSizePixel = 0
     Box.Visible = false
-    Box.ZIndex = 998
-    Box.Parent = ScreenGui
+    Box.ZIndex = 999
+    Box.Parent = Parent
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Name = "Stroke"
@@ -130,45 +133,19 @@ local function CreateESPBoxGui()
     Stroke.Transparency = 0
     Stroke.Parent = Box
 
-    return ScreenGui, Box
+    return Box
 end
 
--- ==================================================
--- CREATE ESP LINE GUI (Screen-based)
--- ==================================================
-local function CreateESPLineGui()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "YokudoESP_Line"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.DisplayOrder = 999
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
+local function CreateLineFrame(Parent)
     local Line = Instance.new("Frame")
-    Line.Name = "Line"
+    Line.Name = "ESP_Line"
     Line.AnchorPoint = Vector2.new(0, 0.5)
     Line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     Line.BorderSizePixel = 0
     Line.Visible = false
     Line.ZIndex = 999
-    Line.Parent = ScreenGui
-
-    return ScreenGui, Line
-end
-
--- ==================================================
--- UPDATE LINE FRAME (Correct Rotation + Position)
--- ==================================================
-local function UpdateLineFrame(LineFrame, From, To)
-    local Delta = To - From
-    local Length = Delta.Magnitude
-    if Length <= 0 then return end
-
-    -- ✅ AnchorPoint (0, 0.5) → rotate ជុំវិញចំណុចចាប់ផ្ដើម
-    LineFrame.Size = UDim2.new(0, Length, 0, 2)
-    LineFrame.Position = UDim2.new(0, From.X, 0, From.Y)
-    LineFrame.Rotation = math.deg(math.atan2(Delta.Y, Delta.X))
+    Line.Parent = Parent
+    return Line
 end
 
 -- ==================================================
@@ -183,25 +160,47 @@ local function UpdateBox(Box, Head, Root)
         return
     end
 
-    -- ✅ គណនា Height តាម Screen Space (Scale with Distance)
     local ScreenHeight = math.abs(HeadPos.Y - RootPos.Y)
+    local BoxHeight = ScreenHeight * 1.8
+    local BoxWidth = BoxHeight * 0.6
 
-    -- ✅ Box តូចពេលឆ្ងាយ ធំពេលជិត (Screen Space Scale)
-    -- Humanoid Height ~ 5 studs → * 1.6
-    local BoxHeight = ScreenHeight * 1.6
-    local BoxWidth = BoxHeight * 0.55
-
-    -- ✅ កំណត់ min/max size
-    BoxHeight = math.clamp(BoxHeight, 20, 500)
-    BoxWidth = math.clamp(BoxWidth, 12, 300)
+    BoxHeight = math.clamp(BoxHeight, 25, 600)
+    BoxWidth = math.clamp(BoxWidth, 15, 400)
 
     local CenterX = HeadPos.X
     local CenterY = HeadPos.Y + (RootPos.Y - HeadPos.Y) / 2
 
-    -- ✅ ប្រើ AnchorPoint (0.5, 0.5) → Position ត្រូវ center
     Box.Size = UDim2.new(0, BoxWidth, 0, BoxHeight)
     Box.Position = UDim2.new(0, CenterX, 0, CenterY)
     Box.Visible = true
+end
+
+-- ==================================================
+-- UPDATE LINE (Top Screen → Head)
+-- ==================================================
+local function UpdateLine(Line, Head)
+    local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
+    if not HeadOn then
+        Line.Visible = false
+        return
+    end
+
+    local VS = Camera.ViewportSize
+    local From = Vector2.new(VS.X / 2, 0)
+    local To = Vector2.new(HeadPos.X, HeadPos.Y)
+
+    local Delta = To - From
+    local Length = Delta.Magnitude
+    if Length <= 0 then
+        Line.Visible = false
+        return
+    end
+
+    -- ✅ AnchorPoint (0, 0.5) → rotate ជុំវិញចំណុចចាប់ផ្ដើម
+    Line.Size = UDim2.new(0, Length, 0, 2)
+    Line.Position = UDim2.new(0, From.X, 0, From.Y)
+    Line.Rotation = math.deg(math.atan2(Delta.Y, Delta.X))
+    Line.Visible = true
 end
 
 -- ==================================================
@@ -211,15 +210,15 @@ local function AddESP(Player)
     if ESPData[Player] then return end
     if not IsAlive(Player) then return end
 
+    local SG = CreateScreenGui()
     local BB = CreateESPBillboard(Player)
-    local BoxGui, BoxFrame = CreateESPBoxGui()
-    local LineGui, LineFrame = CreateESPLineGui()
+    local BoxFrame = CreateBoxFrame(SG)
+    local LineFrame = CreateLineFrame(SG)
 
     ESPData[Player] = {
+        ScreenGui = SG,
         Billboard = BB,
-        BoxGui = BoxGui,
         BoxFrame = BoxFrame,
-        LineGui = LineGui,
         LineFrame = LineFrame,
         Conn = nil,
     }
@@ -240,7 +239,7 @@ local function AddESP(Player)
         local Root = GetRoot(Player)
         if not Head or not Root then return end
 
-        -- ✅ Billboard (Name + Distance)
+        -- ✅ Billboard
         if BB then
             if BB.Parent ~= Head then BB.Parent = Head end
             BB.Enabled = Settings.Name or Settings.Distance
@@ -264,7 +263,7 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Box (Scale with Distance)
+        -- ✅ Box
         if BoxFrame then
             if Settings.Box then
                 UpdateBox(BoxFrame, Head, Root)
@@ -273,19 +272,10 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Line (Top Screen → Head, Correct Position)
+        -- ✅ Line
         if LineFrame then
             if Settings.Line then
-                local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
-                if HeadOn then
-                    local VS = Camera.ViewportSize
-                    local From = Vector2.new(VS.X / 2, 0)
-                    local To = Vector2.new(HeadPos.X, HeadPos.Y)
-                    UpdateLineFrame(LineFrame, From, To)
-                    LineFrame.Visible = true
-                else
-                    LineFrame.Visible = false
-                end
+                UpdateLine(LineFrame, Head)
             else
                 LineFrame.Visible = false
             end
@@ -303,8 +293,7 @@ local function RemoveESP(Player)
     local Data = ESPData[Player]
     if not Data then return end
     if Data.Billboard then Data.Billboard:Destroy() end
-    if Data.BoxGui then Data.BoxGui:Destroy() end
-    if Data.LineGui then Data.LineGui:Destroy() end
+    if Data.ScreenGui then Data.ScreenGui:Destroy() end
     if Data.Conn then pcall(function() Data.Conn:Disconnect() end) end
     ESPData[Player] = nil
 end
@@ -462,4 +451,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (v6 - Final Fix Box + Line)")
+print("✅ ESP Tab Loaded (v7 - Complete Rewrite)")
