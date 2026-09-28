@@ -1,10 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (v3 - MOBILE SUPPORT)
--- ✅ ESP Name + Distance (BillboardGui)
--- ✅ ESP Box (Frame, Mobile Support)
--- ✅ ESP Line (Frame, Mobile Support)
+-- YOKUDO HUB | TAB | ESP (v5 - FULL FIX)
+-- ✅ ESP Name (BillboardGui)
+-- ✅ ESP Distance (ធំ ច្បាស់)
+-- ✅ ESP Box (Screen-based, Scale with Distance)
+-- ✅ ESP Line (Correct Position + Rotation)
 -- ✅ No Limit Distance
--- ✅ Humanoid-based Box Size
+-- ✅ Mobile + PC Support
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -46,12 +47,6 @@ local function GetHead(Player)
     return Char:FindFirstChild("Head")
 end
 
-local function GetHumanoid(Player)
-    local Char = Player.Character
-    if not Char then return nil end
-    return Char:FindFirstChildOfClass("Humanoid")
-end
-
 local function IsAlive(Player)
     if Player == LocalPlayer then return false end
     local Char = Player.Character
@@ -63,7 +58,7 @@ local function IsAlive(Player)
 end
 
 -- ==================================================
--- CREATE ESP GUI (Name + Distance)
+-- CREATE ESP BILLBOARD (Name + Distance)
 -- ==================================================
 local function CreateESPBillboard(Player)
     local Head = GetHead(Player)
@@ -71,7 +66,7 @@ local function CreateESPBillboard(Player)
 
     local BB = Instance.new("BillboardGui")
     BB.Name = "YokudoESP_BB"
-    BB.Size = UDim2.new(0, 200, 0, 50)
+    BB.Size = UDim2.new(0, 220, 0, 60)
     BB.StudsOffset = Vector3.new(0, 3, 0)
     BB.AlwaysOnTop = true
     BB.Enabled = true
@@ -79,27 +74,28 @@ local function CreateESPBillboard(Player)
 
     local NameL = Instance.new("TextLabel")
     NameL.Name = "NameL"
-    NameL.Size = UDim2.new(1, 0, 0, 20)
+    NameL.Size = UDim2.new(1, 0, 0, 24)
+    NameL.Position = UDim2.new(0, 0, 0, 0)
     NameL.BackgroundTransparency = 1
     NameL.Text = Player.Name
     NameL.TextColor3 = Color3.fromRGB(255, 255, 255)
-    NameL.TextSize = 14
+    NameL.TextSize = 16
     NameL.Font = Enum.Font.GothamBold
-    NameL.TextStrokeTransparency = 0
+    NameL.TextStrokeTransparency = 0.3
     NameL.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     NameL.Visible = Settings.Name
     NameL.Parent = BB
 
     local DistL = Instance.new("TextLabel")
     DistL.Name = "DistL"
-    DistL.Size = UDim2.new(1, 0, 0, 16)
-    DistL.Position = UDim2.new(0, 0, 0, 20)
+    DistL.Size = UDim2.new(1, 0, 0, 20)
+    DistL.Position = UDim2.new(0, 0, 0, 24)
     DistL.BackgroundTransparency = 1
     DistL.Text = "..."
     DistL.TextColor3 = Color3.fromRGB(100, 255, 100)
-    DistL.TextSize = 11
-    DistL.Font = Enum.Font.Gotham
-    DistL.TextStrokeTransparency = 0
+    DistL.TextSize = 14
+    DistL.Font = Enum.Font.GothamBold
+    DistL.TextStrokeTransparency = 0.3
     DistL.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     DistL.Visible = Settings.Distance
     DistL.Parent = BB
@@ -108,30 +104,24 @@ local function CreateESPBillboard(Player)
 end
 
 -- ==================================================
--- CREATE ESP BOX GUI (Mobile Support)
+-- CREATE ESP BOX GUI (Screen-based)
 -- ==================================================
-local function CreateESPBoxGui(Player)
-    local Char = Player.Character
-    if not Char then return nil end
-    local Hum = Char:FindFirstChildOfClass("Humanoid")
-    if not Hum then return nil end
-
-    -- ✅ Box ដាក់នៅក្រោម Humanoid (មិនមែន Head ឬ Root)
-    local BoxGui = Instance.new("BillboardGui")
-    BoxGui.Name = "YokudoESP_Box"
-    BoxGui.Size = UDim2.new(0, 100, 0, 100)
-    BoxGui.StudsOffset = Vector3.new(0, 0, 0)
-    BoxGui.AlwaysOnTop = true
-    BoxGui.Enabled = true
-    BoxGui.Parent = Hum
+local function CreateESPBoxGui()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "YokudoESP_Box"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.DisplayOrder = 998
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
     local Box = Instance.new("Frame")
     Box.Name = "Box"
-    Box.Size = UDim2.new(1, 0, 1, 0)
     Box.BackgroundTransparency = 1
     Box.BorderSizePixel = 0
-    Box.Visible = Settings.Box
-    Box.Parent = BoxGui
+    Box.Visible = false
+    Box.ZIndex = 998
+    Box.Parent = ScreenGui
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Name = "Stroke"
@@ -140,14 +130,13 @@ local function CreateESPBoxGui(Player)
     Stroke.Transparency = 0
     Stroke.Parent = Box
 
-    return BoxGui
+    return ScreenGui, Box
 end
 
 -- ==================================================
--- CREATE ESP LINE GUI (Mobile Support)
+-- CREATE ESP LINE GUI (Screen-based)
 -- ==================================================
 local function CreateESPLineGui()
-    -- ✅ Line GUI ដាក់ក្នុង ScreenGui (តាម screen)
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "YokudoESP_Line"
     ScreenGui.ResetOnSpawn = false
@@ -156,11 +145,13 @@ local function CreateESPLineGui()
     ScreenGui.DisplayOrder = 999
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+    -- ✅ Holder សម្រាប់ rotate ជុំវិញ top-left
     local Line = Instance.new("Frame")
     Line.Name = "Line"
+    Line.AnchorPoint = Vector2.new(0, 0.5)
     Line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     Line.BorderSizePixel = 0
-    Line.Visible = Settings.Line
+    Line.Visible = false
     Line.ZIndex = 999
     Line.Parent = ScreenGui
 
@@ -168,16 +159,44 @@ local function CreateESPLineGui()
 end
 
 -- ==================================================
--- ROTATE LINE FRAME
+-- UPDATE LINE FRAME (Correct Rotation)
 -- ==================================================
 local function UpdateLineFrame(LineFrame, From, To)
     local Delta = To - From
     local Length = Delta.Magnitude
     if Length <= 0 then return end
 
+    -- ✅ ដាក់ AnchorPoint នៅចំកណ្តាល ដើម្បី rotate ត្រូវ
+    LineFrame.AnchorPoint = Vector2.new(0, 0.5)
     LineFrame.Size = UDim2.new(0, Length, 0, 2)
-    LineFrame.Position = UDim2.new(0, From.X, 0, From.Y - 1)
+    LineFrame.Position = UDim2.new(0, From.X, 0, From.Y)
     LineFrame.Rotation = math.deg(math.atan2(Delta.Y, Delta.X))
+end
+
+-- ==================================================
+-- UPDATE BOX (Screen-based Size)
+-- ==================================================
+local function UpdateBox(Box, Head, Root)
+    local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
+    local RootPos, RootOn = Camera:WorldToViewportPoint(Root.Position)
+
+    if not HeadOn or not RootOn then
+        Box.Visible = false
+        return
+    end
+
+    -- ✅ គណនា Height/Width តាម Screen Space
+    local ScreenHeight = math.abs(HeadPos.Y - RootPos.Y)
+    -- ✅ Humanoid Height ~ 5 studs → Box Height ~ ScreenHeight * 1.8
+    local BoxHeight = ScreenHeight * 1.8
+    local BoxWidth = BoxHeight * 0.6
+
+    local CenterX = HeadPos.X
+    local CenterY = HeadPos.Y + (RootPos.Y - HeadPos.Y) / 2
+
+    Box.Size = UDim2.new(0, BoxWidth, 0, BoxHeight)
+    Box.Position = UDim2.new(0, CenterX - BoxWidth / 2, 0, CenterY - BoxHeight / 2)
+    Box.Visible = true
 end
 
 -- ==================================================
@@ -188,12 +207,13 @@ local function AddESP(Player)
     if not IsAlive(Player) then return end
 
     local BB = CreateESPBillboard(Player)
-    local BoxGui = CreateESPBoxGui(Player)
+    local BoxGui, BoxFrame = CreateESPBoxGui()
     local LineGui, LineFrame = CreateESPLineGui()
 
     ESPData[Player] = {
         Billboard = BB,
         BoxGui = BoxGui,
+        BoxFrame = BoxFrame,
         LineGui = LineGui,
         LineFrame = LineFrame,
         Conn = nil,
@@ -206,15 +226,14 @@ local function AddESP(Player)
 
         if not IsAlive(Player) then
             if BB then BB.Enabled = false end
-            if BoxGui then BoxGui.Enabled = false end
+            if BoxFrame then BoxFrame.Visible = false end
             if LineFrame then LineFrame.Visible = false end
             return
         end
 
         local Head = GetHead(Player)
         local Root = GetRoot(Player)
-        local Hum = GetHumanoid(Player)
-        if not Head or not Root or not Hum then return end
+        if not Head or not Root then return end
 
         -- ✅ Billboard (Name + Distance)
         if BB then
@@ -240,22 +259,12 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Box (Humanoid-based)
-        if BoxGui then
-            if BoxGui.Parent ~= Hum then BoxGui.Parent = Hum end
-            BoxGui.Enabled = Settings.Box
-
-            local Box = BoxGui:FindFirstChild("Box")
-            if Box then
-                Box.Visible = Settings.Box
-
-                -- ✅ Box Size តាម Humanoid (HipHeight + Head)
-                local HeadPos = Head.Position
-                local RootPos = Root.Position
-                local Height = math.abs(HeadPos.Y - RootPos.Y) * 2 + 1
-                local Width = Height * 0.6
-
-                BoxGui.Size = UDim2.new(0, Width * 30, 0, Height * 30)
+        -- ✅ Box (Screen-based)
+        if BoxFrame then
+            if Settings.Box then
+                UpdateBox(BoxFrame, Head, Root)
+            else
+                BoxFrame.Visible = false
             end
         end
 
@@ -417,7 +426,7 @@ CreateFeature("ESP Name", "Show player name above head", 2, function(s)
     Settings.Name = s
 end)
 
-CreateFeature("ESP Line", "Draw line from Top screen to player (Mobile OK)", 3, function(s)
+CreateFeature("ESP Line", "Draw line from Top screen to player", 3, function(s)
     Settings.Line = s
 end)
 
@@ -425,7 +434,7 @@ CreateFeature("ESP Distance", "Show distance in studs (No Limit)", 4, function(s
     Settings.Distance = s
 end)
 
-CreateFeature("ESP Box", "Draw box around player (Humanoid)", 5, function(s)
+CreateFeature("ESP Box", "Draw box around player", 5, function(s)
     Settings.Box = s
 end)
 
@@ -448,4 +457,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (v3 - Mobile Support)")
+print("✅ ESP Tab Loaded (v5 - Full Fix Line + Box)")
