@@ -258,6 +258,9 @@ loadstring(GetScript("Tabs/Setting.lua"))()
 Loading.Update(91)
 loadstring(GetScript("Tabs/CollectEggNew.lua"))()
 
+Loading.Update(91.5)
+loadstring(GetScript("Tabs/ESP.lua"))()
+
 -- ==================================================
 -- SELECT DEFAULT TAB
 -- ==================================================
