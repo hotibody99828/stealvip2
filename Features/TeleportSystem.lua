@@ -2,8 +2,8 @@
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + SHOT + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 275
 -- ✅ ជិតដល់ 10 studs → Shot TP → Lock 1 stud
--- ✅ Lock → Remote Drop → Walk TP Safe Zone
--- ✅ សម្រាប់ Tab Auto Farming (AutoFarm.lua)
+-- ✅ Shot TP → Position 1 (663, 70, -369) ដូច logic ថ្មី
+-- ✅ គ្មាន Fly Offset | សម្រាប់ Tab Auto Farming
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -17,29 +17,23 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    -- Walk Speed
     WalkSpeed = 275,
 
-    -- Shot TP
     ShotTPTime = 1.0,
     ArriveDistance = 2,
     LockWait = 0.1,
 
-    -- ✅ ជិតដល់ 10 studs → Shot TP
-    NearDistance = 10,
-    LockDistance = 1,          -- ✅ Lock 1 stud ពី Target
+    NearDistance = 10,      -- ✅ ជិតដល់ 10 studs → Shot TP
+    LockDistance = 1,       -- ✅ Lock 1 stud ពី Target
 
-    -- Positions
     SafeZone = Vector3.new(533, 70, -366),
     Position1 = Vector3.new(663, 70, -369),
 
-    -- Timing
     WalkTimeout = 30,
     CollectInterval = 0.05,
     TargetCollectTimeout = 10,
     MaxRecoveryAttempts = 10000,
 
-    -- Search
     SearchPrefix = "FirstAreaEgg",
     PositionThreshold = 1,
 }
@@ -182,7 +176,7 @@ local function StartLock(TargetPos)
         State.LockConnection = nil
     end
 
-    -- ✅ Lock 1 stud ពី Target
+    -- ✅ Lock 1 stud ពី Target (គ្មាន Fly Offset)
     local LockedCFrame = CFrame.new(TargetPos + Vector3.new(0, Config.LockDistance, 0))
 
     State.LockConnection = RunService.Heartbeat:Connect(function()
@@ -206,7 +200,7 @@ local function StartLock(TargetPos)
 end
 
 -- ==================================================
--- ✅ SHOT TP (Heartbeat Lerp — លឿន)
+-- ✅ SHOT TP (Heartbeat Lerp — គ្មាន Fly Offset)
 -- ==================================================
 local function ShotTP(Destination, Callback)
     CleanupMovers()
@@ -216,6 +210,9 @@ local function ShotTP(Destination, Callback)
         if Callback then Callback() end
         return
     end
+
+    -- ✅ គ្មាន Fly Offset — Shot TP ទៅ Destination ផ្ទាល់
+    local TargetCFrame = CFrame.new(Destination)
 
     local StartPos = Root.Position
     local StartTime = tick()
@@ -248,7 +245,7 @@ local function ShotTP(Destination, Callback)
         local Dist = (Root2.Position - Destination).Magnitude
         if Dist <= Config.ArriveDistance or Alpha >= 1 then
             CleanupMovers()
-            Root2.CFrame = CFrame.new(Destination)
+            Root2.CFrame = TargetCFrame
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
@@ -300,18 +297,16 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
         if not ShotDone and Dist <= Config.NearDistance then
             ShotDone = true
 
-            -- ✅ Stop Walk
             State.WalkConnection:Disconnect()
             State.WalkConnection = nil
             Hum2:MoveTo(Root2.Position)
 
             print(string.format("[TeleportSystem] ⚡ ជិតដល់ %.0f studs → Shot TP", Dist))
 
-            -- ✅ Shot TP ទៅ Destination
+            -- ✅ Shot TP ទៅ Destination (គ្មាន Fly Offset)
             ShotTP(Destination, function()
                 print("[TeleportSystem] ✅ Shot TP Arrived → Lock")
 
-                -- ✅ Lock (បើ LockAfterArrive = true)
                 if LockAfterArrive then
                     StartLock(Destination)
                 end
@@ -321,10 +316,8 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
             return
         end
 
-        -- ✅ MoveTo Destination
         Hum2:MoveTo(Destination)
 
-        -- ✅ Check រាល់ 0.05s
         if tick() - LastCheck > 0.05 then
             LastCheck = tick()
 
@@ -487,7 +480,7 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    -- ✅ Walk TP + Shot TP + Lock
+    -- ✅ Walk TP + Shot TP ជិត 10 studs + Lock 1 stud
     WalkTP(TargetPos, true, function()
         print("[TeleportSystem] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived + Locked")
 
@@ -501,7 +494,7 @@ local function FlyToTargetAgain()
 end
 
 -- ==================================================
--- WALK TP SAFE ZONE (គ្មាន Shot TP)
+-- WALK TP SAFE ZONE (គ្មាន Shot TP, គ្មាន Lock)
 -- ==================================================
 local function FlyToSafeZone()
     State.Step = "to_safe"
@@ -510,7 +503,6 @@ local function FlyToSafeZone()
 
     print("[TeleportSystem] Walk TP to Safe Zone")
 
-    -- ✅ LockAfterArrive = false (គ្មាន Lock នៅ Safe Zone)
     WalkTP(Config.SafeZone, false, function()
         print("[TeleportSystem] ✅ Arrived Safe Zone → AutoStop")
         AutoStop()
@@ -540,6 +532,7 @@ local function StartActiveTask()
                     State.TargetCollected = true
                     State.RecoveryTriggered = false
 
+                    -- ✅ Shot TP → Position 1 (ដូច logic ថ្មី)
                     ShotTP(Config.Position1, function()
                         print("[TeleportSystem] ✅ Shot TP Arrived Position 1 → Lock")
 
@@ -640,7 +633,7 @@ local function StartProcess()
 
         State.Step = "to_target"
 
-        -- ✅ Walk TP ទៅ Target + Shot TP ជិតដល់ 10 studs + Lock 1 stud
+        -- ✅ Walk TP + Shot TP ជិត 10 studs + Lock 1 stud
         WalkTP(TargetPos, true, function()
             print("[TeleportSystem] ✅ Arrived Target + Locked → Collect")
 
@@ -740,4 +733,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk 275 + Shot ជិត 10 studs + Lock 1 stud + Drop)")
+print("✅ TeleportSystem Loaded (Walk 275 + Shot ជិត 10 studs + Lock 1 stud + Drop | គ្មាន Fly Offset)")
