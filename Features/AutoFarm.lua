@@ -1,6 +1,7 @@
 --==================================================
 -- YOKUDO HUB | FEATURE | Auto Farm (FAST)
 -- ✅ Cache PetData + UidCategory → លឿន
+-- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Walk TP + Shot TP)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -237,7 +238,7 @@ local function SelectEgg(EggData)
 end
 
 --==================================================
--- START TELEPORT
+-- START TELEPORT (✅ ប្រើ TeleportSystem ថ្មី)
 --==================================================
 local function StartTeleport()
     if not SelectedEgg then
@@ -245,19 +246,23 @@ local function StartTeleport()
         return
     end
 
-    local Method = _G.YOKUDO_SelectedMethod or "TeleportFly"
-    local Speed = _G.YOKUDO_TeleportSpeed or 300
+    local Speed = _G.YOKUDO_TeleportSpeed or 275
 
-    print("[YOKUDO] Start Teleport | Method: " .. Method .. " | Speed: " .. tostring(Speed))
+    print("[YOKUDO] Start Teleport | Target: " .. SelectedEgg.Id .. " | Speed: " .. tostring(Speed))
 
     if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.SetMethod(Method)
         _G.YOKUDO_TeleportSystem.SetSpeed(Speed)
         _G.YOKUDO_TeleportSystem.SetTargetId(SelectedEgg.Id)
         _G.YOKUDO_TeleportSystem.Enable()
+        print("[YOKUDO] ✅ TeleportSystem Enabled")
+    else
+        warn("[YOKUDO] TeleportSystem not loaded!")
     end
 end
 
+--==================================================
+-- STOP TELEPORT
+--==================================================
 local function StopTeleport()
     if _G.YOKUDO_TeleportSystem then
         _G.YOKUDO_TeleportSystem.Disable()
@@ -309,4 +314,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoFarm Feature Loaded (FAST + CACHE)")
+print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem)")
