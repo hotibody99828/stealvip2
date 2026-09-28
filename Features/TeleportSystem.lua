@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (WALK + SHOT TP + LOCK + DROP)
--- ✅ Walk TP 275 → ជិតដល់ 10 studs → Shot TP ទៅ Lock 1 stud
--- ✅ Collect → DropHeldEgg = true → Shot TP Position 1
--- ✅ Lock → Remote Drop → Walk TP Safe Zone
--- ✅ សម្រាប់ Tab Auto Farming (AutoFarm.lua)
+-- YOKUDO HUB | TELEPORT SYSTEM (WALK TP + SHOT TP + LOCK + DROP)
+-- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 275
+-- ✅ ជិតដល់ Target (10 studs) → Shot TP → Lock (1 studs ពី Egg)
+-- ✅ Collect → Shot TP Position 1 → Lock → Drop
+-- ✅ Walk TP Safe Zone → AutoStop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -20,13 +20,13 @@ local Config = {
     -- Walk Speed
     WalkSpeed = 275,
 
-    -- ✅ Shot TP ពេលជិតដល់ Target
-    NearTargetDistance = 10,     -- ជិតដល់ 10 studs → Shot TP
-    LockDistance = 1,            -- Shot TP ទៅ Lock 1 stud
-
     -- Shot TP
-    ShotTPTime = 0.3,            -- Shot TP ក្នុង 0.3s (លឿន)
+    ShotTPTime = 0.3,           -- Shot TP លឿន
+    LockDistance = 1,            -- ✅ Lock ជិត Egg 1 studs
+    NearDistance = 10,           -- ✅ ជិតដល់ Target 10 studs → Shot TP
     ArriveDistance = 2,
+
+    -- Lock Wait
     LockWait = 0.1,
 
     -- Positions
@@ -175,9 +175,9 @@ end
 
 -- ==================================================
 -- ✅ WALK TP (Humanoid:MoveTo + WalkSpeed 275)
--- ✅ ជិតដល់ Target 10 studs → Shot TP ទៅ Lock 1 stud
+-- ✅ ជិតដល់ Target (10 studs) → Shot TP → Lock (1 studs ពី Egg)
 -- ==================================================
-local function WalkTP(Destination, NearShot, Callback)
+local function WalkTP(Destination, Callback, IsEggTarget)
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -192,7 +192,7 @@ local function WalkTP(Destination, NearShot, Callback)
 
     local StartTime = tick()
     local LastCheck = 0
-    local ShotTriggered = false
+    local ShotDone = false
 
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then
@@ -214,25 +214,31 @@ local function WalkTP(Destination, NearShot, Callback)
 
             local Dist = (Root2.Position - Destination).Magnitude
 
-            -- ✅ ជិតដល់ 10 studs → Shot TP ទៅ Lock 1 stud
-            if NearShot and not ShotTriggered and Dist <= Config.NearTargetDistance then
-                ShotTriggered = true
+            -- ✅ ជិតដល់ Egg Target (10 studs) → Shot TP → Lock (1 studs ពី Egg)
+            if IsEggTarget and not ShotDone and Dist <= Config.NearDistance then
+                ShotDone = true
                 CleanupMovers()
+                Hum2:MoveTo(Root2.Position)
 
-                print(string.format("[TeleportSystem] ✅ Near Target (%.1f) → Shot TP to Lock %.1f", Dist, Config.LockDistance))
+                print(string.format("[TeleportSystem] ✅ Near Egg (%.1f) → Shot TP → Lock (1 studs)", Dist))
 
-                -- ✅ Shot TP ទៅ Destination (Lock 1 stud)
-                task.spawn(function()
-                    ShotTP(Destination, function()
-                        print("[TeleportSystem] ✅ Shot TP Arrived Target")
-                        if Callback then Callback() end
-                    end)
+                -- ✅ Lock Position ជិត Egg 1 studs
+                local LockPos = Destination + Vector3.new(0, 0, Config.LockDistance)
+
+                -- ✅ Shot TP → Lock Position
+                ShotTP(LockPos, function()
+                    print("[TeleportSystem] ✅ Shot TP Arrived Lock Position")
+
+                    -- ✅ Lock CFrame
+                    StartLock(LockPos)
+
+                    if Callback then Callback() end
                 end)
                 return
             end
 
-            -- ✅ ដល់ Destination (ពេលគ្មាន NearShot)
-            if not NearShot and Dist <= Config.ArriveDistance then
+            -- ✅ ដល់ Destination (ធម្មតា)
+            if Dist <= Config.ArriveDistance then
                 CleanupMovers()
                 Hum2:MoveTo(Root2.Position)
                 print(string.format("[TeleportSystem] ✅ Walk TP Arrived | Dist: %.1f", Dist))
@@ -292,7 +298,7 @@ local function ShotTP(Destination, Callback)
         Root2.AssemblyAngularVelocity = Vector3.zero
 
         local Dist = (Root2.Position - Destination).Magnitude
-        if Dist <= Config.LockDistance or Alpha >= 1 then
+        if Dist <= Config.ArriveDistance or Alpha >= 1 then
             CleanupMovers()
             Root2.CFrame = CFrame.new(Destination)
             Root2.AssemblyLinearVelocity = Vector3.zero
@@ -471,8 +477,8 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    -- ✅ Walk TP ទៅ Egg Drop (Near Shot)
-    WalkTP(TargetPos, true, function()
+    -- ✅ Walk TP ទៅ Egg Drop (IsEggTarget = true → Shot TP ពេលជិតដល់)
+    WalkTP(TargetPos, function()
         print("[TeleportSystem] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived")
 
         State.TargetCollected = false
@@ -481,7 +487,7 @@ local function FlyToTargetAgain()
         State.RecoveryTriggered = false
         State.TargetCollectStartTime = tick()
         State.Step = "collect_target"
-    end)
+    end, true)
 end
 
 -- ==================================================
@@ -494,10 +500,10 @@ local function FlyToSafeZone()
 
     print("[TeleportSystem] Walk TP to Safe Zone")
 
-    WalkTP(Config.SafeZone, false, function()
+    WalkTP(Config.SafeZone, function()
         print("[TeleportSystem] ✅ Arrived Safe Zone → AutoStop")
         AutoStop()
-    end)
+    end, false)
 end
 
 -- ==================================================
@@ -523,6 +529,13 @@ local function StartActiveTask()
                     State.TargetCollected = true
                     State.RecoveryTriggered = false
 
+                    -- ✅ Stop Lock (បើមាន)
+                    if State.LockConnection then
+                        State.LockConnection:Disconnect()
+                        State.LockConnection = nil
+                    end
+
+                    -- ✅ Shot TP → Position 1
                     ShotTP(Config.Position1, function()
                         print("[TeleportSystem] ✅ Shot TP Arrived Position 1 → Lock")
 
@@ -597,39 +610,45 @@ local function StartProcess()
     SetupDropHeldEgg()
     SaveStats()
 
-    State.Step = "to_target"
+    State.Step = "to_safe_first"
 
-    print("[TeleportSystem] StartProcess → Walk TP to Target")
+    print("[TeleportSystem] StartProcess → Walk TP to Safe Zone")
 
-    -- ✅ Walk TP ទៅ Target (Near Shot → 10 studs → Lock 1 stud)
-    local TargetPos
-    if IsTargetInContainer() then
-        State.Mode = "spawn"
-        local Egg = Container:FindFirstChild(State.TargetUid)
-        if Egg then TargetPos = GetPosition(Egg) end
-    elseif IsTargetInWorkspace() then
-        State.Mode = "workspace"
-        local Egg = workspace:FindFirstChild(State.TargetUid)
-        if Egg then
-            TargetPos = GetPosition(Egg)
-            State.SavedTargetPosition = TargetPos
+    WalkTP(Config.SafeZone, function()
+        print("[TeleportSystem] ✅ At Safe Zone → Walk TP to Target")
+
+        local TargetPos
+        if IsTargetInContainer() then
+            State.Mode = "spawn"
+            local Egg = Container:FindFirstChild(State.TargetUid)
+            if Egg then TargetPos = GetPosition(Egg) end
+        elseif IsTargetInWorkspace() then
+            State.Mode = "workspace"
+            local Egg = workspace:FindFirstChild(State.TargetUid)
+            if Egg then
+                TargetPos = GetPosition(Egg)
+                State.SavedTargetPosition = TargetPos
+            end
         end
-    end
 
-    if not TargetPos then AutoStop() return end
+        if not TargetPos then AutoStop() return end
 
-    WalkTP(TargetPos, true, function()
-        print("[TeleportSystem] ✅ Arrived Target → Collect")
+        State.Step = "to_target"
 
-        State.TargetCollected = false
-        State.CollectTime = 0
-        State.CollectAttempts = 0
-        State.RecoveryTriggered = false
-        State.TargetCollectStartTime = tick()
-        State.Step = "collect_target"
+        -- ✅ Walk TP ទៅ Target (IsEggTarget = true → Shot TP ពេលជិតដល់)
+        WalkTP(TargetPos, function()
+            print("[TeleportSystem] ✅ Arrived Target → Collect")
 
-        StartActiveTask()
-    end)
+            State.TargetCollected = false
+            State.CollectTime = 0
+            State.CollectAttempts = 0
+            State.RecoveryTriggered = false
+            State.TargetCollectStartTime = tick()
+            State.Step = "collect_target"
+
+            StartActiveTask()
+        end, true)
+    end, false)
 end
 
 -- ==================================================
@@ -716,4 +735,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk TP → Near 10 → Shot TP → Lock 1)")
+print("✅ TeleportSystem Loaded (Walk TP 275 + Near 10 Shot TP + Lock 1 + Drop)")
