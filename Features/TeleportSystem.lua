@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | VIPTP (AFK Farm Only)
+-- YOKUDO HUB | TELEPORT SYSTEM (WALK TP + SHOT TP + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 275
 -- ✅ Shot TP: Heartbeat Lerp → Position 1 (663, 70, -369)
 -- ✅ Lock CFrame → Remote Drop → Walk TP Safe Zone
--- ✅ សម្រាប់ Tab Auto Farming (FarmingManager)
+-- ✅ សម្រាប់ Tab Auto Farming (AutoFarm.lua)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -47,16 +47,16 @@ local CollectEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/Eg
 local DropEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggDrop")
 
 if not CollectEvent then
-    warn("[VIPTP] CollectEvent not found")
+    warn("[TeleportSystem] CollectEvent not found")
     return
 end
 
 if not DropEvent then
-    warn("[VIPTP] DropEvent not found")
+    warn("[TeleportSystem] DropEvent not found")
     return
 end
 
-print("[VIPTP] CollectEvent + DropEvent OK")
+print("[TeleportSystem] CollectEvent + DropEvent OK")
 
 -- ==================================================
 -- STATE
@@ -65,6 +65,7 @@ local State = {
     Running = false,
     Step = "idle",
     Mode = "none",
+    Method = "TeleportFly",
     TargetUid = nil,
 
     WalkConnection = nil,
@@ -180,15 +181,13 @@ local function WalkTP(Destination, Callback)
         return
     end
 
-    -- ✅ Set WalkSpeed 275
     Hum.WalkSpeed = Config.WalkSpeed
 
-    print(string.format("[VIPTP] Walk TP → %s | Speed: %d", tostring(Destination), Config.WalkSpeed))
+    print(string.format("[TeleportSystem] Walk TP → %s | Speed: %d", tostring(Destination), Config.WalkSpeed))
 
     local StartTime = tick()
     local LastCheck = 0
 
-    -- ✅ Loop MoveTo រាល់ Heartbeat (ដើរទៅ Destination)
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then
             CleanupMovers()
@@ -201,29 +200,24 @@ local function WalkTP(Destination, Callback)
             return
         end
 
-        -- ✅ Set WalkSpeed រាល់ Heartbeat
         Hum2.WalkSpeed = Config.WalkSpeed
-
-        -- ✅ MoveTo Destination
         Hum2:MoveTo(Destination)
 
-        -- ✅ Check រាល់ 0.05s
         if tick() - LastCheck > 0.05 then
             LastCheck = tick()
 
             local Dist = (Root2.Position - Destination).Magnitude
             if Dist <= Config.ArriveDistance then
                 CleanupMovers()
-                Hum2:MoveTo(Root2.Position)  -- ✅ Stop MoveTo
-                print(string.format("[VIPTP] ✅ Walk TP Arrived | Dist: %.1f", Dist))
+                Hum2:MoveTo(Root2.Position)
+                print(string.format("[TeleportSystem] ✅ Walk TP Arrived | Dist: %.1f", Dist))
                 if Callback then Callback() end
                 return
             end
 
-            -- ✅ Timeout
             if tick() - StartTime > Config.WalkTimeout then
                 CleanupMovers()
-                print("[VIPTP] Walk TP Timeout")
+                print("[TeleportSystem] Walk TP Timeout")
                 if Callback then Callback() end
                 return
             end
@@ -248,7 +242,7 @@ local function ShotTP(Destination, Callback)
 
     Hum.PlatformStand = true
 
-    print(string.format("[VIPTP] Shot TP → %s | Time: %.1fs", tostring(Destination), Config.ShotTPTime))
+    print(string.format("[TeleportSystem] Shot TP → %s | Time: %.1fs", tostring(Destination), Config.ShotTPTime))
 
     State.ShotConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then
@@ -271,7 +265,6 @@ local function ShotTP(Destination, Callback)
         Root2.AssemblyLinearVelocity = Vector3.zero
         Root2.AssemblyAngularVelocity = Vector3.zero
 
-        -- ✅ Check Arrived
         local Dist = (Root2.Position - Destination).Magnitude
         if Dist <= Config.ArriveDistance or Alpha >= 1 then
             CleanupMovers()
@@ -279,7 +272,7 @@ local function ShotTP(Destination, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            print(string.format("[VIPTP] ✅ Shot TP Arrived | Dist: %.1f", Dist))
+            print(string.format("[TeleportSystem] ✅ Shot TP Arrived | Dist: %.1f", Dist))
             if Callback then Callback() end
         end
     end)
@@ -313,7 +306,7 @@ local function StartLock(TargetPos)
         Root.AssemblyAngularVelocity = Vector3.zero
     end)
 
-    print("[VIPTP] 🔒 Lock CFrame at:", TargetPos)
+    print("[TeleportSystem] 🔒 Lock CFrame at:", TargetPos)
 end
 
 -- ==================================================
@@ -322,7 +315,7 @@ end
 local function RemoteCollectTarget()
     if not CollectEvent or not State.TargetUid then return false end
 
-    print("[VIPTP] Remote Collect:", State.TargetUid)
+    print("[TeleportSystem] Remote Collect:", State.TargetUid)
 
     local success = pcall(function()
         return CollectEvent:InvokeServer({ Uid = State.TargetUid })
@@ -333,13 +326,13 @@ end
 local function RemoteDrop()
     if not DropEvent then return false end
 
-    print("[VIPTP] Remote Drop")
+    print("[TeleportSystem] Remote Drop")
 
     local Success, Result = pcall(function()
         return DropEvent:InvokeServer({ Reason = "PlayerRequest" })
     end)
 
-    print("[VIPTP] Drop Result:", Success, Result)
+    print("[TeleportSystem] Drop Result:", Success, Result)
     return Success and Result
 end
 
@@ -351,11 +344,11 @@ local function SetupDropHeldEgg()
     if not State.PlayerGui then return end
 
     State.DropHeldEgg = State.PlayerGui:FindFirstChild("DropHeldEgg")
-    if not State.DropHeldEgg then warn("[VIPTP] DropHeldEgg not found!") return end
+    if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
 
     if State.DropHeldEggConnection then State.DropHeldEggConnection:Disconnect() end
     State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
-        print("[VIPTP] DropHeldEgg.Enabled:", State.DropHeldEgg.Enabled)
+        print("[TeleportSystem] DropHeldEgg.Enabled:", State.DropHeldEgg.Enabled)
     end)
 end
 
@@ -412,21 +405,7 @@ local function AutoStop()
     State.RecoveryAttempts = 0
     State.SavedTargetPosition = nil
 
-    print("[VIPTP] Auto Stop → Callback FarmingManager")
-
-    task.spawn(function()
-        task.wait(0.2)
-        if _G.YOKUDO_FarmingManager then
-            if type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
-                local Success, Err = pcall(function()
-                    _G.YOKUDO_FarmingManager.OnVIPTPComplete()
-                end)
-                if not Success then
-                    warn("[VIPTP] OnVIPTPComplete Error:", Err)
-                end
-            end
-        end
-    end)
+    print("[TeleportSystem] Auto Stop")
 end
 
 -- ==================================================
@@ -435,12 +414,12 @@ end
 local function FlyToTargetAgain()
     State.RecoveryAttempts = State.RecoveryAttempts + 1
     if State.RecoveryAttempts > Config.MaxRecoveryAttempts then
-        print("[VIPTP] Max Recovery → AutoStop")
+        print("[TeleportSystem] Max Recovery → AutoStop")
         AutoStop()
         return
     end
 
-    print("[VIPTP] Recovery #" .. State.RecoveryAttempts)
+    print("[TeleportSystem] Recovery #" .. State.RecoveryAttempts)
     State.Step = "recovery"
 
     local TargetPos
@@ -456,7 +435,7 @@ local function FlyToTargetAgain()
             State.SavedTargetPosition = TargetPos
         end
     else
-        print("[VIPTP] Target Gone → AutoStop")
+        print("[TeleportSystem] Target Gone → AutoStop")
         AutoStop()
         return
     end
@@ -466,9 +445,8 @@ local function FlyToTargetAgain()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    -- ✅ Walk TP ទៅ Egg Drop
     WalkTP(TargetPos, function()
-        print("[VIPTP] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived")
+        print("[TeleportSystem] ✅ Recovery #" .. State.RecoveryAttempts .. " Arrived")
 
         State.TargetCollected = false
         State.CollectTime = 0
@@ -487,10 +465,10 @@ local function FlyToSafeZone()
     State.RecoveryTriggered = false
     State.TargetCollected = false
 
-    print("[VIPTP] Walk TP to Safe Zone")
+    print("[TeleportSystem] Walk TP to Safe Zone")
 
     WalkTP(Config.SafeZone, function()
-        print("[VIPTP] ✅ Arrived Safe Zone → AutoStop")
+        print("[TeleportSystem] ✅ Arrived Safe Zone → AutoStop")
         AutoStop()
     end)
 end
@@ -514,30 +492,25 @@ local function StartActiveTask()
             -- Step 1: Collect Target
             if State.Step == "collect_target" and not State.TargetCollected then
                 if IsTargetCollected() then
-                    print("[VIPTP] ✅ Target Collected (DropHeldEgg = true) → Shot TP Position 1")
+                    print("[TeleportSystem] ✅ Target Collected → Shot TP Position 1")
                     State.TargetCollected = true
                     State.RecoveryTriggered = false
 
-                    -- ✅ Shot TP → Position 1
                     ShotTP(Config.Position1, function()
-                        print("[VIPTP] ✅ Shot TP Arrived Position 1 → Lock")
+                        print("[TeleportSystem] ✅ Shot TP Arrived → Lock")
 
-                        -- ✅ Lock CFrame នៅ Position 1
                         StartLock(Config.Position1)
 
-                        -- ✅ Remote Drop
                         task.spawn(function()
                             task.wait(Config.LockWait)
                             RemoteDrop()
-                            print("[VIPTP] ✅ Remote Drop Done")
+                            print("[TeleportSystem] ✅ Remote Drop Done")
 
-                            -- ✅ Stop Lock
                             if State.LockConnection then
                                 State.LockConnection:Disconnect()
                                 State.LockConnection = nil
                             end
 
-                            -- ✅ Walk TP ទៅ Safe Zone
                             task.spawn(function()
                                 task.wait(0.2)
                                 FlyToSafeZone()
@@ -545,16 +518,14 @@ local function StartActiveTask()
                         end)
                     end)
                 else
-                    -- ✅ Remote Collect រាល់ 0.05s
                     if tick() - State.CollectTime > Config.CollectInterval then
                         State.CollectTime = tick()
                         RemoteCollectTarget()
                         State.CollectAttempts = State.CollectAttempts + 1
                     end
 
-                    -- ✅ Timeout → Recovery
                     if tick() - State.TargetCollectStartTime > Config.TargetCollectTimeout then
-                        print("[VIPTP] Target Timeout → Recovery")
+                        print("[TeleportSystem] Target Timeout → Recovery")
                         if not State.RecoveryTriggered then
                             State.RecoveryTriggered = true
                             task.spawn(function() task.wait(0.05) FlyToTargetAgain() end)
@@ -568,7 +539,7 @@ local function StartActiveTask()
                 if not IsTargetCollected() then
                     if not State.RecoveryTriggered then
                         State.RecoveryTriggered = true
-                        print("[VIPTP] Egg Dropped → Recovery")
+                        print("[TeleportSystem] Egg Dropped → Recovery")
                         task.spawn(function() task.wait(0.05) FlyToTargetAgain() end)
                     end
                 else
@@ -599,15 +570,13 @@ local function StartProcess()
     SetupDropHeldEgg()
     SaveStats()
 
-    -- ✅ Walk TP ទៅ Safe Zone មុន
     State.Step = "to_safe_first"
 
-    print("[VIPTP] StartProcess → Walk TP to Safe Zone")
+    print("[TeleportSystem] StartProcess → Walk TP to Safe Zone")
 
     WalkTP(Config.SafeZone, function()
-        print("[VIPTP] ✅ At Safe Zone → Walk TP to Target")
+        print("[TeleportSystem] ✅ At Safe Zone → Walk TP to Target")
 
-        -- ✅ Walk TP ទៅ Target
         local TargetPos
         if IsTargetInContainer() then
             State.Mode = "spawn"
@@ -627,7 +596,7 @@ local function StartProcess()
         State.Step = "to_target"
 
         WalkTP(TargetPos, function()
-            print("[VIPTP] ✅ Arrived Target → Collect")
+            print("[TeleportSystem] ✅ Arrived Target → Collect")
 
             State.TargetCollected = false
             State.CollectTime = 0
@@ -676,47 +645,53 @@ local function FullReset()
     State.RecoveryAttempts = 0
     State.SavedTargetPosition = nil
 
-    print("[VIPTP] Full Reset")
+    print("[TeleportSystem] Full Reset")
 end
 
 -- ==================================================
--- ENABLE / DISABLE / SET
+-- PUBLIC API
 -- ==================================================
-local function Enable()
+local TeleportSystem = {}
+
+function TeleportSystem.Enable()
     if State.Running then return end
-    if not CollectEvent then warn("[VIPTP] CollectEvent not found") return end
-    if not DropEvent then warn("[VIPTP] DropEvent not found") return end
-    if not State.TargetUid then warn("[VIPTP] No Target ID") return end
+    if not CollectEvent then warn("[TeleportSystem] CollectEvent not found") return end
+    if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
+    if not State.TargetUid then warn("[TeleportSystem] No Target ID") return end
 
     FullReset()
     StartProcess()
 
-    print("[VIPTP] ON | Target: " .. tostring(State.TargetUid))
+    print("[TeleportSystem] ON | Target: " .. tostring(State.TargetUid))
 end
 
-local function Disable()
+function TeleportSystem.Disable()
     FullReset()
-    print("[VIPTP] OFF")
+    print("[TeleportSystem] OFF")
 end
 
-local function SetTargetId(Id)
+function TeleportSystem.SetTargetId(Id)
     State.TargetUid = Id
-    print("[VIPTP] Target ID: " .. tostring(Id))
+    print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
--- ==================================================
--- EXPORT
--- ==================================================
-_G.YOKUDO_VIPTP = {
-    Enable = Enable,
-    Disable = Disable,
-    SetTargetId = SetTargetId,
-    IsEnabled = function() return State.Running end,
-    GetTargetId = function() return State.TargetUid end,
-    GetMode = function() return State.Mode end,
-    WALK_SPEED = Config.WalkSpeed,
-    SAFE_ZONE = Config.SafeZone,
-    POSITION_1 = Config.Position1,
-}
+function TeleportSystem.SetSpeed(Value)
+    Value = math.clamp(Value, 50, 1100)
+    Config.WalkSpeed = Value
+    print("[TeleportSystem] Walk Speed: " .. tostring(Value))
+end
 
-print("✅ VIPTP Loaded (Walk TP 275 + Shot TP + Lock + Drop)")
+function TeleportSystem.SetMethod(Method)
+    State.Method = (Method == "InstantTeleport") and "InstantTeleport" or "TeleportFly"
+    print("[TeleportSystem] Method: " .. State.Method)
+end
+
+function TeleportSystem.GetMethod() return State.Method end
+function TeleportSystem.GetSpeed() return Config.WalkSpeed end
+function TeleportSystem.IsEnabled() return State.Running end
+function TeleportSystem.GetTargetId() return State.TargetUid end
+
+-- Export
+_G.YOKUDO_TeleportSystem = TeleportSystem
+
+print("✅ TeleportSystem Loaded (Walk TP 275 + Shot TP + Lock + Drop)")
