@@ -1,11 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (v8 - No Line)
+-- YOKUDO HUB | TAB | ESP (v8 - No ESP Line)
 -- ✅ ESP Name (BillboardGui)
 -- ✅ ESP Distance (ធំ ច្បាស់)
 -- ✅ ESP Box (Scale with Distance)
+-- ❌ ESP Line (REMOVED)
 -- ✅ No Limit Distance
 -- ✅ Mobile + PC Support
--- ❌ ESP Line (REMOVED)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -105,23 +105,26 @@ end
 -- ==================================================
 -- BOX SCREEN GUI
 -- ==================================================
-local function CreateBoxGui()
+local function CreateScreenGui()
     local SG = Instance.new("ScreenGui")
-    SG.Name = "YokudoESP_Box"
+    SG.Name = "YokudoESP_Screen"
     SG.ResetOnSpawn = false
     SG.IgnoreGuiInset = true
     SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     SG.DisplayOrder = 999
     SG.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    return SG
+end
 
+local function CreateBoxFrame(Parent)
     local Box = Instance.new("Frame")
-    Box.Name = "Box"
+    Box.Name = "ESP_Box"
     Box.AnchorPoint = Vector2.new(0.5, 0.5)
     Box.BackgroundTransparency = 1
     Box.BorderSizePixel = 0
     Box.Visible = false
     Box.ZIndex = 999
-    Box.Parent = SG
+    Box.Parent = Parent
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Name = "Stroke"
@@ -130,7 +133,7 @@ local function CreateBoxGui()
     Stroke.Transparency = 0
     Stroke.Parent = Box
 
-    return SG, Box
+    return Box
 end
 
 -- ==================================================
@@ -167,12 +170,13 @@ local function AddESP(Player)
     if ESPData[Player] then return end
     if not IsAlive(Player) then return end
 
+    local SG = CreateScreenGui()
     local BB = CreateESPBillboard(Player)
-    local BoxGui, BoxFrame = CreateBoxGui()
+    local BoxFrame = CreateBoxFrame(SG)
 
     ESPData[Player] = {
+        ScreenGui = SG,
         Billboard = BB,
-        BoxGui = BoxGui,
         BoxFrame = BoxFrame,
         Conn = nil,
     }
@@ -192,7 +196,7 @@ local function AddESP(Player)
         local Root = GetRoot(Player)
         if not Head or not Root then return end
 
-        -- ✅ Billboard
+        -- ✅ Billboard (Name + Distance)
         if BB then
             if BB.Parent ~= Head then BB.Parent = Head end
             BB.Enabled = Settings.Name or Settings.Distance
@@ -216,7 +220,7 @@ local function AddESP(Player)
             end
         end
 
-        -- ✅ Box
+        -- ✅ Box (Scale with Distance)
         if BoxFrame then
             if Settings.Box then
                 UpdateBox(BoxFrame, Head, Root)
@@ -237,7 +241,7 @@ local function RemoveESP(Player)
     local Data = ESPData[Player]
     if not Data then return end
     if Data.Billboard then Data.Billboard:Destroy() end
-    if Data.BoxGui then Data.BoxGui:Destroy() end
+    if Data.ScreenGui then Data.ScreenGui:Destroy() end
     if Data.Conn then pcall(function() Data.Conn:Disconnect() end) end
     ESPData[Player] = nil
 end
@@ -358,7 +362,7 @@ local function CreateFeature(LabelText, SubText, Order, OnToggle)
 end
 
 -- ==================================================
--- FEATURES
+-- FEATURES (No ESP Line)
 -- ==================================================
 CreateFeature("ESP Name", "Show player name above head", 2, function(s)
     Settings.Name = s
@@ -391,4 +395,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (v8 - No Line)")
+print("✅ ESP Tab Loaded (v8 - No ESP Line)")
