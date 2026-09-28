@@ -207,7 +207,7 @@ loadstring(GetScript("Features/FarmingManager.lua"))()
 
 -- ✅ VIPTP
 Loading.Update(51)
---loadstring(GetScript("Features/VIPTP.lua"))()
+loadstring(GetScript("Features/VIPTP.lua"))()
 
 Loading.Update(54)
 loadstring(GetScript("Features/AttackDrone.lua"))()
