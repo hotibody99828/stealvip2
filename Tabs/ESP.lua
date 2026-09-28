@@ -1,8 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP
+-- YOKUDO HUB | TAB | ESP (FULL UPDATE)
 -- Features: ESP Name, ESP Line, ESP Distance, ESP Box
 -- ✅ No Limit Distance
 -- ✅ No ConfigSystem
+-- ✅ Line: Top Screen → Player
+-- ✅ Distance: Real studs update
+-- ✅ Box: Drawings + Highlight
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -22,7 +25,7 @@ CreateSectionTitle(ESPPage, "ESP", 1)
 -- ==================================================
 -- STATE
 -- ==================================================
-local ESPData = {}          -- [Player] = { Billboard, Highlight, Drawings, Conn }
+local ESPData = {}
 local ActiveConnections = {}
 
 local Settings = {
@@ -67,7 +70,7 @@ local function GetLocalRoot()
 end
 
 -- ==================================================
--- CREATE BILLBOARD (Name + Distance)
+-- CREATE BILLBOARD
 -- ==================================================
 local function CreateBillboard(Player)
     local Root = GetRoot(Player)
@@ -98,7 +101,7 @@ local function CreateBillboard(Player)
     DistanceLabel.Size = UDim2.new(1, 0, 0, 16)
     DistanceLabel.Position = UDim2.new(0, 0, 0, 20)
     DistanceLabel.BackgroundTransparency = 1
-    DistanceLabel.Text = "0 studs"
+    DistanceLabel.Text = "..."
     DistanceLabel.TextColor3 = COLORS.Distance
     DistanceLabel.TextSize = 11
     DistanceLabel.Font = Enum.Font.Gotham
@@ -111,7 +114,7 @@ local function CreateBillboard(Player)
 end
 
 -- ==================================================
--- CREATE DRAWINGS (Box + Line)
+-- CREATE DRAWINGS
 -- ==================================================
 local function CreateDrawings()
     local DrawingsTable = {}
@@ -170,7 +173,6 @@ local function AddESP(Player)
         Conn = nil,
     }
 
-    -- ✅ Update Loop (No Limit Distance)
     local Conn = RunService.RenderStepped:Connect(function()
         if not (Settings.Name or Settings.Distance or Settings.Box or Settings.Line) then
             return
@@ -190,7 +192,7 @@ local function AddESP(Player)
         local TheirRoot = GetRoot(Player)
         if not TheirRoot then return end
 
-        -- ✅ Billboard
+        -- ✅ Billboard (Name + Distance)
         if Billboard then
             Billboard.Enabled = Settings.Name or Settings.Distance
             local NameL = Billboard:FindFirstChild("NameLabel")
@@ -198,11 +200,15 @@ local function AddESP(Player)
             if NameL then NameL.Visible = Settings.Name end
             if DistL then DistL.Visible = Settings.Distance end
 
-            -- ✅ Distance (No Limit)
-            local MyRoot = GetLocalRoot()
-            if MyRoot and DistL then
-                local Dist = math.floor((MyRoot.Position - TheirRoot.Position).Magnitude)
-                DistL.Text = Dist .. " studs"
+            -- ✅ Distance update (Real studs, No Limit)
+            if DistL and Settings.Distance then
+                local MyRoot = GetLocalRoot()
+                if MyRoot then
+                    local Dist = math.floor((MyRoot.Position - TheirRoot.Position).Magnitude)
+                    DistL.Text = Dist .. " studs"
+                else
+                    DistL.Text = "? studs"
+                end
             end
         end
 
@@ -211,11 +217,10 @@ local function AddESP(Player)
             Highlight.Visible = Settings.Box
         end
 
-        -- ✅ Drawings
+        -- ✅ Drawings (Box + Line)
         if Drawing and DrawingsTable then
             local Char = Player.Character
             local Head = Char and Char:FindFirstChild("Head")
-
             if not Head then return end
 
             local HeadPos, HeadOnScreen = Camera:WorldToViewportPoint(Head.Position)
@@ -246,12 +251,12 @@ local function AddESP(Player)
                 if DrawingsTable.Fill then DrawingsTable.Fill.Visible = false end
             end
 
-            -- ✅ ESP Line
+            -- ✅ ESP Line (Top Screen → Player)
             if Settings.Line then
-                local ViewportSize = Camera.ViewportSize
                 local Line = DrawingsTable.Line
                 if Line and HeadOnScreen then
-                    Line.From = Vector2.new(ViewportSize.X / 2, ViewportSize.Y)
+                    local ViewportSize = Camera.ViewportSize
+                    Line.From = Vector2.new(ViewportSize.X / 2, 0)
                     Line.To = Vector2.new(HeadPos.X, HeadPos.Y)
                     Line.Visible = true
                 else
@@ -428,7 +433,7 @@ end)
 -- ==================================================
 -- FEATURE 2: ESP Line
 -- ==================================================
-CreateESPFeature("ESP Line", "Draw line from bottom to player", 3, function(state)
+CreateESPFeature("ESP Line", "Draw line from Top screen to player", 3, function(state)
     Settings.Line = state
     print("[ESP] Line:", state)
 end)
@@ -472,4 +477,4 @@ task.spawn(function()
     RefreshESP()
 end)
 
-print("✅ ESP Tab Loaded (Name + Line + Distance + Box | No Limit)")
+print("✅ ESP Tab Loaded (FULL UPDATE: Line Top→Player + Real Distance)")
