@@ -1,10 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | ESP (v7 - COMPLETE REWRITE)
--- ✅ ESP Name + Distance (BillboardGui)
+-- YOKUDO HUB | TAB | ESP (v8 - No Line)
+-- ✅ ESP Name (BillboardGui)
+-- ✅ ESP Distance (ធំ ច្បាស់)
 -- ✅ ESP Box (Scale with Distance)
--- ✅ ESP Line (Top Screen → Head, Correct)
 -- ✅ No Limit Distance
 -- ✅ Mobile + PC Support
+-- ❌ ESP Line (REMOVED)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -23,7 +24,6 @@ CreateSectionTitle(ESPPage, "ESP", 1)
 -- ==================================================
 local Settings = {
     Name = false,
-    Line = false,
     Distance = false,
     Box = false,
 }
@@ -103,28 +103,25 @@ local function CreateESPBillboard(Player)
 end
 
 -- ==================================================
--- BOX + LINE SCREEN GUI (មួយ ScreenGui តែមួយ)
+-- BOX SCREEN GUI
 -- ==================================================
-local function CreateScreenGui()
+local function CreateBoxGui()
     local SG = Instance.new("ScreenGui")
-    SG.Name = "YokudoESP_Screen"
+    SG.Name = "YokudoESP_Box"
     SG.ResetOnSpawn = false
     SG.IgnoreGuiInset = true
     SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     SG.DisplayOrder = 999
     SG.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    return SG
-end
 
-local function CreateBoxFrame(Parent)
     local Box = Instance.new("Frame")
-    Box.Name = "ESP_Box"
+    Box.Name = "Box"
     Box.AnchorPoint = Vector2.new(0.5, 0.5)
     Box.BackgroundTransparency = 1
     Box.BorderSizePixel = 0
     Box.Visible = false
     Box.ZIndex = 999
-    Box.Parent = Parent
+    Box.Parent = SG
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Name = "Stroke"
@@ -133,19 +130,7 @@ local function CreateBoxFrame(Parent)
     Stroke.Transparency = 0
     Stroke.Parent = Box
 
-    return Box
-end
-
-local function CreateLineFrame(Parent)
-    local Line = Instance.new("Frame")
-    Line.Name = "ESP_Line"
-    Line.AnchorPoint = Vector2.new(0, 0.5)
-    Line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    Line.BorderSizePixel = 0
-    Line.Visible = false
-    Line.ZIndex = 999
-    Line.Parent = Parent
-    return Line
+    return SG, Box
 end
 
 -- ==================================================
@@ -176,62 +161,30 @@ local function UpdateBox(Box, Head, Root)
 end
 
 -- ==================================================
--- UPDATE LINE (Top Screen → Head)
--- ==================================================
-local function UpdateLine(Line, Head)
-    local HeadPos, HeadOn = Camera:WorldToViewportPoint(Head.Position)
-    if not HeadOn then
-        Line.Visible = false
-        return
-    end
-
-    local VS = Camera.ViewportSize
-    local From = Vector2.new(VS.X / 2, 0)
-    local To = Vector2.new(HeadPos.X, HeadPos.Y)
-
-    local Delta = To - From
-    local Length = Delta.Magnitude
-    if Length <= 0 then
-        Line.Visible = false
-        return
-    end
-
-    -- ✅ AnchorPoint (0, 0.5) → rotate ជុំវិញចំណុចចាប់ផ្ដើម
-    Line.Size = UDim2.new(0, Length, 0, 2)
-    Line.Position = UDim2.new(0, From.X, 0, From.Y)
-    Line.Rotation = math.deg(math.atan2(Delta.Y, Delta.X))
-    Line.Visible = true
-end
-
--- ==================================================
 -- ADD ESP
 -- ==================================================
 local function AddESP(Player)
     if ESPData[Player] then return end
     if not IsAlive(Player) then return end
 
-    local SG = CreateScreenGui()
     local BB = CreateESPBillboard(Player)
-    local BoxFrame = CreateBoxFrame(SG)
-    local LineFrame = CreateLineFrame(SG)
+    local BoxGui, BoxFrame = CreateBoxGui()
 
     ESPData[Player] = {
-        ScreenGui = SG,
         Billboard = BB,
+        BoxGui = BoxGui,
         BoxFrame = BoxFrame,
-        LineFrame = LineFrame,
         Conn = nil,
     }
 
     local Conn = RunService.RenderStepped:Connect(function()
-        if not (Settings.Name or Settings.Distance or Settings.Box or Settings.Line) then
+        if not (Settings.Name or Settings.Distance or Settings.Box) then
             return
         end
 
         if not IsAlive(Player) then
             if BB then BB.Enabled = false end
             if BoxFrame then BoxFrame.Visible = false end
-            if LineFrame then LineFrame.Visible = false end
             return
         end
 
@@ -271,15 +224,6 @@ local function AddESP(Player)
                 BoxFrame.Visible = false
             end
         end
-
-        -- ✅ Line
-        if LineFrame then
-            if Settings.Line then
-                UpdateLine(LineFrame, Head)
-            else
-                LineFrame.Visible = false
-            end
-        end
     end)
 
     ESPData[Player].Conn = Conn
@@ -293,7 +237,7 @@ local function RemoveESP(Player)
     local Data = ESPData[Player]
     if not Data then return end
     if Data.Billboard then Data.Billboard:Destroy() end
-    if Data.ScreenGui then Data.ScreenGui:Destroy() end
+    if Data.BoxGui then Data.BoxGui:Destroy() end
     if Data.Conn then pcall(function() Data.Conn:Disconnect() end) end
     ESPData[Player] = nil
 end
@@ -312,7 +256,7 @@ end
 -- REFRESH
 -- ==================================================
 local function Refresh()
-    local Any = Settings.Name or Settings.Distance or Settings.Box or Settings.Line
+    local Any = Settings.Name or Settings.Distance or Settings.Box
     if not Any then ClearAll() return end
     for _, P in ipairs(Players:GetPlayers()) do
         if P ~= LocalPlayer and IsAlive(P) then
@@ -327,7 +271,7 @@ end
 Players.PlayerAdded:Connect(function(P)
     P.CharacterAdded:Connect(function()
         task.wait(0.5)
-        if Settings.Name or Settings.Distance or Settings.Box or Settings.Line then
+        if Settings.Name or Settings.Distance or Settings.Box then
             AddESP(P)
         end
     end)
@@ -420,15 +364,11 @@ CreateFeature("ESP Name", "Show player name above head", 2, function(s)
     Settings.Name = s
 end)
 
-CreateFeature("ESP Line", "Draw line from Top screen to player", 3, function(s)
-    Settings.Line = s
-end)
-
-CreateFeature("ESP Distance", "Show distance in studs (No Limit)", 4, function(s)
+CreateFeature("ESP Distance", "Show distance in studs (No Limit)", 3, function(s)
     Settings.Distance = s
 end)
 
-CreateFeature("ESP Box", "Draw box (Small far, Big close)", 5, function(s)
+CreateFeature("ESP Box", "Draw box (Small far, Big close)", 4, function(s)
     Settings.Box = s
 end)
 
@@ -451,4 +391,4 @@ task.spawn(function()
     Refresh()
 end)
 
-print("✅ ESP Tab Loaded (v7 - Complete Rewrite)")
+print("✅ ESP Tab Loaded (v8 - No Line)")
