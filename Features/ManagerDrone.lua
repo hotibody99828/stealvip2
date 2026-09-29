@@ -1,5 +1,5 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v6 FINAL)
+-- YOKUDO HUB | FEATURE | Manager Drone (v7 FINAL)
 -- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
 -- ✅ ឃើញ Portal → AFKSystem.Disable() → AutoEventNew.Enable()
 -- ✅ Portal បាត់ → AutoEventNew.Disable() → Full Reset → AFKSystem.Enable()
@@ -65,7 +65,7 @@ local function ForceStopAll()
 end
 
 -- ==================================================
--- ENABLE AFK SYSTEM
+-- ✅ ENABLE AFK SYSTEM (Walk TP)
 -- ==================================================
 local function EnableAFKSystem()
     if IsFarmingManagerActive() then
@@ -73,9 +73,23 @@ local function EnableAFKSystem()
         return
     end
 
-    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-        _G.YOKUDO_AFKSystem.Enable()
+    if not _G.YOKUDO_AFKSystem then
+        print("[ManagerDrone] ❌ AFKSystem not loaded!")
+        return
+    end
+
+    -- ✅ Disable មុនបើ Enabled (Reset State)
+    if _G.YOKUDO_AFKSystem.IsEnabled() then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+        task.wait(0.3)
+    end
+
+    -- ✅ Enable AFKSystem ជាប់
+    local OK = pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+    if OK then
         print("[ManagerDrone] ✅ AFKSystem Enabled (Walk TP)")
+    else
+        print("[ManagerDrone] ❌ AFKSystem Enable Failed")
     end
 end
 
@@ -113,10 +127,9 @@ local function CallManagerAfterDone()
 
     task.wait(0.5)
 
-    -- ✅ 2. Enable AFKSystem (Walk TP)
+    -- ✅ 2. Enable AFKSystem ជាប់
     if not IsFarmingManagerActive() then
         EnableAFKSystem()
-        print("[ManagerDrone] ✅ AFKSystem Enabled")
     else
         print("[ManagerDrone] FarmingManager Active → Skip AFK")
     end
@@ -139,16 +152,16 @@ local function SwitchAFKToAttack()
     end
 
     -- ✅ 1. Stop AFKSystem
-    if _G.YOKUDO_AFKSystem then
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         print("[ManagerDrone] ✅ AFKSystem Disabled")
     end
 
     task.wait(0.5)
 
-    -- ✅ 2. Enable AutoEventNew (AutoEventNew គ្រប់គ្រង Fly TP)
+    -- ✅ 2. Enable AutoEventNew
     if _G.YOKUDO_AutoEventNew then
-        _G.YOKUDO_AutoEventNew.Enable()
+        pcall(function() _G.YOKUDO_AutoEventNew.Enable() end)
         print("[ManagerDrone] ✅ AutoEventNew Enabled")
     end
 end
@@ -271,4 +284,4 @@ _G.YOKUDO_ManagerDrone = {
     IsFarmingManagerActive = IsFarmingManagerActive,
 }
 
-print("✅ ManagerDrone Feature Loaded (v6 FINAL — AFKSystem Walk TP)")
+print("✅ ManagerDrone Feature Loaded (v7 FINAL — Portal Gone → AFK)")
