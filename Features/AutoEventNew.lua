@@ -1,7 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v5 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v6 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Check Coil រាល់ 1s → Fly 4 studs → Stop → Fall → Wait
+-- ✅ Boss2 (Ball): Check CoilBaseEnabled=true រាល់ 1s → Fly 4 studs → Stop → Fall
 -- ✅ Boss2: Face Boss when Boss 20 studs → Attack (Range 50)
 -- ✅ Boss2: No Lock Boss + Auto Switch Coil
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
@@ -252,29 +252,46 @@ end
 -- ==================================================
 local function IsCoilActive(Coil)
     if not Coil then return false end
+
+    -- ✅ Check Attribute CoilBaseEnabled
     local Success, Value = pcall(function()
         return Coil:GetAttribute("CoilBaseEnabled")
     end)
-    if Success and Value == true then return true end
+
+    if Success and Value == true then
+        return true
+    end
+
     return false
 end
 
 -- ==================================================
--- ✅ FIND ALL ACTIVE COILS
+-- ✅ FIND ALL ACTIVE COILS (Debug Print)
 -- ==================================================
 local function FindAllActiveCoils()
     local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
-    if not Arena then return {} end
+    if not Arena then
+        DebugPrint("❌ No ScrambleArena")
+        return {}
+    end
     local CoilsFolder = Arena:FindFirstChild(COILS_CONTAINER)
-    if not CoilsFolder then return {} end
+    if not CoilsFolder then
+        DebugPrint("❌ No Coils Folder")
+        return {}
+    end
 
     local Coils = {}
     for _, CoilName in ipairs(COIL_NAMES) do
         local Coil = CoilsFolder:FindFirstChild(CoilName)
-        if Coil and IsCoilActive(Coil) then
-            table.insert(Coils, Coil)
+        if Coil then
+            local Active = IsCoilActive(Coil)
+            DebugPrint(string.format("🔍 %s | CoilBaseEnabled: %s", CoilName, tostring(Active)))
+            if Active then
+                table.insert(Coils, Coil)
+            end
         end
     end
+    DebugPrint("✅ Total Active Coils:", #Coils)
     return Coils
 end
 
@@ -573,9 +590,13 @@ local function SetupTargetForBoss(Boss, BossName)
     if FaceConnection then FaceConnection:Disconnect() FaceConnection = nil end
     CleanupMovers()
 
+    DebugPrint("========================================")
+    DebugPrint("🎯 SETUP Target:", BossName)
+
     -- ✅ Boss 2 (Ball) → Coil Task
     if BossName == "Ball" then
-        DebugPrint("🚀 Boss 2 (Ball) → Check Coil (1s)")
+        DebugPrint("🚀 Boss 2 (Ball) → Check Coil")
+
         local Coils = WaitForActiveCoil()
         if #Coils == 0 then
             DebugPrint("❌ No Active Coils → Skip Boss 2")
@@ -598,10 +619,12 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("🚀 Boss", BossName, "→ Fly TP to Lock")
     local LockPos = GetLockPosition(CurrentTarget, BossName)
     if not LockPos then return false end
+
     local Arrived = false
     FlyTP(LockPos, function() Arrived = true end)
     while AutoEventEnabled and not Arrived do task.wait(0.1) end
     if not AutoEventEnabled then return false end
+
     StartLockBoss()
     return true
 end
@@ -789,7 +812,7 @@ local function MainLoop()
 
         -- ✅ Boss 2 (Ball) — Coil Task
         if CurrentBossName == "Ball" then
-            -- ✅ Check Coil រាល់ 1s (បើ Coil បច្ចុប្បន្នអត់ true → Switch)
+            -- ✅ Check Coil រាល់ 1s
             if now - LastCoilCheck >= COIL_CHECK_INTERVAL then
                 LastCoilCheck = now
 
@@ -952,4 +975,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoEventNew Feature Loaded (v5 FINAL + Coil Check 1s + Portal Gone → AFK)")
+print("✅ AutoEventNew Feature Loaded (v6 FINAL + Coil Check 1s + Portal Gone → AFK)")
