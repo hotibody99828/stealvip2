@@ -1,6 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v10 DEBUG)
--- ✅ Debug Print ច្បាស់ — ដើម្បីមើលបញ្ហា AFK
+-- YOKUDO HUB | FEATURE | Manager Drone (v13 FINAL)
+-- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
+-- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
+-- ✅ ឃើញ Portal → Stop AFK → Manager Jump Out → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
+-- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
+-- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
+-- ✅ CharacterAdded Resume
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -17,6 +22,9 @@ local SAFE_ZONE_WAIT = 3
 local FLY_SPEED = 500
 local ARRIVE_DISTANCE = 5
 local FLY_TIMEOUT = 15
+local JUMP_MAX_ATTEMPTS = 50
+local JUMP_ATTEMPT_WAIT = 0.2
+local JUMP_DISTANCE_THRESHOLD = 5
 
 -- ==================================================
 -- STATE
@@ -32,7 +40,7 @@ local BodyGyro = nil
 -- DEBUG
 -- ==================================================
 local function DebugPrint(...)
-    print("[ManagerDrone-DEBUG]", ...)
+    print("[ManagerDrone]", ...)
 end
 
 -- ==================================================
@@ -40,7 +48,6 @@ end
 -- ==================================================
 local function IsFarmingManagerActive()
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
-        DebugPrint("⚠️ FarmingManager Active")
         return true
     end
     return false
@@ -107,15 +114,13 @@ local function CleanupFly()
 end
 
 -- ==================================================
--- FLY TP
+-- FLY TP (BodyV + BodyG)
 -- ==================================================
 local function FlyTP(Destination, Callback)
-    DebugPrint("🚀 FlyTP Started | Dest:", tostring(Destination))
     CleanupFly()
 
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
-        DebugPrint("❌ FlyTP Failed: No Humanoid/Health=0")
         if Callback then Callback() end
         return
     end
@@ -151,7 +156,6 @@ local function FlyTP(Destination, Callback)
         local TotalDist = Dir.Magnitude
 
         if TotalDist <= ARRIVE_DISTANCE then
-            DebugPrint("✅ FlyTP Arrived | Dist:", math.floor(TotalDist))
             CleanupFly()
             Root2.CFrame = CFrame.new(Destination)
             if Callback then Callback() end
@@ -159,7 +163,6 @@ local function FlyTP(Destination, Callback)
         end
 
         if tick() - StartTime > FLY_TIMEOUT then
-            DebugPrint("⏰ FlyTP Timeout | Dist Left:", math.floor(TotalDist))
             CleanupFly()
             if Callback then Callback() end
             return
@@ -174,7 +177,7 @@ end
 -- FLY TO SAFE ZONE
 -- ==================================================
 local function FlyToSafeZone(Callback)
-    DebugPrint("🚀 FlyToSafeZone Called")
+    DebugPrint("🚀 Fly TP → Safe Zone")
 
     FlyTP(SAFE_ZONE, function()
         DebugPrint("✅ Arrived Safe Zone")
@@ -186,11 +189,9 @@ end
 -- FLY TO PORTAL
 -- ==================================================
 local function FlyToPortal(Callback)
-    DebugPrint("🚀 FlyToPortal Called")
-
     local Portal = workspace:FindFirstChild(PORTAL_NAME)
     if not Portal then
-        DebugPrint("⚠️ Portal not found in FlyToPortal")
+        DebugPrint("⚠️ Portal not found")
         if Callback then Callback() end
         return
     end
@@ -232,59 +233,23 @@ end
 -- ENABLE AFK SYSTEM (Walk TP)
 -- ==================================================
 local function EnableAFKSystem()
-    DebugPrint("========== EnableAFKSystem Called ==========")
-
-    -- ✅ Check 1: FarmingManager
     if IsFarmingManagerActive() then
-        DebugPrint("❌ Skip AFK: FarmingManager active")
+        DebugPrint("Skip AFK (FarmingManager active)")
         return
     end
 
-    -- ✅ Check 2: AFKSystem loaded
     if not _G.YOKUDO_AFKSystem then
-        DebugPrint("❌ AFKSystem NOT loaded!")
+        DebugPrint("❌ AFKSystem not loaded!")
         return
     end
-    DebugPrint("✅ AFKSystem loaded")
 
-    -- ✅ Check 3: AFKSystem methods
-    if not _G.YOKUDO_AFKSystem.Enable then
-        DebugPrint("❌ AFKSystem.Enable not found!")
-        return
-    end
-    DebugPrint("✅ AFKSystem.Enable method found")
-
-    -- ✅ Check 4: AFKSystem.IsEnabled
-    local IsEnabled = false
-    pcall(function()
-        IsEnabled = _G.YOKUDO_AFKSystem.IsEnabled()
-    end)
-    DebugPrint("AFKSystem IsEnabled:", tostring(IsEnabled))
-
-    -- ✅ Disable មុនបើ Enabled
-    if IsEnabled then
-        DebugPrint("🔄 AFKSystem already enabled → Disable first")
+    if _G.YOKUDO_AFKSystem.IsEnabled() then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         task.wait(0.3)
     end
 
-    -- ✅ Enable AFKSystem
-    DebugPrint("🚀 Calling AFKSystem.Enable()...")
-    local OK, Err = pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
-
-    if OK then
-        DebugPrint("✅ AFKSystem.Enable() OK")
-
-        -- ✅ Check ថា IsEnabled ពិតជា true
-        task.wait(0.5)
-        local FinalState = false
-        pcall(function()
-            FinalState = _G.YOKUDO_AFKSystem.IsEnabled()
-        end)
-        DebugPrint("✅ AFKSystem Final State:", tostring(FinalState))
-    else
-        DebugPrint("❌ AFKSystem.Enable() FAILED:", tostring(Err))
-    end
+    pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+    DebugPrint("✅ AFKSystem Enabled (Walk TP)")
 end
 
 -- ==================================================
@@ -308,11 +273,11 @@ local function FullReset()
 end
 
 -- ==================================================
--- CALL MANAGER AFTER DONE
+-- CALL MANAGER AFTER DONE (Portal បាត់)
 -- ==================================================
 local function CallManagerAfterDone()
     DebugPrint("=========================================")
-    DebugPrint("🎉 Portal Gone → Call AFK")
+    DebugPrint("🎉 Portal Gone → Stop Attack + Call AFK")
     DebugPrint("=========================================")
 
     if _G.YOKUDO_AutoEventNew then
@@ -333,7 +298,45 @@ local function CallManagerAfterDone()
 end
 
 -- ==================================================
--- SWITCH AFK TO ATTACK
+-- ✅ MANAGER JUMP OUT TREADMILL (ខ្លួនឯង)
+-- ==================================================
+local function ManagerJumpOut(TreadmillPos)
+    if not TreadmillPos then
+        DebugPrint("⚠️ No Treadmill Pos → Skip Jump")
+        return
+    end
+
+    DebugPrint("🦘 Manager Jump Out Treadmill...")
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        DebugPrint("❌ No Humanoid → Skip Jump")
+        return
+    end
+
+    local Attempts = 0
+    while Attempts < JUMP_MAX_ATTEMPTS do
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 then break end
+        if Hum2.Health <= 0 then break end
+
+        local Dist = math.floor((Root2.Position - TreadmillPos).Magnitude)
+
+        if Dist > JUMP_DISTANCE_THRESHOLD then
+            DebugPrint("✅ Jumped out! Dist:", Dist)
+            return
+        end
+
+        pcall(function() Hum2.Jump = true end)
+        Attempts = Attempts + 1
+        task.wait(JUMP_ATTEMPT_WAIT)
+    end
+
+    DebugPrint("⏰ Jump timeout")
+end
+
+-- ==================================================
+-- ✅ SWITCH FROM AFK TO AUTO EVENT (Manager Jump Out)
 -- ==================================================
 local function SwitchAFKToAttack()
     DebugPrint("=========================================")
@@ -345,13 +348,27 @@ local function SwitchAFKToAttack()
         return
     end
 
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+    -- ✅ Step 1: យក Treadmill Pos (មុន Stop AFK)
+    local TreadmillPos = nil
+    if _G.YOKUDO_AFKSystem then
+        TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+    end
+
+    -- ✅ Step 2: Stop AFKSystem ភ្លាម
+    if _G.YOKUDO_AFKSystem then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         DebugPrint("✅ AFKSystem Disabled")
     end
 
-    task.wait(0.5)
+    task.wait(0.3)
 
+    -- ✅ Step 3: Manager Jump Out ខ្លួនឯង
+    if TreadmillPos then
+        ManagerJumpOut(TreadmillPos)
+        task.wait(0.5)  -- ✅ រង់ចាំ Jump ចេញ
+    end
+
+    -- ✅ Step 4: Fly Safe Zone → Wait 3s → Fly Portal → Enable AutoEventNew
     FlyToSafeZone(function()
         DebugPrint("⏳ Wait 3s at Safe Zone...")
         task.wait(SAFE_ZONE_WAIT)
@@ -366,14 +383,13 @@ local function SwitchAFKToAttack()
 end
 
 -- ==================================================
--- MAIN LOOP
+-- MAIN LOOP (Portal Signal)
 -- ==================================================
 local function MainLoop()
-    DebugPrint("========== MainLoop Started ==========")
+    DebugPrint("MainLoop Started (Portal Signal)")
 
+    -- ✅ Initial Check
     local InitialPortal = IsPortalSpawned()
-    DebugPrint("Initial Portal State:", tostring(InitialPortal))
-
     if not InitialPortal then
         DebugPrint("Initial: No Portal → Enable AFK")
         task.wait(0.5)
@@ -472,6 +488,29 @@ local function ToggleManager()
 end
 
 -- ==================================================
+-- CHARACTER ADDED (Resume)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not ManagerEnabled then return end
+
+    DebugPrint("🔄 Character Added → Wait for Respawn...")
+    task.wait(2)
+
+    DebugPrint("✅ Resumed after Respawn")
+
+    task.spawn(function()
+        task.wait(0.5)
+        if not IsPortalSpawned() then
+            DebugPrint("No Portal → Enable AFK")
+            EnableAFKSystem()
+        else
+            DebugPrint("Portal Spawned → Switch")
+            SwitchAFKToAttack()
+        end
+    end)
+end)
+
+-- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_ManagerDrone = {
@@ -489,27 +528,7 @@ _G.YOKUDO_ManagerDrone = {
     IsFarmingManagerActive = IsFarmingManagerActive,
     FlyToSafeZone = FlyToSafeZone,
     FlyToPortal = FlyToPortal,
+    ManagerJumpOut = ManagerJumpOut,
 }
 
--- ==================================================
--- ✅ CHARACTER ADDED (Resume ពេល Respawn)
--- ==================================================
-Player.CharacterAdded:Connect(function(Char)
-    if not ManagerEnabled then return end
-
-    DebugPrint("🔄 Character Added → Wait for Respawn...")
-    task.wait(2)
-
-    DebugPrint("✅ Resumed after Respawn")
-
-    -- ✅ បើ Portal បាត់ → Enable AFK
-    task.spawn(function()
-        task.wait(0.5)
-        if not IsPortalSpawned() then
-            DebugPrint("No Portal → Enable AFK")
-            EnableAFKSystem()
-        end
-    end)
-end)
-
-print("✅ ManagerDrone Feature Loaded (v10 DEBUG)")
+print("✅ ManagerDrone Feature Loaded (v13 FINAL — Manager Jump Out)")
