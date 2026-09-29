@@ -1,7 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v18 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v20 FINAL)
 -- ✅ Boss1 (Mech): Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Fly Position (ជិត Boss) → No Lock → Face + Attack (Range 100)
+-- ✅ Boss2 (Ball): Fly Position → Face Boss when 30m → Attack (Range 100)
 -- ✅ Boss3 (ScrambleHuman): Fly Position → Lock Front 1 + Face + Attack (Range 100)
 -- ✅ Portal Gone → Call ManagerDrone (No Fallback)
 -- ✅ Full Reset ពេល User ដកធិក
@@ -24,20 +24,23 @@ local BOSS_CONTAINER = "ScrambleArena"
 
 local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
--- ✅ Positions
+-- ✅ Positions ថ្មី
 local POSITIONS = {
-    Vector3.new(-15292, -468, 5111),  -- Position 1
-    Vector3.new(-15292, -468, 4600),  -- Position 2
-    Vector3.new(-14783, -468, 4599),  -- Position 3
-    Vector3.new(-14780, -468, 5109),  -- Position 4
+    Vector3.new(-14789, -472, 5126),  -- Position 1
+    Vector3.new(-14763, -472, 4608),  -- Position 2
+    Vector3.new(-15279, -472, 4589),  -- Position 3
+    Vector3.new(-15304, -472, 5098),  -- Position 4
 }
 
 -- ✅ Position Settings
 local POSITION_CHECK_INTERVAL = 1
 
+-- ✅ Boss 2 Face Distance
+local BOSS2_FACE_DISTANCE = 30      -- ✅ Boss 2 មកជិត 30m → Face + Attack
+
 -- ✅ Lock Settings
-local LOCK_BEHIND_NORMAL = 3
-local LOCK_FRONT_DISTANCE = 1
+local LOCK_BEHIND_NORMAL = 3         -- Boss 1: Behind 3
+local LOCK_FRONT_DISTANCE = 1        -- Boss 3: Front 1
 local LOCK_ABOVE_HEIGHT = 5
 
 -- ✅ Attack Range
@@ -501,7 +504,7 @@ local function FlyToClosestPortal()
 end
 
 -- ==================================================
--- SETUP TARGET (Boss1: Lock Behind 3 | Boss2: No Lock | Boss3: Lock Front 1)
+-- SETUP TARGET
 -- ==================================================
 local function SetupTargetForBoss(Boss, BossName)
     if not Boss or not Boss.Parent then return false end
@@ -515,7 +518,7 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Position → No Lock
+    -- ✅ Boss 2 (Ball) → Fly Position → No Lock (Face when 30m)
     if BossName == "Ball" then
         DebugPrint("🚀 Boss 2 (Ball) → Find Closest Position (No Lock)")
 
@@ -526,7 +529,7 @@ local function SetupTargetForBoss(Boss, BossName)
         end
 
         FlyToPosition(CurrentPosition)
-        DebugPrint("✅ At Position → Wait for Boss (No Lock)")
+        DebugPrint("✅ At Position → Wait for Boss (Face when 30m)")
         return true
     end
 
@@ -691,7 +694,7 @@ local function MainLoop()
 
     local LastPositionCheck = 0
     while AutoEventEnabled do
-        -- ✅ Check Portal Gone → Stop + Call Manager
+        -- ✅ Check Portal Gone
         local Portal = workspace:FindFirstChild(PORTAL_NAME)
         if not Portal then
             DebugPrint("🚪 Portal Gone → Call Manager")
@@ -758,14 +761,24 @@ local function MainLoop()
             end
         end
 
+        -- ✅ Boss 2 → Face Boss ពេល Boss នៅជិត 30m
+        if CurrentBossName == "Ball" then
+            local BossPos = GetPosition(CurrentTarget)
+            local _, Root3 = GetHumanoid()
+            if BossPos and Root3 then
+                local Dist = (BossPos - Root3.Position).Magnitude
+                if Dist <= BOSS2_FACE_DISTANCE then
+                    StartFaceBoss()  -- ✅ Face Boss ពេល Boss នៅជិត 30m
+                else
+                    StopFaceBoss()  -- ✅ បើ Boss ឆ្ងាយ → Stop Face
+                end
+            end
+        end
+
+        -- ✅ Attack Range
         local Range = ATTACK_RANGE_NORMAL
         if CurrentBossName == "Ball" then Range = ATTACK_RANGE_BALL
         elseif CurrentBossName == "ScrambleHuman" then Range = ATTACK_RANGE_BOSS3
-        end
-
-        -- ✅ Boss 2 → Face Boss (No Lock)
-        if CurrentBossName == "Ball" then
-            StartFaceBoss()
         end
 
         if now - LastFire >= ATTACK_INTERVAL then
@@ -827,6 +840,38 @@ local function Toggle()
 end
 
 -- ==================================================
+-- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not AutoEventEnabled then return end
+
+    DebugPrint("🔄 Character Added → Wait for Respawn...")
+    task.wait(DEATH_WAIT)
+
+    CleanupMovers()
+    StopAutoEquip()
+    StopPushUpY()
+    StopFaceBoss()
+
+    CurrentTarget = nil
+    CurrentBossName = nil
+    CurrentPosition = nil
+    LastFire = 0
+    FlySequence = 0
+    IsDead = false
+
+    StartAutoEquip()
+
+    if MainThread then
+        pcall(function() task.cancel(MainThread) end)
+        MainThread = nil
+    end
+    MainThread = task.spawn(MainLoop)
+
+    DebugPrint("✅ Resumed after Respawn")
+end)
+
+-- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_AutoEventNew = {
@@ -841,45 +886,11 @@ _G.YOKUDO_AutoEventNew = {
     FlyToPosition = FlyToPosition,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     LOCK_FRONT_DISTANCE = LOCK_FRONT_DISTANCE,
+    BOSS2_FACE_DISTANCE = BOSS2_FACE_DISTANCE,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
     ATTACK_RANGE_BOSS3 = ATTACK_RANGE_BOSS3,
     POSITIONS = POSITIONS,
 }
 
--- ==================================================
--- ✅ CHARACTER ADDED (Resume ពេល Respawn)
--- ==================================================
-Player.CharacterAdded:Connect(function(Char)
-    if not AutoEventEnabled then return end
-
-    DebugPrint("🔄 Character Added → Wait for Respawn...")
-    task.wait(DEATH_WAIT)
-
-    -- ✅ Cleanup + Restart
-    CleanupMovers()
-    StopAutoEquip()
-    StopPushUpY()
-    StopFaceBoss()
-
-    CurrentTarget = nil
-    CurrentBossName = nil
-    CurrentPosition = nil
-    LastFire = 0
-    FlySequence = 0
-    IsDead = false
-
-    -- ✅ Restart AutoEquip
-    StartAutoEquip()
-
-    -- ✅ Restart MainLoop
-    if MainThread then
-        pcall(function() task.cancel(MainThread) end)
-        MainThread = nil
-    end
-    MainThread = task.spawn(MainLoop)
-
-    DebugPrint("✅ Resumed after Respawn")
-end)
-
-print("✅ AutoEventNew Feature Loaded (v18 FINAL — Boss2 No Lock | Boss3 Lock Front 1)")
+print("✅ AutoEventNew Feature Loaded (v20 FINAL — Boss2 Face at 30m + New Positions + Resume)")
