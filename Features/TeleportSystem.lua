@@ -6,7 +6,7 @@
 -- ✅ DropHeldEgg = true (Signal) → Lock Camera → Shot TP → Position 1 (1.2s)
 -- ✅ Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
 -- ✅ Walk TP → Collect វិញ → DropHeldEgg = true → Walk TP → Position 2
--- ✅ Position 2 → AutoStop → Callback FarmingManager
+-- ✅ Check UID Both (Spawn + Workspace) — បើអត់ឃើញ → Stop + Callback
 -- ✅ ប្រើសម្រាប់ទាំង Tab Auto Farming + Tab Farming
 -- ==================================================
 
@@ -35,6 +35,7 @@ local Config = {
     WalkTimeout = 1000,
     CollectInterval = 0.02,
     MaxCollectAttempts = 10000,
+    UIDCheckInterval = 1,
 }
 
 -- ==================================================
@@ -81,6 +82,8 @@ local State = {
 
     CameraLockConnection = nil,
     LockedCameraCFrame = nil,
+
+    UIDCheckThread = nil,
 }
 
 -- ==================================================
@@ -455,7 +458,7 @@ local function RemoteDrop()
 end
 
 -- ==================================================
--- ✅ DROPHELDEGG (Signal Listener — Disconnect ចាស់ជានិច្ច)
+-- ✅ DROPHELDEGG (Signal Listener)
 -- ==================================================
 local function SetupDropHeldEgg()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
@@ -464,13 +467,11 @@ local function SetupDropHeldEgg()
     State.DropHeldEgg = PG:FindFirstChild("DropHeldEgg")
     if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
 
-    -- ✅ Disconnect Signal ចាស់ជានិច្ច
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
         State.DropHeldEggConnection = nil
     end
 
-    -- ✅ Signal Listener ថ្មី
     State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
         local IsEnabled = State.DropHeldEgg.Enabled == true
         print("[TeleportSystem] ⚡ DropHeldEgg.Enabled →", IsEnabled, "| Step:", State.Step)
@@ -508,6 +509,30 @@ end
 local function IsTargetCollected()
     if State.DropHeldEgg then return State.DropHeldEgg.Enabled == true end
     return false
+end
+
+-- ==================================================
+-- ✅ CHECK TARGET UID (Spawn + Workspace)
+-- ==================================================
+local function CheckTargetUID(TargetUid, Mode)
+    if not TargetUid then return "none" end
+    Mode = Mode or "both"
+
+    -- ✅ ១. Check Spawn Path
+    local InContainer = false
+    if Container then
+        InContainer = Container:FindFirstChild(TargetUid) ~= nil
+    end
+
+    if InContainer then return "spawn" end
+
+    -- ✅ ២. Check Workspace
+    if Mode == "both" then
+        local InWorkspace = workspace:FindFirstChild(TargetUid) ~= nil
+        if InWorkspace then return "workspace" end
+    end
+
+    return "none"
 end
 
 local function IsTargetInContainer()
@@ -585,6 +610,64 @@ local function AutoStop()
 end
 
 -- ==================================================
+-- ✅ PERIODIC UID CHECK (រាល់ 1s) — បើអត់ឃើញ → Stop + Callback
+-- ==================================================
+local function StartPeriodicUIDCheck()
+    if State.UIDCheckThread then
+        pcall(function() task.cancel(State.UIDCheckThread) end)
+        State.UIDCheckThread = nil
+    end
+
+    State.UIDCheckThread = task.spawn(function()
+        while State.Running do
+            task.wait(Config.UIDCheckInterval)
+            if not State.Running then break end
+
+            -- ✅ Check UID Both (Spawn + Workspace)
+            local Location = CheckTargetUID(State.TargetUid, "both")
+
+            if Location == "none" then
+                print("[TeleportSystem] ⚠️ UID Gone (Periodic 1s) → Stop + Callback")
+
+                State.Running = false
+                StopLock()
+                CleanupMovers()
+                UnlockCamera()
+                ResumeSafeSpeed()
+
+                -- ✅ Restore WalkSpeed
+                local Char = Player.Character
+                if Char then
+                    local Hum = Char:FindFirstChildOfClass("Humanoid")
+                    if Hum and State.SavedWalkSpeed ~= nil then
+                        Hum.WalkSpeed = State.SavedWalkSpeed
+                    end
+                end
+
+                State.Step = "uid_gone"
+
+                -- ✅ Callback
+                task.spawn(function()
+                    task.wait(0.1)
+                    if _G.YOKUDO_FarmingManager then
+                        if type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
+                            pcall(function()
+                                _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+                            end)
+                        elseif type(_G.YOKUDO_FarmingManager.OnTeleportComplete) == "function" then
+                            pcall(function()
+                                _G.YOKUDO_FarmingManager.OnTeleportComplete()
+                            end)
+                        end
+                    end
+                end)
+                return
+            end
+        end
+    end)
+end
+
+-- ==================================================
 -- ✅ STEP 1: Walk → Target → Collect
 -- ==================================================
 local function Step1_WalkToTarget()
@@ -592,10 +675,22 @@ local function Step1_WalkToTarget()
     State.TargetCollected = false
     State.CollectAttempts = 0
 
-    local TargetPos = GetTargetPosition()
-    if not TargetPos then AutoStop() return end
+    -- ✅ Check UID មុន Walk
+    local Location = CheckTargetUID(State.TargetUid, "both")
+    if Location == "none" then
+        print("[TeleportSystem] ❌ UID not found → Stop + Callback")
+        AutoStop()
+        return
+    end
 
-    print("[TeleportSystem] Step 1: Walk → Target")
+    local TargetPos = GetTargetPosition()
+    if not TargetPos then
+        print("[TeleportSystem] Target Position nil → Stop + Callback")
+        AutoStop()
+        return
+    end
+
+    print("[TeleportSystem] Step 1: Walk → Target | Location:", Location)
 
     WalkTP(TargetPos, true, function()
         print("[TeleportSystem] Step 1 Done: At Target + Locked → Collect")
@@ -617,7 +712,7 @@ local function Step1_WalkToTarget()
                 RemoteCollectTarget()
                 State.CollectAttempts = State.CollectAttempts + 1
                 if State.CollectAttempts > Config.MaxCollectAttempts then
-                    print("[TeleportSystem] Max Collect → AutoStop")
+                    print("[TeleportSystem] Max Collect → Stop + Callback")
                     AutoStop()
                     return
                 end
@@ -691,14 +786,22 @@ function Step5_WalkToCollectAgain()
     State.Step = "5_to_collect_again"
     State.CollectedAgain = false
 
-    local TargetPos = GetTargetPosition()
-    if not TargetPos then
-        print("[TeleportSystem] Target Gone → Position 2")
-        Step7_WalkToPosition2()
+    -- ✅ Check UID មុន Walk
+    local Location = CheckTargetUID(State.TargetUid, "both")
+    if Location == "none" then
+        print("[TeleportSystem] ❌ UID not found → Stop + Callback")
+        AutoStop()
         return
     end
 
-    print("[TeleportSystem] Step 5: Walk → Collect Again")
+    local TargetPos = GetTargetPosition()
+    if not TargetPos then
+        print("[TeleportSystem] Target Gone → Stop + Callback")
+        AutoStop()
+        return
+    end
+
+    print("[TeleportSystem] Step 5: Walk → Collect Again | Location:", Location)
 
     WalkTP(TargetPos, true, function()
         print("[TeleportSystem] Step 5 Done: At Target + Locked → Collect Again")
@@ -741,7 +844,7 @@ function Step7_WalkToPosition2()
 end
 
 -- ==================================================
--- ✅ START PROCESS (Reset + Setup + Start)
+-- ✅ START PROCESS
 -- ==================================================
 local function StartProcess()
     -- ✅ Reset ទាំងអស់មុន
@@ -751,6 +854,11 @@ local function StartProcess()
     end
     State.DropHeldEgg = nil
 
+    if State.UIDCheckThread then
+        pcall(function() task.cancel(State.UIDCheckThread) end)
+        State.UIDCheckThread = nil
+    end
+
     State.Running = true
     State.Step = "idle"
     State.TargetCollected = false
@@ -758,16 +866,48 @@ local function StartProcess()
     State.DropDone = false
     State.CollectAttempts = 0
 
-    -- ✅ SetupDropHeldEgg ថ្មី
     SetupDropHeldEgg()
     SaveStats()
 
     print("[TeleportSystem] ========== START ==========")
     print("[TeleportSystem] Target UID:", State.TargetUid)
-    print("[TeleportSystem] Signal:", State.DropHeldEggConnection ~= nil and "Connected" or "NOT Connected")
+
+    -- ✅ Check UID មុន Start
+    local Location = CheckTargetUID(State.TargetUid, "both")
+    print("[TeleportSystem] Initial UID Location:", Location)
+
+    if Location == "none" then
+        -- ✅ រង់ចាំ 3s → បើអត់ឃើញ → Stop + Callback
+        task.spawn(function()
+            local Waited = 0
+            while State.Running and Waited < 3 do
+                task.wait(0.1)
+                Waited = Waited + 0.1
+
+                local CheckLocation = CheckTargetUID(State.TargetUid, "both")
+                if CheckLocation ~= "none" then
+                    print("[TeleportSystem] ✅ UID Found after", Waited, "s → Start")
+                    break
+                end
+            end
+
+            -- ✅ បើនៅអត់ឃើញ → Stop + Callback
+            if CheckTargetUID(State.TargetUid, "both") == "none" then
+                print("[TeleportSystem] ❌ UID not found 3s → Stop + Callback")
+                AutoStop()
+                return
+            end
+
+            task.wait(0.3)
+            StartPeriodicUIDCheck()
+            Step1_WalkToTarget()
+        end)
+        return
+    end
 
     task.spawn(function()
         task.wait(0.3)
+        StartPeriodicUIDCheck()
         Step1_WalkToTarget()
     end)
 end
@@ -786,12 +926,16 @@ local function FullReset()
         pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
     end
 
-    -- ✅ Disconnect Signal ចាស់
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
         State.DropHeldEggConnection = nil
     end
     State.DropHeldEgg = nil
+
+    if State.UIDCheckThread then
+        pcall(function() task.cancel(State.UIDCheckThread) end)
+        State.UIDCheckThread = nil
+    end
 
     State.Running = false
     State.Step = "idle"
@@ -815,13 +959,8 @@ function TeleportSystem.Enable()
     if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
     if not State.TargetUid then warn("[TeleportSystem] No Target ID") return end
 
-    -- ✅ FullReset មុន
     FullReset()
-
-    -- ✅ Setup DropHeldEgg មុន StartProcess
     SetupDropHeldEgg()
-
-    -- ✅ StartProcess
     StartProcess()
 
     print("[TeleportSystem] ON | Target: " .. tostring(State.TargetUid))
@@ -868,4 +1007,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk + Shot 1.2s + Lock + Drop + Position 2 + Callback)")
+print("✅ TeleportSystem Loaded (Walk + Shot 1.2s + Lock + Drop + UID Check Both + Callback)")
