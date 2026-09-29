@@ -2,7 +2,7 @@
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + CFrame Instant + SHOT TP + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 265
 -- ✅ ជិតដល់ 20 studs → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true → Lock Camera + Shot TP → Position 1 (1.15s)
+-- ✅ DropHeldEgg = true → Lock Camera → Shot TP → Position 1 (1.15s)
 -- ✅ Lock Position 1 → Drop → Unlock Camera
 -- ✅ Walk TP → Collect វិញ → Position 2 → Stop
 -- ✅ Reset WalkSpeed ពេល Stop
@@ -123,13 +123,13 @@ local function RestoreStats()
 end
 
 -- ==================================================
--- ✅ CAMERA LOCK (នៅ Position បច្ចុប្បន្ន)
+-- ✅ CAMERA LOCK (ដូច AntiGuard 100%)
 -- ==================================================
 local function LockCamera()
     local Camera = workspace.CurrentCamera
     if not Camera then return end
 
-    -- ✅ Save Camera CFrame
+    -- ✅ Save Camera CFrame នៅ Position បច្ចុប្រន្ន
     State.LockedCameraCFrame = Camera.CFrame
 
     -- ✅ Lock Camera រាល់ RenderStepped
@@ -143,7 +143,9 @@ local function LockCamera()
 
         local Cam = workspace.CurrentCamera
         if Cam then
+            -- ✅ Lock CFrame តែមួយ (មិន Focus)
             Cam.CFrame = State.LockedCameraCFrame
+            Cam.Focus = State.LockedCameraCFrame
         end
     end)
 
@@ -157,7 +159,7 @@ local function UnlockCamera()
     end
     State.LockedCameraCFrame = nil
 
-    -- ✅ Reset CameraSubject
+    -- ✅ Reset CameraSubject ឲ្យតាម Character វិញ
     local Camera = workspace.CurrentCamera
     if Camera then
         local Char = Player.Character
@@ -516,7 +518,7 @@ local function Step1_WalkToTarget()
 end
 
 -- ==================================================
--- ✅ STEP 3: Lock Camera + Shot TP → Position 1 (1.15s)
+-- ✅ STEP 3: Lock Camera → Shot TP → Position 1 (1.15s)
 -- ==================================================
 function Step3_ShotToPosition1()
     if not State.Running then return end
@@ -524,7 +526,7 @@ function Step3_ShotToPosition1()
     State.Step = "3_to_position1"
     StopLock()
 
-    -- ✅ Lock Camera មុន Shot TP
+    -- ✅ Lock Camera នៅ Position បច្ចុប្បន្ន (ដូច AntiGuard 100%)
     LockCamera()
 
     local Hum = GetHumanoid()
@@ -532,7 +534,7 @@ function Step3_ShotToPosition1()
         Hum.WalkSpeed = Config.WalkSpeed
     end
 
-    print("[TeleportSystem] Step 3: Lock Camera + Shot TP → Position 1 (1.15s)")
+    print("[TeleportSystem] Step 3: Lock Camera → Shot TP → Position 1 (1.15s)")
 
     ShotTP(Config.Position1, function()
         print("[TeleportSystem] Step 3 Done: At Position 1 → Lock + Drop")
@@ -541,7 +543,7 @@ function Step3_ShotToPosition1()
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 + Drop + Unlock Camera
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera
 -- ==================================================
 function Step4_LockAndDrop()
     if not State.Running then return end
@@ -737,4 +739,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Camera Lock + Walk 265 + CFrame Instant + Shot TP 1.15s + Drop)")
+print("✅ TeleportSystem Loaded (Walk 265 + CFrame Instant + Shot TP 1.15s + Lock Camera + Drop)")
