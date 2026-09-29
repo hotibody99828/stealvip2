@@ -3,6 +3,7 @@
 -- ✅ Spawn Path First → Workspace Backup
 -- ✅ Cache System → លឿន
 -- ✅ Callback → AFK ពេលអស់ Egg
+-- ✅ ប្រើ TeleportSystem (ជំនួស VIPTP)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -178,7 +179,6 @@ end
 local function FindBestEgg()
     local EggList = {}
 
-    -- ✅ ១. Check Spawn Path (AreaEggSlotsClient) ជាមុន
     local Container = workspace:FindFirstChild("AreaEggSlotsClient")
     if Container then
         for _, Slot in ipairs(Container:GetChildren()) do
@@ -201,13 +201,11 @@ local function FindBestEgg()
         end
     end
 
-    -- ✅ ២. បើឃើញក្នុង Spawn រួច → Return ភ្លាម
     if #EggList > 0 then
         SortEggs(EggList)
         return EggList[1]
     end
 
-    -- ✅ ៣. បើអត់ឃើញក្នុង Spawn → Check Workspace (Backup)
     for _, Obj in ipairs(workspace:GetChildren()) do
         if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
             local Category = FindAssetCategory(Obj)
@@ -252,7 +250,7 @@ local CurrentPhase = "UNKNOWN"
 local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
-local WaitingForVIPTP = false
+local WaitingForTeleport = false
 
 local FlyConnection = nil
 local BodyVelocity = nil
@@ -436,11 +434,10 @@ local function StopAll()
         end
     end
 
-    if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
-        _G.YOKUDO_VIPTP.Disable()
-    end
+    -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
+        print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
 
     CleanupFly()
@@ -475,37 +472,37 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- START VIPTP
+-- ✅ START TELEPORT SYSTEM (ជំនួស VIPTP)
 -- ==================================================
-local function StartVIPTP(EggUid)
-    if not _G.YOKUDO_VIPTP then
-        warn("[FarmingManager] VIPTP not loaded!")
+local function StartTeleportSystem(EggUid)
+    if not _G.YOKUDO_TeleportSystem then
+        warn("[FarmingManager] TeleportSystem not loaded!")
         return
     end
 
-    print("[FarmingManager] Starting VIPTP | UID:", EggUid)
+    print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
 
-    WaitingForVIPTP = true
-    _G.YOKUDO_VIPTP.SetTargetId(EggUid)
-    _G.YOKUDO_VIPTP.Enable()
+    WaitingForTeleport = true
+    _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
+    _G.YOKUDO_TeleportSystem.Enable()
 end
 
 -- ==================================================
--- CALLBACK ពី VIPTP
+-- ✅ CALLBACK ពី TeleportSystem
 -- ==================================================
-local function OnVIPTPComplete()
+local function OnTeleportComplete()
     if not FarmingEnabled then
-        print("[FarmingManager] OnVIPTPComplete: Farming not enabled → Skip")
+        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
         return
     end
-    if not WaitingForVIPTP then
-        print("[FarmingManager] OnVIPTPComplete: Not waiting → Skip")
+    if not WaitingForTeleport then
+        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
         return
     end
 
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
     AFKStarted = false
-    print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
+    print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
     local BestEgg = FindBestEgg()
 
@@ -517,7 +514,7 @@ local function OnVIPTPComplete()
             local ReachedSafe = FlyToSafeZoneAndWait()
             if ReachedSafe and PendingEggUid then
                 task.wait(SAFE_WAIT_AFTER_REACH)
-                StartVIPTP(PendingEggUid)
+                StartTeleportSystem(PendingEggUid)
                 PendingEggUid = nil
             else
                 print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
@@ -583,9 +580,9 @@ local function NightLoop()
                 task.wait(SAFE_WAIT_AFTER_REACH)
                 local IsDay = WaitForDay()
                 if IsDay and PendingEggUid then
-                    StartVIPTP(PendingEggUid)
+                    StartTeleportSystem(PendingEggUid)
                     PendingEggUid = nil
-                    while WaitingForVIPTP and FarmingEnabled do
+                    while WaitingForTeleport and FarmingEnabled do
                         task.wait(0.2)
                     end
                 end
@@ -627,9 +624,9 @@ local function DayLoop()
             FlyToSafeZoneAndWait()
             task.wait(0.5)
 
-            StartVIPTP(BestEgg.Uid)
+            StartTeleportSystem(BestEgg.Uid)
 
-            while WaitingForVIPTP and FarmingEnabled do
+            while WaitingForTeleport and FarmingEnabled do
                 task.wait(0.2)
             end
         else
@@ -673,7 +670,7 @@ local function Enable()
     CurrentState = "CHECK_TIME"
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -697,7 +694,7 @@ local function Disable()
 
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -720,7 +717,6 @@ _G.YOKUDO_FarmingManager = {
     GetPhase = function() return CurrentPhase end,
     FindBestEgg = FindBestEgg,
 
-    -- ✅ Get Egg Data តាម UID
     GetEggData = function(Uid)
         if not Uid then return nil end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -731,7 +727,6 @@ _G.YOKUDO_FarmingManager = {
         return GetPetData(Category)
     end,
 
-    -- ✅ Get UID Location
     GetUidLocation = function(Uid)
         if not Uid then return "none" end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -749,7 +744,10 @@ _G.YOKUDO_FarmingManager = {
     RETURN_SPEED = RETURN_SPEED,
     FLY_OFFSET = FLY_OFFSET,
     METHOD = METHOD,
-    OnVIPTPComplete = OnVIPTPComplete,
+
+    -- ✅ Callback ថ្មី
+    OnTeleportComplete = OnTeleportComplete,
+    OnVIPTPComplete = OnTeleportComplete,  -- ✅ Alias
 }
 
 -- ==================================================
@@ -771,4 +769,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (FAST + CLEAR + Spawn Path First)")
+print("✅ FarmingManager Loaded (FAST + CLEAR + Spawn Path First + TeleportSystem)")
