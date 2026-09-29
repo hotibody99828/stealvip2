@@ -1,8 +1,9 @@
 --==================================================
 -- YOKUDO HUB | TAB | Event
 -- Feature: Auto Event New (គ្រប់គ្រងដោយ ManagerDrone)
+-- ✅ Safe Check — គ្មាន Error Line 259
 -- ✅ User Toggle → Enable ManagerDrone (Full Control)
--- ✅ User ដកធិក → Stop All (ManagerDrone + AutoEventNew + AFKSystem)
+-- ✅ User ដកធិក → Stop All
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -90,50 +91,66 @@ local function UpdateEventUI(State)
 end
 
 --==================================================
--- STOP ALL (ពេល User ដកធិក)
+-- ✅ SAFE GET STATE (គ្មាន Error)
+--==================================================
+local function GetCurrentState()
+    -- ✅ Try ManagerDrone first
+    if _G.YOKUDO_ManagerDrone and type(_G.YOKUDO_ManagerDrone.IsEnabled) == "function" then
+        local OK, State = pcall(function()
+            return _G.YOKUDO_ManagerDrone.IsEnabled()
+        end)
+        if OK then return State end
+    end
+
+    -- ✅ Fallback AutoEventNew
+    if _G.YOKUDO_AutoEventNew and type(_G.YOKUDO_AutoEventNew.IsEnabled) == "function" then
+        local OK, State = pcall(function()
+            return _G.YOKUDO_AutoEventNew.IsEnabled()
+        end)
+        if OK then return State end
+    end
+
+    return false
+end
+
+--==================================================
+-- STOP ALL
 --==================================================
 local function StopAll()
     print("[YOKUDO] ================================")
     print("[YOKUDO] 🔄 Stop All Features + Full Reset...")
     print("[YOKUDO] ================================")
 
-    -- ✅ 1. Stop ManagerDrone (វានឹង Stop AutoEventNew + AFK ដោយខ្លួនឯង)
-    if _G.YOKUDO_ManagerDrone then
-        pcall(function()
-            _G.YOKUDO_ManagerDrone.Disable()
-        end)
+    -- ✅ 1. Stop ManagerDrone
+    if _G.YOKUDO_ManagerDrone and _G.YOKUDO_ManagerDrone.Disable then
+        pcall(function() _G.YOKUDO_ManagerDrone.Disable() end)
         print("[YOKUDO] ✅ ManagerDrone Stopped")
     end
 
-    -- ✅ 2. Stop AutoEventNew (Safety)
+    -- ✅ 2. Stop AutoEventNew
     if _G.YOKUDO_AutoEventNew then
         pcall(function()
             if _G.YOKUDO_AutoEventNew.FullReset then
                 _G.YOKUDO_AutoEventNew.FullReset()
-            else
+            elseif _G.YOKUDO_AutoEventNew.Disable then
                 _G.YOKUDO_AutoEventNew.Disable()
             end
         end)
         print("[YOKUDO] ✅ AutoEventNew Stopped + Reset")
     end
 
-    -- ✅ 3. Stop AFKSystem (Safety)
-    if _G.YOKUDO_AFKSystem then
-        pcall(function()
-            _G.YOKUDO_AFKSystem.Disable()
-        end)
+    -- ✅ 3. Stop AFKSystem
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.Disable then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         print("[YOKUDO] ✅ AFKSystem Stopped")
     end
 
-    -- ✅ 4. Stop AttackDrone (បើមាន)
-    if _G.YOKUDO_AttackDrone then
-        pcall(function()
-            _G.YOKUDO_AttackDrone.Stop()
-        end)
+    -- ✅ 4. Stop AttackDrone
+    if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.Stop then
+        pcall(function() _G.YOKUDO_AttackDrone.Stop() end)
         print("[YOKUDO] ✅ AttackDrone Stopped")
     end
 
-    -- ✅ 5. Reset UI
     UpdateEventUI(false)
 
     print("[YOKUDO] ================================")
@@ -142,64 +159,60 @@ local function StopAll()
 end
 
 --==================================================
--- TOGGLE — User ចុច → Enable ManagerDrone
+-- TOGGLE — Safe Check
 --==================================================
 EventButton.MouseButton1Click:Connect(function()
-    if not _G.YOKUDO_ManagerDrone then
-        warn("[YOKUDO] ManagerDrone not loaded!")
+    -- ✅ Safe Check ManagerDrone
+    if not _G.YOKUDO_ManagerDrone or type(_G.YOKUDO_ManagerDrone.IsEnabled) ~= "function" then
+        warn("[YOKUDO] ManagerDrone not ready!")
         return
     end
 
-    local NewState = not _G.YOKUDO_ManagerDrone.IsEnabled()
+    local CurrentState = GetCurrentState()
+    local NewState = not CurrentState
+
     UpdateEventUI(NewState)
     _G.YOKUDO_AutoEventNewEnabled = NewState
 
     if NewState then
-        -- ✅ Enable ManagerDrone (វានឹងគ្រប់គ្រង AutoEventNew + AFK)
-        _G.YOKUDO_ManagerDrone.Enable()
-        print("[YOKUDO] ✅ ManagerDrone Enabled (Full Control)")
+        -- ✅ Enable ManagerDrone
+        if _G.YOKUDO_ManagerDrone.Enable then
+            pcall(function() _G.YOKUDO_ManagerDrone.Enable() end)
+            print("[YOKUDO] ✅ ManagerDrone Enabled (Full Control)")
+        end
     else
-        -- ✅ Disable ManagerDrone + Stop All
+        -- ✅ Stop All
         StopAll()
     end
 end)
 
 --==================================================
--- SYNC ON LOAD
+-- SYNC ON LOAD (Safe)
 --==================================================
 task.spawn(function()
-    task.wait(1)
-    if _G.YOKUDO_ManagerDrone then
-        UpdateEventUI(_G.YOKUDO_ManagerDrone.IsEnabled())
-    elseif _G.YOKUDO_AutoEventNew then
-        UpdateEventUI(_G.YOKUDO_AutoEventNew.IsEnabled())
-    end
+    task.wait(1.5)
+    local State = GetCurrentState()
+    UpdateEventUI(State)
 end)
 
 --==================================================
--- REFRESH FUNCTION
+-- REFRESH FUNCTION (Safe)
 --==================================================
 _G.YOKUDO_RefreshEventUI = function()
-    if _G.YOKUDO_ManagerDrone then
-        UpdateEventUI(_G.YOKUDO_ManagerDrone.IsEnabled())
-    elseif _G.YOKUDO_AutoEventNew then
-        UpdateEventUI(_G.YOKUDO_AutoEventNew.IsEnabled())
-    end
+    local State = GetCurrentState()
+    UpdateEventUI(State)
 end
 
 --==================================================
--- PERIODIC SYNC
+-- PERIODIC SYNC (Safe)
 --==================================================
 task.spawn(function()
     while task.wait(1) do
-        local Target = _G.YOKUDO_ManagerDrone or _G.YOKUDO_AutoEventNew
-        if Target then
-            local CurrentState = Target.IsEnabled()
-            if CurrentState ~= EventCheck.Visible then
-                UpdateEventUI(CurrentState)
-            end
+        local State = GetCurrentState()
+        if State ~= EventCheck.Visible then
+            UpdateEventUI(State)
         end
     end
 end)
 
-print("✅ Event Tab Loaded (ManagerDrone Control)")f
+print("✅ Event Tab Loaded (Safe Check v4)")
