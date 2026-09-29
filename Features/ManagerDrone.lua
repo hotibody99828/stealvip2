@@ -1,36 +1,33 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (UPDATED)
--- គ្រប់គ្រង Event → ហៅ AutoEventNew ឬ AFK
--- ✅ Event ចេញ → Stop AFK → Jump Out → Call AutoEventNew
--- ✅ Event Sec <= 10 → Stop AutoEventNew → Call AFK
--- ✅ Stop ពេល Disable
--- ✅ Guard: បើ FarmingManager ដំណើរការ → មិនហៅ AFKSystem
+-- YOKUDO HUB | FEATURE | Manager Drone (v3 FINAL)
+-- ✅ Portal ឃើញ = SPAWN → AutoEventNew.Enable()
+-- ✅ Portal បាត់ = DONE → AutoEventNew.Disable() → AFK
+-- ✅ AutoEventNew CallManagerDone() → Manager ចាប់យក
+-- ✅ Full Reset ពេល User ដកធិក
+-- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
 -- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
 local Players = game:GetService("Players")
-
 local Player = Players.LocalPlayer
 
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local EVENT_CHECK_INTERVAL = 1
-local EVENT_STOP_ATTACK_THRESHOLD = 10
-local SAFE_WAIT_TIME = 1
+local PORTAL_CHECK_INTERVAL = 0.5
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local AFK_JUMP_WAIT = 0.5
+local SAFE_ZONE_WAIT = 1
 
 -- ==================================================
 -- STATE
 -- ==================================================
 local ManagerEnabled = false
-local LastEventSec = 0
-local LastEventText = ""
 local ManagerThread = nil
+local LastPortalState = false
 
 -- ==================================================
--- ✅ CHECK FARMING MANAGER
+-- CHECK FARMING MANAGER
 -- ==================================================
 local function IsFarmingManagerActive()
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
@@ -40,37 +37,21 @@ local function IsFarmingManagerActive()
 end
 
 -- ==================================================
--- ✅ CHECK AUTO EVENT NEW
+-- CHECK PORTAL
+-- ==================================================
+local function IsPortalSpawned()
+    local Portal = workspace:FindFirstChild("ScrambleArenaPortal")
+    return Portal ~= nil
+end
+
+-- ==================================================
+-- CHECK AUTO EVENT NEW
 -- ==================================================
 local function IsAutoEventNewActive()
     if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
         return true
     end
     return false
-end
-
--- ==================================================
--- GET EVENT INFO
--- ==================================================
-local function GetEventInfo()
-    local Success, Value = pcall(function()
-        return game:GetService("Players").LocalPlayer.PlayerGui
-            .HUD.GameHUD.BottomRight.ExperimentTimer.Value.Text
-    end)
-    if not Success or not Value then
-        return 0, "", false
-    end
-
-    local Text = tostring(Value)
-
-    local HasEventEnds = string.find(Text, "Event ends") ~= nil
-    local IsEventActive = HasEventEnds
-
-    local M = tonumber(string.match(Text, "(%d+)m")) or 0
-    local S = tonumber(string.match(Text, "(%d+)s")) or 0
-    local TotalSec = M * 60 + S
-
-    return TotalSec, Text, IsEventActive
 end
 
 -- ==================================================
@@ -88,7 +69,7 @@ local function ForceStopAll()
 end
 
 -- ==================================================
--- ✅ ENABLE AFK SYSTEM (មាន Guard)
+-- ENABLE AFK SYSTEM
 -- ==================================================
 local function EnableAFKSystem()
     if IsFarmingManagerActive() then
@@ -98,15 +79,61 @@ local function EnableAFKSystem()
 
     if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
         _G.YOKUDO_AFKSystem.Enable()
-        print("[ManagerDrone] AFK System Enabled")
+        print("[ManagerDrone] ✅ AFK System Enabled")
     end
 end
 
 -- ==================================================
--- SWITCH FROM AFK TO AUTO EVENT NEW
+-- ✅ FULL RESET (ពេល User ដកធិក)
+-- ==================================================
+local function FullReset()
+    print("[ManagerDrone] 🔄 Full Reset...")
+
+    -- 1. Stop AutoEventNew
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
+    end
+
+    -- 2. Stop AFKSystem
+    if _G.YOKUDO_AFKSystem then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+    end
+
+    -- 3. Stop AttackDrone (បើមាន)
+    if _G.YOKUDO_AttackDrone then
+        pcall(function() _G.YOKUDO_AttackDrone.Stop() end)
+    end
+
+    -- 4. Reset State
+    LastPortalState = false
+
+    print("[ManagerDrone] ✅ Full Reset Complete")
+end
+
+-- ==================================================
+-- ✅ CALL MANAGER AFTER DONE
+-- ==================================================
+local function CallManagerAfterDone()
+    print("[ManagerDrone] 🎉 Event Done → Call Manager → AFK")
+
+    if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+        _G.YOKUDO_AutoEventNew.Disable()
+    end
+
+    task.wait(0.5)
+
+    if not IsFarmingManagerActive() then
+        EnableAFKSystem()
+    else
+        print("[ManagerDrone] FarmingManager Active → Skip AFK")
+    end
+end
+
+-- ==================================================
+-- ✅ SWITCH FROM AFK TO AUTO EVENT
 -- ==================================================
 local function SwitchAFKToAttack()
-    print("[ManagerDrone] Event Detected → Switch AFK to AutoEventNew")
+    print("[ManagerDrone] 🚪 Portal Spawned → Switch AFK to AutoEventNew")
 
     if IsFarmingManagerActive() then
         print("[ManagerDrone] Skip Switch (FarmingManager active)")
@@ -147,7 +174,7 @@ local function SwitchAFKToAttack()
 
         task.wait(AFK_JUMP_WAIT)
 
-        print("[ManagerDrone] Call AutoEventNew → Fly TP → Attack Boss")
+        print("[ManagerDrone] Call AutoEventNew")
         if _G.YOKUDO_AutoEventNew then
             _G.YOKUDO_AutoEventNew.Enable()
         end
@@ -155,58 +182,52 @@ local function SwitchAFKToAttack()
 end
 
 -- ==================================================
--- MAIN LOOP
+-- MAIN LOOP (Portal Signal)
 -- ==================================================
 local function MainLoop()
+    print("[ManagerDrone] MainLoop Started (Portal Signal)")
+
     while ManagerEnabled do
-        -- ✅ បើ FarmingManager ដំណើរការ → Stop AutoEventNew
         if IsFarmingManagerActive() then
             if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
                 print("[ManagerDrone] FarmingManager active → Stop AutoEventNew")
                 _G.YOKUDO_AutoEventNew.Disable()
             end
-
-            LastEventSec = 0
-            LastEventText = ""
-            task.wait(EVENT_CHECK_INTERVAL)
+            LastPortalState = false
+            task.wait(PORTAL_CHECK_INTERVAL)
             continue
         end
 
-        local EventSec, EventText, IsEventActive = GetEventInfo()
+        local CurrentPortalState = IsPortalSpawned()
 
-        local EventNotActive = not IsEventActive
-        local EventStopAttack = IsEventActive and EventSec > 0 and EventSec <= EVENT_STOP_ATTACK_THRESHOLD
-        local EventActive = IsEventActive and EventSec > EVENT_STOP_ATTACK_THRESHOLD
+        -- ✅ Portal ឃើញ (Spawn)
+        if CurrentPortalState and not LastPortalState then
+            print("[ManagerDrone] ================================")
+            print("[ManagerDrone] 🚪 PORTAL SPAWNED → SPAWN SIGNAL")
+            print("[ManagerDrone] ================================")
 
-        print("[ManagerDrone] Text:", EventText, "| Sec:", EventSec, "| IsActive:", IsEventActive)
-
-        if EventNotActive then
-            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
-                print("[ManagerDrone] Event Not Active → Stop AutoEventNew")
-                _G.YOKUDO_AutoEventNew.Disable()
-            end
-
-            EnableAFKSystem()
-        elseif EventStopAttack then
-            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
-                print("[ManagerDrone] Event <= 10s → Stop AutoEventNew → AFK System")
-                _G.YOKUDO_AutoEventNew.Disable()
-            end
-
-            EnableAFKSystem()
-        elseif EventActive then
             if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[ManagerDrone] Event Active → Switch AFK to AutoEventNew")
                 SwitchAFKToAttack()
             elseif _G.YOKUDO_AutoEventNew and not _G.YOKUDO_AutoEventNew.IsEnabled() then
-                print("[ManagerDrone] Event Active → AutoEventNew")
+                print("[ManagerDrone] Portal Spawned → Enable AutoEventNew")
                 _G.YOKUDO_AutoEventNew.Enable()
             end
+
+            LastPortalState = true
         end
 
-        LastEventSec = EventSec
-        LastEventText = EventText
-        task.wait(EVENT_CHECK_INTERVAL)
+        -- ✅ Portal បាត់ (Done)
+        if not CurrentPortalState and LastPortalState then
+            print("[ManagerDrone] ================================")
+            print("[ManagerDrone] ✅ PORTAL GONE → DONE SIGNAL")
+            print("[ManagerDrone] ================================")
+
+            CallManagerAfterDone()
+
+            LastPortalState = false
+        end
+
+        task.wait(PORTAL_CHECK_INTERVAL)
     end
 
     ForceStopAll()
@@ -219,6 +240,7 @@ end
 local function EnableManager()
     if ManagerEnabled then return end
     ManagerEnabled = true
+    LastPortalState = false
 
     if ManagerThread then
         pcall(function() task.cancel(ManagerThread) end)
@@ -231,7 +253,10 @@ local function EnableManager()
 end
 
 local function DisableManager()
-    if not ManagerEnabled then return end
+    if not ManagerEnabled then
+        FullReset()
+        return
+    end
     ManagerEnabled = false
 
     if ManagerThread then
@@ -239,7 +264,8 @@ local function DisableManager()
         ManagerThread = nil
     end
 
-    ForceStopAll()
+    -- ✅ Full Reset
+    FullReset()
 
     print("[ManagerDrone] Manager Drone: OFF")
 end
@@ -260,10 +286,12 @@ _G.YOKUDO_ManagerDrone = {
     Disable = DisableManager,
     Toggle = ToggleManager,
     IsEnabled = function() return ManagerEnabled end,
-    GetEventInfo = GetEventInfo,
+    IsPortalSpawned = IsPortalSpawned,
     ForceStopAll = ForceStopAll,
     SwitchAFKToAttack = SwitchAFKToAttack,
     IsAutoEventNewActive = IsAutoEventNewActive,
+    CallManagerAfterDone = CallManagerAfterDone,
+    FullReset = FullReset,
 }
 
-print("✅ ManagerDrone Feature Loaded (AutoEventNew + Guard + Register)")
+print("✅ ManagerDrone Feature Loaded (v3 FINAL + Full Reset)")
