@@ -1,7 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System
--- រក Plot + Treadmill → Fly TP → Jump Out
--- ✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock
+-- YOKUDO HUB | FEATURE | AFK System (WALK TP + ORIGINAL SPEED)
+-- រក Plot + Treadmill → Walk TP → Jump Out
+-- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើមរបស់ Player
+-- ✅ Save Speed ដើម មុន Walk | Restore ពេល Stop
 -- ✅ JumpOut រហូតដល់ Dist > 5
 -- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
@@ -14,8 +15,7 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local FLY_SPEED = 350
-local ARRIVE_TIMEOUT = 15
+local ARRIVE_TIMEOUT = 30
 local JUMP_DISTANCE_THRESHOLD = 5
 local JUMP_MAX_ATTEMPTS = 50
 local JUMP_ATTEMPT_WAIT = 0.2
@@ -31,11 +31,10 @@ local AFKEnabled = false
 local MyPlot = nil
 local MyTreadmill = nil
 local MyTreadmillPos = nil
-local FlyConnection = nil
-local BodyVelocity = nil
-local BodyGyro = nil
-local IsFlying = false
+local WalkConnection = nil
+local IsWalking = false
 local DistCheckThread = nil
+local SavedWalkSpeed = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -49,34 +48,42 @@ local function GetHumanoid()
 end
 
 -- ==================================================
+-- SAVE / RESTORE WALK SPEED
+-- ==================================================
+local function SaveWalkSpeed()
+    local Hum = GetHumanoid()
+    if not Hum then return end
+    if SavedWalkSpeed == nil then
+        SavedWalkSpeed = Hum.WalkSpeed
+        print("[AFK] Saved WalkSpeed ដើម:", SavedWalkSpeed)
+    end
+end
+
+local function RestoreWalkSpeed()
+    local Hum = GetHumanoid()
+    if not Hum then return end
+    if SavedWalkSpeed ~= nil then
+        pcall(function()
+            Hum.WalkSpeed = SavedWalkSpeed
+        end)
+    end
+end
+
+-- ==================================================
 -- CLEANUP
 -- ==================================================
 local function CleanupMovers()
-    if FlyConnection then FlyConnection:Disconnect() FlyConnection = nil end
-    if BodyVelocity then
-        pcall(function()
-            BodyVelocity.Velocity = Vector3.zero
-            BodyVelocity.MaxForce = Vector3.zero
-        end)
-        BodyVelocity:Destroy()
-        BodyVelocity = nil
-    end
-    if BodyGyro then
-        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
-        BodyGyro:Destroy()
-        BodyGyro = nil
+    if WalkConnection then
+        WalkConnection:Disconnect()
+        WalkConnection = nil
     end
 
     local Hum, Root = GetHumanoid()
-    if Root then
-        for _, Child in ipairs(Root:GetChildren()) do
-            if Child.Name == "YokudoBV" or Child.Name == "YokudoBG" then
-                pcall(function() Child:Destroy() end)
-            end
-        end
-    end
     if Hum then
         pcall(function()
+            if SavedWalkSpeed ~= nil then
+                Hum.WalkSpeed = SavedWalkSpeed
+            end
             Hum.PlatformStand = false
             Hum.Sit = false
         end)
@@ -88,7 +95,7 @@ local function CleanupMovers()
         end)
     end
 
-    IsFlying = false
+    IsWalking = false
 end
 
 -- ==================================================
@@ -123,77 +130,61 @@ local function FindMyPlotAndTreadmill()
 end
 
 -- ==================================================
--- FLY TP (✅ Fly ធម្មតា → Stop ភ្លាម → មិន Lock)
+-- ✅ WALK TP (ប្រើ Speed ដើមរបស់ Player)
 -- ==================================================
-local function FlyTP(Destination, Callback)
+local function WalkTP(Destination, Callback)
     CleanupMovers()
-    IsFlying = true
 
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root then
-        IsFlying = false
-        if Callback then Callback() end
-        return
-    end
-    if Hum.Health <= 0 then
-        IsFlying = false
+    if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    Hum.PlatformStand = true
+    -- ✅ Save WalkSpeed ដើម
+    SaveWalkSpeed()
 
-    BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.Name = "YokudoBV"
-    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    BodyVelocity.P = 1250
-    BodyVelocity.Velocity = Vector3.zero
-    BodyVelocity.Parent = Root
+    -- ✅ ប្រើ Speed ដើម
+    Hum.WalkSpeed = SavedWalkSpeed or Hum.WalkSpeed
+    IsWalking = true
 
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Name = "YokudoBG"
-    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    BodyGyro.P = 3000
-    BodyGyro.D = 500
-    BodyGyro.CFrame = Root.CFrame
-    BodyGyro.Parent = Root
+    print(string.format("[AFK] Walk TP → %s | Speed: %d", tostring(Destination), Hum.WalkSpeed))
 
     local StartTime = tick()
 
-    FlyConnection = RunService.Heartbeat:Connect(function()
+    WalkConnection = RunService.Heartbeat:Connect(function()
         if not AFKEnabled then
             CleanupMovers()
             return
         end
 
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then
             CleanupMovers()
             return
         end
-        if Hum2.Health <= 0 then return end
-        if not BodyVelocity or not BodyGyro then CleanupMovers() return end
 
-        local CurrentPos = Root2.Position
-        local Direction = Destination - CurrentPos
-        local TotalDist = math.floor(Direction.Magnitude)
+        -- ✅ ប្រើ Speed ដើមរាល់ Heartbeat
+        Hum2.WalkSpeed = SavedWalkSpeed or Hum2.WalkSpeed
 
-        if TotalDist <= 2 then
+        local Dist = (Root2.Position - Destination).Magnitude
+
+        if Dist <= 3 then
             CleanupMovers()
-            Root2.AssemblyLinearVelocity = Vector3.zero
-            Root2.AssemblyAngularVelocity = Vector3.zero
+            Hum2:MoveTo(Root2.Position)
+            print("[AFK] ✅ Walk TP Arrived")
             if Callback then Callback() end
             return
         end
 
         if tick() - StartTime > ARRIVE_TIMEOUT then
             CleanupMovers()
+            print("[AFK] Walk TP Timeout")
             if Callback then Callback() end
             return
         end
 
-        BodyVelocity.Velocity = Direction.Unit * FLY_SPEED
-        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
+        Hum2:MoveTo(Destination)
     end)
 end
 
@@ -254,8 +245,8 @@ local function StartDistanceCheck()
             local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
 
             if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
-                print("[AFK] Player jumped out! Fly back to Treadmill")
-                FlyTP(MyTreadmillPos)
+                print("[AFK] Player jumped out! Walk back to Treadmill")
+                WalkTP(MyTreadmillPos)
             end
         end
     end)
@@ -278,17 +269,17 @@ local function EnableAFK()
         return
     end
 
-    print("[AFK] Fly to Safe Zone first")
-    FlyTP(SAFE_ZONE, function()
+    print("[AFK] Walk to Safe Zone first")
+    WalkTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
-        print("[AFK] Safe Zone Reached → Fly to Treadmill")
-        FlyTP(MyTreadmillPos, function()
+        print("[AFK] Safe Zone Reached → Walk to Treadmill")
+        WalkTP(MyTreadmillPos, function()
             print("[AFK] Arrived at Treadmill → Start Distance Check")
             StartDistanceCheck()
         end)
     end)
 
-    print("[AFK] AFK System: ON")
+    print("[AFK] AFK System: ON (Walk TP + Speed ដើម)")
 end
 
 -- ==================================================
@@ -304,6 +295,7 @@ local function DisableAFK()
     end
 
     CleanupMovers()
+    RestoreWalkSpeed()
     MyPlot = nil
     MyTreadmill = nil
     MyTreadmillPos = nil
@@ -319,12 +311,14 @@ _G.YOKUDO_AFKSystem = {
     Disable = DisableAFK,
     IsEnabled = function() return AFKEnabled end,
     FindMyPlotAndTreadmill = FindMyPlotAndTreadmill,
-    FlyTP = FlyTP,
+    WalkTP = WalkTP,
+    FlyTP = WalkTP,  -- ✅ Alias
     JumpOutTreadmill = JumpOutTreadmill,
     GetMyTreadmillPos = function() return MyTreadmillPos end,
     GetMyTreadmill = function() return MyTreadmill end,
     GetMyPlot = function() return MyPlot end,
-    IsFlying = function() return IsFlying end,
+    IsFlying = function() return IsWalking end,
+    IsWalking = function() return IsWalking end,
     SAFE_ZONE = SAFE_ZONE,
 }
 
@@ -338,12 +332,9 @@ if _G.YOKUDO_CharacterSystem then
         Disable = DisableAFK,
         IsEnabled = function() return AFKEnabled end,
         OnCharacterAdded = function(Char, Hum, Root)
-            -- ✅ AFKSystem មិនត្រូវការ Re-Apply ពិសេស
-            -- ព្រោះវាប្រើ GetHumanoid() រាល់ពេល
             if AFKEnabled then
                 task.wait(1)
                 pcall(function()
-                    -- Restart Distance Check
                     if MyTreadmillPos then
                         StartDistanceCheck()
                     end
@@ -353,4 +344,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AFKSystem Feature Loaded (Fly Normal + Stop + Reset + Register)")
+print("✅ AFKSystem Feature Loaded (WALK TP + ORIGINAL SPEED)")
