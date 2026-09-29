@@ -1,10 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v3)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v5)
 -- ✅ AutoEventNew Feature (Portal Signal)
 -- ✅ ManagerDrone (Full Reset + Portal Check)
 -- ✅ SafeSpeedMode Feature
 -- ✅ CollectEggNew + ESP Tabs
--- ✅ TeleportSystem (បញ្ចូល Lock Camera + Drop)
+-- ✅ TeleportSystem (Lock Camera + Drop + AntiGuard)
+-- ✅ FarmingManager (Walk TP) + VIPTP (Walk TP + Safe Speed Mode)
+-- ✅ AFKSystem (Walk TP Only — No Fly/Shot)
 -- ❌ គ្មាន AntiGuard (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន AntiRagdoll
@@ -195,7 +197,7 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportSystem (បញ្ចូល Lock Camera + Drop)
+-- ✅ TeleportSystem (Lock Camera + Drop + AntiGuard)
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -205,19 +207,23 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
+-- ✅ AFKSystem (Walk TP Only)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ SafeSpeedMode (ថ្មី)
+-- ✅ SafeSpeedMode
 Loading.Update(50)
 loadstring(GetScript("Features/SafeSpeedMode.lua"))()
 
--- ✅ FarmingManager មុន VIPTP
+-- ✅ FarmingManager (Walk TP) មុន VIPTP
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
+-- ✅ VIPTP (Walk TP + Safe Speed Mode)
+Loading.Update(54)
+loadstring(GetScript("Features/VIPTP.lua"))()
 
--- ✅ AutoEventNew (ថ្មី)
+-- ✅ AutoEventNew
 Loading.Update(58)
 loadstring(GetScript("Features/AutoEventNew.lua"))()
 
