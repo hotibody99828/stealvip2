@@ -1,5 +1,7 @@
 --==================================================
 -- YOKUDO HUB | TAB | Setting
+-- ✅ ដក Method Dropdown | Teleport Speed TextBox | AntiRagdoll
+-- ✅ បន្ថែម Safe Speed Mode
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -13,263 +15,101 @@ local SettingTab, SettingPage = TabsManager:RegisterTab("Setting", 7, "SETTING")
 CreateSectionTitle(SettingPage, "Settings", 1)
 
 --==================================================
--- FEATURE 1: SELECT METHOD TELEPORT (DROPDOWN)
+-- ✅ FEATURE 1: SAFE SPEED MODE (ជំនួស Method + Speed)
 --==================================================
-local MethodHolder = Instance.new("Frame")
-MethodHolder.Size = UDim2.new(1, 0, 0, 52)
-MethodHolder.BackgroundTransparency = 1
-MethodHolder.LayoutOrder = 2
-MethodHolder.ZIndex = 100
-MethodHolder.Parent = SettingPage
+local SafeSpeedHolder = Instance.new("Frame")
+SafeSpeedHolder.Size = UDim2.new(1, 0, 0, 52)
+SafeSpeedHolder.BackgroundTransparency = 1
+SafeSpeedHolder.LayoutOrder = 2
+SafeSpeedHolder.Parent = SettingPage
 
-local MethodLabel = Instance.new("TextLabel")
-MethodLabel.Size = UDim2.new(1, -120, 0, 20)
-MethodLabel.Position = UDim2.new(0, 0, 0, 2)
-MethodLabel.BackgroundTransparency = 1
-MethodLabel.Text = "Select Method Teleport"
-MethodLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-MethodLabel.TextSize = 13
-MethodLabel.TextXAlignment = Enum.TextXAlignment.Left
-MethodLabel.TextYAlignment = Enum.TextYAlignment.Center
-MethodLabel.Font = Enum.Font.GothamBold
-MethodLabel.ZIndex = 101
-MethodLabel.Parent = MethodHolder
+local SafeSpeedLabel = Instance.new("TextLabel")
+SafeSpeedLabel.Size = UDim2.new(1, -50, 0, 20)
+SafeSpeedLabel.Position = UDim2.new(0, 0, 0, 2)
+SafeSpeedLabel.BackgroundTransparency = 1
+SafeSpeedLabel.Text = "Safe Speed Mode"
+SafeSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SafeSpeedLabel.TextSize = 13
+SafeSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SafeSpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
+SafeSpeedLabel.Font = Enum.Font.GothamBold
+SafeSpeedLabel.Parent = SafeSpeedHolder
 
-local MethodTitle = Instance.new("TextLabel")
-MethodTitle.Size = UDim2.new(1, -120, 0, 18)
-MethodTitle.Position = UDim2.new(0, 0, 0, 24)
-MethodTitle.BackgroundTransparency = 1
-MethodTitle.Text = "TeleportFly or InstantTeleport"
-MethodTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
-MethodTitle.TextSize = 10
-MethodTitle.TextXAlignment = Enum.TextXAlignment.Left
-MethodTitle.Font = Enum.Font.Gotham
-MethodTitle.ZIndex = 101
-MethodTitle.Parent = MethodHolder
+local SafeSpeedSub = Instance.new("TextLabel")
+SafeSpeedSub.Size = UDim2.new(1, -50, 0, 18)
+SafeSpeedSub.Position = UDim2.new(0, 0, 0, 24)
+SafeSpeedSub.BackgroundTransparency = 1
+SafeSpeedSub.Text = "ON: Speed 265 | OFF: Player Speed"
+SafeSpeedSub.TextColor3 = Color3.fromRGB(180, 180, 180)
+SafeSpeedSub.TextSize = 10
+SafeSpeedSub.TextXAlignment = Enum.TextXAlignment.Left
+SafeSpeedSub.Font = Enum.Font.Gotham
+SafeSpeedSub.Parent = SafeSpeedHolder
 
-local SelectedMethod = _G.YOKUDO_SelectedMethod or "TeleportFly"
+local SafeSpeedBtn = Instance.new("TextButton")
+SafeSpeedBtn.Size = UDim2.new(0, 26, 0, 26)
+SafeSpeedBtn.Position = UDim2.new(1, -26, 0.5, -13)
+SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+SafeSpeedBtn.BorderSizePixel = 0
+SafeSpeedBtn.Text = ""
+SafeSpeedBtn.AutoButtonColor = false
+SafeSpeedBtn.Parent = SafeSpeedHolder
 
-local DropdownBtn = Instance.new("TextButton")
-DropdownBtn.Size = UDim2.new(0, 110, 0, 28)
-DropdownBtn.Position = UDim2.new(1, -110, 0.5, -14)
-DropdownBtn.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-DropdownBtn.BorderSizePixel = 0
-DropdownBtn.Text = SelectedMethod .. " ▼"
-DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-DropdownBtn.TextSize = 11
-DropdownBtn.Font = Enum.Font.GothamBold
-DropdownBtn.AutoButtonColor = false
-DropdownBtn.ZIndex = 101
-DropdownBtn.Parent = MethodHolder
+local SafeSpeedCorner = Instance.new("UICorner")
+SafeSpeedCorner.CornerRadius = UDim.new(0, 6)
+SafeSpeedCorner.Parent = SafeSpeedBtn
 
-local DropdownCorner = Instance.new("UICorner")
-DropdownCorner.CornerRadius = UDim.new(0, 6)
-DropdownCorner.Parent = DropdownBtn
+local SafeSpeedStroke = Instance.new("UIStroke")
+SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
+SafeSpeedStroke.Thickness = 1.5
+SafeSpeedStroke.Parent = SafeSpeedBtn
 
-local DropdownStroke = Instance.new("UIStroke")
-DropdownStroke.Color = Color3.fromRGB(200, 200, 220)
-DropdownStroke.Thickness = 1
-DropdownStroke.Transparency = 0.3
-DropdownStroke.Parent = DropdownBtn
+local SafeSpeedCheck = Instance.new("TextLabel")
+SafeSpeedCheck.Size = UDim2.new(1, 0, 1, 0)
+SafeSpeedCheck.BackgroundTransparency = 1
+SafeSpeedCheck.Text = "✓"
+SafeSpeedCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+SafeSpeedCheck.TextSize = 18
+SafeSpeedCheck.Font = Enum.Font.GothamBold
+SafeSpeedCheck.Visible = false
+SafeSpeedCheck.Parent = SafeSpeedBtn
 
-local DropdownList = Instance.new("Frame")
-DropdownList.Size = UDim2.new(0, 110, 0, 60)
-DropdownList.Position = UDim2.new(1, -110, 1, 2)
-DropdownList.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
-DropdownList.BorderSizePixel = 0
-DropdownList.Visible = false
-DropdownList.ZIndex = 200
-DropdownList.Parent = MethodHolder
+local SafeSpeedEnabled = false
 
-local ListCorner = Instance.new("UICorner")
-ListCorner.CornerRadius = UDim.new(0, 6)
-ListCorner.Parent = DropdownList
+local function ToggleSafeSpeed()
+    SafeSpeedEnabled = not SafeSpeedEnabled
+    SafeSpeedCheck.Visible = SafeSpeedEnabled
 
-local ListStroke = Instance.new("UIStroke")
-ListStroke.Color = Color3.fromRGB(200, 200, 220)
-ListStroke.Thickness = 1
-ListStroke.Transparency = 0.3
-ListStroke.Parent = DropdownList
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Padding = UDim.new(0, 2)
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = DropdownList
-
-local ListPadding = Instance.new("UIPadding")
-ListPadding.PaddingTop = UDim.new(0, 4)
-ListPadding.PaddingBottom = UDim.new(0, 4)
-ListPadding.PaddingLeft = UDim.new(0, 4)
-ListPadding.PaddingRight = UDim.new(0, 4)
-ListPadding.Parent = DropdownList
-
-local function CreateOption(Name, Order)
-    local Option = Instance.new("TextButton")
-    Option.Size = UDim2.new(1, 0, 0, 22)
-    Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-    Option.BorderSizePixel = 0
-    Option.Text = Name
-    Option.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Option.TextSize = 11
-    Option.Font = Enum.Font.GothamMedium
-    Option.AutoButtonColor = false
-    Option.LayoutOrder = Order
-    Option.ZIndex = 201
-    Option.Parent = DropdownList
-
-    local OptionCorner = Instance.new("UICorner")
-    OptionCorner.CornerRadius = UDim.new(0, 4)
-    OptionCorner.Parent = Option
-
-    Option.MouseButton1Click:Connect(function()
-        SelectedMethod = Name
-        DropdownBtn.Text = Name .. " ▼"
-        DropdownList.Visible = false
-
-        _G.YOKUDO_SelectedMethod = Name
-
-        if _G.YOKUDO_ConfigSystem then
-            _G.YOKUDO_ConfigSystem.Save()
-        end
-
-        print("[YOKUDO] Method Teleport Selected: " .. Name)
-    end)
-
-    Option.MouseEnter:Connect(function()
-        TweenService:Create(Option, TweenInfo.new(0.1), {
-            BackgroundColor3 = Color3.fromRGB(45, 46, 60)
-        }):Play()
-    end)
-
-    Option.MouseLeave:Connect(function()
-        TweenService:Create(Option, TweenInfo.new(0.1), {
-            BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-        }):Play()
-    end)
-end
-
-CreateOption("TeleportFly", 1)
-CreateOption("InstantTeleport", 2)
-
-DropdownBtn.MouseButton1Click:Connect(function()
-    DropdownList.Visible = not DropdownList.Visible
-end)
-
-if _G.YOKUDO_SelectedMethod == nil then
-    _G.YOKUDO_SelectedMethod = "TeleportFly"
-end
-
---==================================================
--- FEATURE 2: TELEPORT SPEED (TEXTBOX)
---==================================================
-local SpeedHolder = Instance.new("Frame")
-SpeedHolder.Size = UDim2.new(1, 0, 0, 52)
-SpeedHolder.BackgroundTransparency = 1
-SpeedHolder.LayoutOrder = 3
-SpeedHolder.ZIndex = 1
-SpeedHolder.Parent = SettingPage
-
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(1, -120, 0, 20)
-SpeedLabel.Position = UDim2.new(0, 0, 0, 2)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "Teleport Speed"
-SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-SpeedLabel.TextSize = 13
-SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
-SpeedLabel.Font = Enum.Font.GothamBold
-SpeedLabel.ZIndex = 2
-SpeedLabel.Parent = SpeedHolder
-
-local SpeedTitle = Instance.new("TextLabel")
-SpeedTitle.Size = UDim2.new(1, -120, 0, 18)
-SpeedTitle.Position = UDim2.new(0, 0, 0, 24)
-SpeedTitle.BackgroundTransparency = 1
-SpeedTitle.Text = "Range: 50 - 1100 (Default: 300)"
-SpeedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
-SpeedTitle.TextSize = 10
-SpeedTitle.TextXAlignment = Enum.TextXAlignment.Left
-SpeedTitle.Font = Enum.Font.Gotham
-SpeedTitle.ZIndex = 2
-SpeedTitle.Parent = SpeedHolder
-
-local InitialSpeed = _G.YOKUDO_TeleportSpeed or 300
-
-local SpeedTextBox = Instance.new("TextBox")
-SpeedTextBox.Size = UDim2.new(0, 80, 0, 28)
-SpeedTextBox.Position = UDim2.new(1, -80, 0.5, -14)
-SpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-SpeedTextBox.BorderSizePixel = 0
-SpeedTextBox.Text = tostring(InitialSpeed)
-SpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-SpeedTextBox.TextSize = 12
-SpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
-SpeedTextBox.Font = Enum.Font.GothamBold
-SpeedTextBox.ZIndex = 2
-SpeedTextBox.Parent = SpeedHolder
-
-local SpeedCorner = Instance.new("UICorner")
-SpeedCorner.CornerRadius = UDim.new(0, 6)
-SpeedCorner.Parent = SpeedTextBox
-
-local SpeedStroke = Instance.new("UIStroke")
-SpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-SpeedStroke.Thickness = 1
-SpeedStroke.Transparency = 0.3
-SpeedStroke.Parent = SpeedTextBox
-
-local IsEditingSpeed = false
-
-SpeedTextBox.Focused:Connect(function()
-    IsEditingSpeed = true
-end)
-
-SpeedTextBox.FocusLost:Connect(function()
-    IsEditingSpeed = false
-
-    local Value = tonumber(SpeedTextBox.Text)
-
-    if Value then
-        Value = math.clamp(Value, 50, 1100)
-        SpeedTextBox.Text = tostring(Value)
-
-        _G.YOKUDO_TeleportSpeed = Value
-
-        if _G.YOKUDO_TeleportSystem then
-            _G.YOKUDO_TeleportSystem.SetSpeed(Value)
-        end
-
-        if _G.YOKUDO_ConfigSystem then
-            _G.YOKUDO_ConfigSystem.Save()
-        end
-
-        print("[YOKUDO] Teleport Speed: " .. tostring(Value))
+    if SafeSpeedEnabled then
+        SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
     else
-        SpeedTextBox.Text = "300"
-        _G.YOKUDO_TeleportSpeed = 300
-
-        if _G.YOKUDO_TeleportSystem then
-            _G.YOKUDO_TeleportSystem.SetSpeed(300)
-        end
-
-        if _G.YOKUDO_ConfigSystem then
-            _G.YOKUDO_ConfigSystem.Save()
-        end
+        SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
     end
-end)
 
-if _G.YOKUDO_TeleportSpeed == nil then
-    _G.YOKUDO_TeleportSpeed = 300
+    if _G.YOKUDO_TeleportSystem then
+        _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(SafeSpeedEnabled)
+    end
+
+    if _G.YOKUDO_ConfigSystem then
+        _G.YOKUDO_ConfigSystem.Save()
+    end
+
+    print("[Setting] Safe Speed Mode:", SafeSpeedEnabled)
 end
 
+SafeSpeedBtn.MouseButton1Click:Connect(function()
+    ToggleSafeSpeed()
+end)
+
 --==================================================
--- FEATURE 3: WALK SPEED
+-- FEATURE 2: WALK SPEED
 --==================================================
 local WalkSpeedHolder = Instance.new("Frame")
 WalkSpeedHolder.Size = UDim2.new(1, 0, 0, 32)
 WalkSpeedHolder.BackgroundTransparency = 1
-WalkSpeedHolder.LayoutOrder = 4
+WalkSpeedHolder.LayoutOrder = 3
 WalkSpeedHolder.Parent = SettingPage
 
 local WalkSpeedLabel = Instance.new("TextLabel")
@@ -374,12 +214,12 @@ WalkSpeedTextBox.FocusLost:Connect(function()
 end)
 
 --==================================================
--- FEATURE 4: ANTI TRAP
+-- FEATURE 3: ANTI TRAP
 --==================================================
 local AntiTrapHolder = Instance.new("Frame")
 AntiTrapHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiTrapHolder.BackgroundTransparency = 1
-AntiTrapHolder.LayoutOrder = 5
+AntiTrapHolder.LayoutOrder = 4
 AntiTrapHolder.Parent = SettingPage
 
 local AntiTrapLabel = Instance.new("TextLabel")
@@ -458,96 +298,12 @@ AntiTrapCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 5: ANTI RAGDOLL (ថ្មី)
---==================================================
-local AntiRagdollHolder = Instance.new("Frame")
-AntiRagdollHolder.Size = UDim2.new(1, 0, 0, 52)
-AntiRagdollHolder.BackgroundTransparency = 1
-AntiRagdollHolder.LayoutOrder = 6
-AntiRagdollHolder.Parent = SettingPage
-
-local AntiRagdollLabel = Instance.new("TextLabel")
-AntiRagdollLabel.Size = UDim2.new(1, -50, 0, 20)
-AntiRagdollLabel.Position = UDim2.new(0, 0, 0, 2)
-AntiRagdollLabel.BackgroundTransparency = 1
-AntiRagdollLabel.Text = "Anti Ragdoll"
-AntiRagdollLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-AntiRagdollLabel.TextSize = 13
-AntiRagdollLabel.TextXAlignment = Enum.TextXAlignment.Left
-AntiRagdollLabel.TextYAlignment = Enum.TextYAlignment.Center
-AntiRagdollLabel.Font = Enum.Font.GothamBold
-AntiRagdollLabel.Parent = AntiRagdollHolder
-
-local AntiRagdollTitle = Instance.new("TextLabel")
-AntiRagdollTitle.Size = UDim2.new(1, -50, 0, 18)
-AntiRagdollTitle.Position = UDim2.new(0, 0, 0, 24)
-AntiRagdollTitle.BackgroundTransparency = 1
-AntiRagdollTitle.Text = "Prevent Knockback / Ragdoll"
-AntiRagdollTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
-AntiRagdollTitle.TextSize = 10
-AntiRagdollTitle.TextXAlignment = Enum.TextXAlignment.Left
-AntiRagdollTitle.Font = Enum.Font.Gotham
-AntiRagdollTitle.Parent = AntiRagdollHolder
-
-local AntiRagdollCheckButton = Instance.new("TextButton")
-AntiRagdollCheckButton.Size = UDim2.new(0, 26, 0, 26)
-AntiRagdollCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
-AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-AntiRagdollCheckButton.BorderSizePixel = 0
-AntiRagdollCheckButton.Text = ""
-AntiRagdollCheckButton.AutoButtonColor = false
-AntiRagdollCheckButton.Parent = AntiRagdollHolder
-
-local AntiRagdollCorner = Instance.new("UICorner")
-AntiRagdollCorner.CornerRadius = UDim.new(0, 6)
-AntiRagdollCorner.Parent = AntiRagdollCheckButton
-
-local AntiRagdollStroke = Instance.new("UIStroke")
-AntiRagdollStroke.Color = Color3.fromRGB(200, 200, 220)
-AntiRagdollStroke.Thickness = 1.5
-AntiRagdollStroke.Parent = AntiRagdollCheckButton
-
-local AntiRagdollCheck = Instance.new("TextLabel")
-AntiRagdollCheck.Size = UDim2.new(1, 0, 1, 0)
-AntiRagdollCheck.BackgroundTransparency = 1
-AntiRagdollCheck.Text = "✓"
-AntiRagdollCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-AntiRagdollCheck.TextSize = 18
-AntiRagdollCheck.Font = Enum.Font.GothamBold
-AntiRagdollCheck.Visible = false
-AntiRagdollCheck.Parent = AntiRagdollCheckButton
-
-local AntiRagdollEnabled = false
-
-local function ToggleAntiRagdoll()
-    AntiRagdollEnabled = not AntiRagdollEnabled
-    AntiRagdollCheck.Visible = AntiRagdollEnabled
-    if AntiRagdollEnabled then
-        AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        AntiRagdollStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_AntiRagdoll then
-            _G.YOKUDO_AntiRagdoll.Enable()
-        end
-    else
-        AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        AntiRagdollStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_AntiRagdoll then
-            _G.YOKUDO_AntiRagdoll.Disable()
-        end
-    end
-end
-
-AntiRagdollCheckButton.MouseButton1Click:Connect(function()
-    ToggleAntiRagdoll()
-end)
-
---==================================================
--- FEATURE 6: GOD MODE
+-- FEATURE 4: GOD MODE
 --==================================================
 local GodModeHolder = Instance.new("Frame")
 GodModeHolder.Size = UDim2.new(1, 0, 0, 52)
 GodModeHolder.BackgroundTransparency = 1
-GodModeHolder.LayoutOrder = 7
+GodModeHolder.LayoutOrder = 5
 GodModeHolder.Parent = SettingPage
 
 local GodModeLabel = Instance.new("TextLabel")
@@ -692,12 +448,12 @@ GodModeButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 7: MANUAL FAST CLICK
+-- FEATURE 5: MANUAL FAST CLICK
 --==================================================
 local FastClickHolder = Instance.new("Frame")
 FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
 FastClickHolder.BackgroundTransparency = 1
-FastClickHolder.LayoutOrder = 8
+FastClickHolder.LayoutOrder = 6
 FastClickHolder.Parent = SettingPage
 
 local FastClickLabel = Instance.new("TextLabel")
@@ -799,12 +555,12 @@ task.spawn(function()
 end)
 
 --==================================================
--- FEATURE 8: ANTI AFK
+-- FEATURE 6: ANTI AFK
 --==================================================
 local AntiAFKHolder = Instance.new("Frame")
 AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiAFKHolder.BackgroundTransparency = 1
-AntiAFKHolder.LayoutOrder = 9
+AntiAFKHolder.LayoutOrder = 7
 AntiAFKHolder.Parent = SettingPage
 
 local AntiAFKLabel = Instance.new("TextLabel")
@@ -888,15 +644,15 @@ end)
 task.spawn(function()
     task.wait(0.5)
 
-    -- ✅ Sync Dropdown
-    if _G.YOKUDO_SelectedMethod then
-        SelectedMethod = _G.YOKUDO_SelectedMethod
-        DropdownBtn.Text = SelectedMethod .. " ▼"
-    end
-
-    -- ✅ Sync Speed
-    if _G.YOKUDO_TeleportSpeed then
-        SpeedTextBox.Text = tostring(_G.YOKUDO_TeleportSpeed)
+    -- ✅ Sync Safe Speed Mode
+    if _G.YOKUDO_TeleportSystem then
+        local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
+        if SafeState then
+            SafeSpeedEnabled = true
+            SafeSpeedCheck.Visible = true
+            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
+        end
     end
 
     -- ✅ Sync Anti AFK
@@ -908,16 +664,6 @@ task.spawn(function()
             AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
         end
     end
-
-    -- ✅ Sync Anti Ragdoll
-    if _G.YOKUDO_AntiRagdoll then
-        if _G.YOKUDO_AntiRagdoll.IsEnabled() then
-            AntiRagdollEnabled = true
-            AntiRagdollCheck.Visible = true
-            AntiRagdollCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            AntiRagdollStroke.Color = Color3.fromRGB(135, 120, 225)
-        end
-    end
 end)
 
-print("✅ Setting Tab Loaded")
+print("✅ Setting Tab Loaded (Safe Speed Mode | No Method/Speed TextBox/AntiRagdoll)")
