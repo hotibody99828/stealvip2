@@ -1,12 +1,12 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + CFrame Instant + SHOT TP + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + GetWalkSpeed() (Safe Mode)
--- ✅ ជិតដល់ 30m → Stop Safe Speed → ប្រើ Speed ដើម
--- ✅ ជិតដល់ 20 studs → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true (Signal ភ្លាម) → Lock Camera → Shot TP → Position 1 (1.15s)
--- ✅ Lock Position 1 → Drop → Unlock Camera → Safe Speed ON វិញ
+-- ✅ ជិតដល់ 30m → Stop Safe Speed Mode (ប្រើ Speed ដើម)
+-- ✅ CFrame Instant + Lock + Collect
+-- ✅ DropHeldEgg = true (Signal) → Lock Camera → Shot TP → Position 1 (1.15s)
+-- ✅ Lock Position 1 → Drop → Unlock Camera → Restore Safe Speed Mode
 -- ✅ Walk TP → Collect វិញ → Position 2 → Stop
--- ✅ Reset WalkSpeed ពេល Stop
+-- ✅ សម្រាប់ Tab Auto Farming (AutoFarm.lua)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -25,7 +25,7 @@ local Config = {
     ArriveDistance = 2,
     LockWait = 0.1,
     NearDistance = 10,
-    StopSafeSpeedDistance = 30,   -- ✅ ជិតដល់ 30m → Stop Safe Speed
+    SlowDistance = 30,         -- ✅ ជិតដល់ 30m → Stop Safe Speed Mode
     LockDistance = 1,
 
     Position1 = Vector3.new(598, 70, -330),
@@ -75,6 +75,9 @@ local State = {
     SavedWalkSpeed = nil,
     SafeSpeedMode = false,
 
+    -- ✅ Track ពេល Stop Safe Speed Mode ជាប់ពាក់កណ្ដាល
+    SafeSpeedPaused = false,
+
     CameraLockConnection = nil,
     LockedCameraCFrame = nil,
 }
@@ -104,10 +107,11 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- ✅ GET WALK SPEED
+-- ✅ GET WALK SPEED (Safe Mode / ដើម)
 -- ==================================================
 local function GetWalkSpeed()
-    if State.SafeSpeedMode then
+    -- ✅ បើ SafeSpeedMode ON និង មិន Paused → ប្រើ 265
+    if State.SafeSpeedMode and not State.SafeSpeedPaused then
         return Config.SafeSpeed
     else
         return State.SavedWalkSpeed or Config.SafeSpeed
@@ -134,7 +138,38 @@ local function RestoreStats()
 end
 
 -- ==================================================
--- ✅ CAMERA LOCK
+-- ✅ SAFE SPEED PAUSE / RESUME
+-- ==================================================
+local function PauseSafeSpeed()
+    if not State.SafeSpeedMode then return end
+    if State.SafeSpeedPaused then return end
+
+    State.SafeSpeedPaused = true
+
+    local Hum = GetHumanoid()
+    if Hum then
+        Hum.WalkSpeed = State.SavedWalkSpeed or 16
+    end
+
+    print("[TeleportSystem] ⏸️ Safe Speed Mode PAUSED | Speed:", Hum and Hum.WalkSpeed or "nil")
+end
+
+local function ResumeSafeSpeed()
+    if not State.SafeSpeedMode then return end
+    if not State.SafeSpeedPaused then return end
+
+    State.SafeSpeedPaused = false
+
+    local Hum = GetHumanoid()
+    if Hum then
+        Hum.WalkSpeed = Config.SafeSpeed
+    end
+
+    print("[TeleportSystem] ▶️ Safe Speed Mode RESUMED | Speed:", Config.SafeSpeed)
+end
+
+-- ==================================================
+-- ✅ CAMERA LOCK (ដូច AntiGuard 100%)
 -- ==================================================
 local function LockCamera()
     local Camera = workspace.CurrentCamera
@@ -312,9 +347,9 @@ local function ShotTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ WALK TP (Stop Safe Speed Near 30m)
+-- ✅ WALK TP (Stop Safe Speed Mode ជិតដល់ 30m)
 -- ==================================================
-local function WalkTP(Destination, LockAfterArrive, StopSafeSpeedNear, Callback)
+local function WalkTP(Destination, LockAfterArrive, Callback)
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
@@ -325,12 +360,15 @@ local function WalkTP(Destination, LockAfterArrive, StopSafeSpeedNear, Callback)
 
     SaveStats()
 
+    -- ✅ Resume Safe Speed Mode មុនចាប់ផ្ដើម Walk
+    ResumeSafeSpeed()
+
     Hum.WalkSpeed = GetWalkSpeed()
 
     local StartTime = tick()
     local LastCheck = 0
     local ShotDone = false
-    local SafeSpeedStopped = false
+    local SlowDone = false  -- ✅ Track ពេល Slow
 
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
@@ -342,19 +380,14 @@ local function WalkTP(Destination, LockAfterArrive, StopSafeSpeedNear, Callback)
 
         local Dist = (Root2.Position - Destination).Magnitude
 
-        -- ✅ ជិតដល់ 30m → Stop Safe Speed → ប្រើ Speed ដើម
-        if StopSafeSpeedNear and not SafeSpeedStopped and Dist <= Config.StopSafeSpeedDistance then
-            SafeSpeedStopped = true
-
-            if _G.YOKUDO_SafeSpeedMode and _G.YOKUDO_SafeSpeedMode.IsEnabled() then
-                print("[TeleportSystem] ⚡ ជិតដល់ 30m → Stop Safe Speed → ប្រើ Speed ដើម")
-                _G.YOKUDO_SafeSpeedMode.Disable()
-            end
-
+        -- ✅ ជិតដល់ 30m → Stop Safe Speed Mode (ប្រើ Speed ដើម)
+        if not SlowDone and Dist <= Config.SlowDistance then
+            SlowDone = true
+            PauseSafeSpeed()
             Hum2.WalkSpeed = GetWalkSpeed()
         end
 
-        -- ✅ ជិតដល់ 20 studs → CFrame Instant ភ្លាម
+        -- ✅ ជិតដល់ 20m → CFrame Instant + Lock
         if not ShotDone and Dist <= Config.NearDistance then
             ShotDone = true
 
@@ -439,7 +472,6 @@ local function SetupDropHeldEgg()
         local IsEnabled = State.DropHeldEgg.Enabled == true
         print("[TeleportSystem] ⚡ DropHeldEgg.Enabled Changed →", IsEnabled)
 
-        -- ✅ Step 2: Collect Target → Shot TP P1 ភ្លាម
         if IsEnabled and State.Running and State.Step == "2_collect_target" then
             print("[TeleportSystem] ✅ DETECTED TRUE → Shot TP Position 1 (1.15s)")
 
@@ -452,7 +484,6 @@ local function SetupDropHeldEgg()
             end)
         end
 
-        -- ✅ Step 6: Collect Again → Walk P2 ភ្លាម
         if IsEnabled and State.Running and State.Step == "6_collect_again" then
             print("[TeleportSystem] ✅ Step 6 DETECTED TRUE → Walk Position 2")
 
@@ -494,18 +525,22 @@ local function GetTargetPosition()
 end
 
 -- ==================================================
--- ✅ AUTO STOP
+-- ✅ AUTO STOP (Reset WalkSpeed + Unlock Camera + Resume Safe Speed)
 -- ==================================================
 local function AutoStop()
     StopLock()
     CleanupMovers()
     UnlockCamera()
 
+    -- ✅ Resume Safe Speed Mode (បើ User បើក)
+    ResumeSafeSpeed()
+
+    -- ✅ Reset WalkSpeed
     local Char = Player.Character
     if Char then
         local Hum = Char:FindFirstChildOfClass("Humanoid")
         if Hum then
-            Hum.WalkSpeed = State.SavedWalkSpeed or Config.SafeSpeed
+            Hum.WalkSpeed = GetWalkSpeed()
             print("[TeleportSystem] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
         end
     end
@@ -521,7 +556,6 @@ end
 
 -- ==================================================
 -- ✅ STEP 1: Walk → Target → CFrame Instant → Lock → Collect
--- ✅ ជិតដល់ 30m → Stop Safe Speed → ប្រើ Speed ដើម
 -- ==================================================
 local function Step1_WalkToTarget()
     State.Step = "1_to_target"
@@ -532,8 +566,7 @@ local function Step1_WalkToTarget()
 
     print("[TeleportSystem] Step 1: Walk → Target")
 
-    -- ✅ StopSafeSpeedNear = true
-    WalkTP(TargetPos, true, true, function()
+    WalkTP(TargetPos, true, function()
         print("[TeleportSystem] Step 1 Done: At Target + Locked → Collect")
 
         local NewTargetPos = GetTargetPosition()
@@ -562,9 +595,10 @@ function Step3_ShotToPosition1()
     State.Step = "3_to_position1"
     StopLock()
 
-    -- ✅ Lock Camera
+    -- ✅ Lock Camera នៅ Position បច្ចុប្បន្ន
     LockCamera()
 
+    -- ✅ Safe Speed Mode នៅ Paused (មិន Resume)
     local Hum = GetHumanoid()
     if Hum then
         Hum.WalkSpeed = GetWalkSpeed()
@@ -579,7 +613,7 @@ function Step3_ShotToPosition1()
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Safe Speed ON
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
 -- ==================================================
 function Step4_LockAndDrop()
     if not State.Running then return end
@@ -604,11 +638,8 @@ function Step4_LockAndDrop()
         -- ✅ Unlock Camera
         UnlockCamera()
 
-        -- ✅ ប្រើ Safe Speed វិញ ពេល Drop រួច
-        if _G.YOKUDO_SafeSpeedMode and not _G.YOKUDO_SafeSpeedMode.IsEnabled() then
-            print("[TeleportSystem] ✅ Drop រួច → ប្រើ Safe Speed វិញ")
-            _G.YOKUDO_SafeSpeedMode.Enable()
-        end
+        -- ✅ Resume Safe Speed Mode បន្ទាប់ពី Drop
+        ResumeSafeSpeed()
 
         task.spawn(function()
             task.wait(0.3)
@@ -618,7 +649,7 @@ function Step4_LockAndDrop()
 end
 
 -- ==================================================
--- ✅ STEP 5: Walk → Collect វិញ
+-- ✅ STEP 5: Walk → Collect វិញ (Signal Listener)
 -- ==================================================
 function Step5_WalkToCollectAgain()
     if not State.Running then return end
@@ -635,8 +666,7 @@ function Step5_WalkToCollectAgain()
 
     print("[TeleportSystem] Step 5: Walk → Collect Again")
 
-    -- ✅ StopSafeSpeedNear = true
-    WalkTP(TargetPos, true, true, function()
+    WalkTP(TargetPos, true, function()
         print("[TeleportSystem] Step 5 Done: At Target + Locked → Collect Again")
 
         local NewTargetPos = GetTargetPosition()
@@ -666,8 +696,7 @@ function Step7_WalkToPosition2()
 
     print("[TeleportSystem] Step 7: Walk → Position 2")
 
-    -- ✅ StopSafeSpeedNear = false (មិន Stop Safe Speed)
-    WalkTP(Config.Position2, false, false, function()
+    WalkTP(Config.Position2, false, function()
         print("[TeleportSystem] Step 7 Done: At Position 2 → Stop")
 
         State.Step = "8_done"
@@ -708,6 +737,7 @@ local function FullReset()
     StopLock()
     CleanupMovers()
     UnlockCamera()
+    ResumeSafeSpeed()
     RestoreStats()
 
     if State.DropHeldEggConnection then
@@ -721,6 +751,7 @@ local function FullReset()
     State.TargetCollected = false
     State.CollectedAgain = false
     State.DropDone = false
+    State.SafeSpeedPaused = false
 
     print("[TeleportSystem] Full Reset")
 end
@@ -752,6 +783,7 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
+-- ✅ Safe Speed Mode
 function TeleportSystem.SetSafeSpeedMode(Enabled)
     State.SafeSpeedMode = Enabled == true
 
@@ -759,6 +791,9 @@ function TeleportSystem.SetSafeSpeedMode(Enabled)
     if Hum and State.SavedWalkSpeed == nil then
         State.SavedWalkSpeed = Hum.WalkSpeed
     end
+
+    -- ✅ Reset Pause ពេល User Toggle
+    State.SafeSpeedPaused = false
 
     if Hum then
         Hum.WalkSpeed = GetWalkSpeed()
@@ -781,4 +816,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Signal Listener + Safe Speed Mode + Stop Near 30m)")
+print("✅ TeleportSystem Loaded (Safe Speed Mode + Slow at 30m + Resume after Drop)")
