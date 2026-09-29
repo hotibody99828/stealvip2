@@ -2,8 +2,8 @@
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + CFrame Instant + SHOT TP + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 265
 -- ✅ ជិតដល់ 20 studs → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true → Shot TP → Position 1 (1.15s)
--- ✅ Lock Position 1 → Drop
+-- ✅ DropHeldEgg = true → Lock Camera + Shot TP → Position 1 (1.15s)
+-- ✅ Lock Position 1 → Drop → Unlock Camera
 -- ✅ Walk TP → Collect វិញ → Position 2 → Stop
 -- ✅ Reset WalkSpeed ពេល Stop
 -- ✅ សម្រាប់ Tab Auto Farming (AutoFarm.lua)
@@ -74,6 +74,10 @@ local State = {
     DropDone = false,
 
     SavedWalkSpeed = nil,
+
+    -- ✅ Camera Lock State
+    CameraLockConnection = nil,
+    LockedCameraCFrame = nil,
 }
 
 -- ==================================================
@@ -116,6 +120,56 @@ local function RestoreStats()
             Hum.WalkSpeed = State.SavedWalkSpeed
         end)
     end
+end
+
+-- ==================================================
+-- ✅ CAMERA LOCK (នៅ Position បច្ចុប្បន្ន)
+-- ==================================================
+local function LockCamera()
+    local Camera = workspace.CurrentCamera
+    if not Camera then return end
+
+    -- ✅ Save Camera CFrame
+    State.LockedCameraCFrame = Camera.CFrame
+
+    -- ✅ Lock Camera រាល់ RenderStepped
+    if State.CameraLockConnection then
+        State.CameraLockConnection:Disconnect()
+        State.CameraLockConnection = nil
+    end
+
+    State.CameraLockConnection = RunService.RenderStepped:Connect(function()
+        if not State.LockedCameraCFrame then return end
+
+        local Cam = workspace.CurrentCamera
+        if Cam then
+            Cam.CFrame = State.LockedCameraCFrame
+        end
+    end)
+
+    print("[TeleportSystem] 🔒 Camera Locked:", State.LockedCameraCFrame.Position)
+end
+
+local function UnlockCamera()
+    if State.CameraLockConnection then
+        State.CameraLockConnection:Disconnect()
+        State.CameraLockConnection = nil
+    end
+    State.LockedCameraCFrame = nil
+
+    -- ✅ Reset CameraSubject
+    local Camera = workspace.CurrentCamera
+    if Camera then
+        local Char = Player.Character
+        if Char then
+            local Hum = Char:FindFirstChildOfClass("Humanoid")
+            if Hum then
+                Camera.CameraSubject = Hum
+            end
+        end
+    end
+
+    print("[TeleportSystem] 🔓 Camera Unlocked")
 end
 
 -- ==================================================
@@ -391,11 +445,12 @@ local function GetTargetPosition()
 end
 
 -- ==================================================
--- ✅ AUTO STOP (Reset WalkSpeed — ដើរបានវិញ)
+-- ✅ AUTO STOP (Reset WalkSpeed + Unlock Camera)
 -- ==================================================
 local function AutoStop()
     StopLock()
     CleanupMovers()
+    UnlockCamera()  -- ✅ Unlock Camera
 
     -- ✅ Reset WalkSpeed ភ្លាម
     local Char = Player.Character
@@ -447,7 +502,7 @@ local function Step1_WalkToTarget()
 
                 if IsTargetCollected() then
                     State.TargetCollected = true
-                    print("[TeleportSystem] Step 2 Done: Target Collected → Shot TP Position 1")
+                    print("[TeleportSystem] Step 2 Done: Target Collected → Lock Camera + Shot TP Position 1")
 
                     task.spawn(function()
                         task.wait(0.1)
@@ -461,7 +516,7 @@ local function Step1_WalkToTarget()
 end
 
 -- ==================================================
--- ✅ STEP 3: Shot TP → Position 1 (1.15s)
+-- ✅ STEP 3: Lock Camera + Shot TP → Position 1 (1.15s)
 -- ==================================================
 function Step3_ShotToPosition1()
     if not State.Running then return end
@@ -469,12 +524,15 @@ function Step3_ShotToPosition1()
     State.Step = "3_to_position1"
     StopLock()
 
+    -- ✅ Lock Camera មុន Shot TP
+    LockCamera()
+
     local Hum = GetHumanoid()
     if Hum then
         Hum.WalkSpeed = Config.WalkSpeed
     end
 
-    print("[TeleportSystem] Step 3: Shot TP → Position 1 (1.15s)")
+    print("[TeleportSystem] Step 3: Lock Camera + Shot TP → Position 1 (1.15s)")
 
     ShotTP(Config.Position1, function()
         print("[TeleportSystem] Step 3 Done: At Position 1 → Lock + Drop")
@@ -483,7 +541,7 @@ function Step3_ShotToPosition1()
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 + Drop
+-- ✅ STEP 4: Lock Position 1 + Drop + Unlock Camera
 -- ==================================================
 function Step4_LockAndDrop()
     if not State.Running then return end
@@ -504,6 +562,9 @@ function Step4_LockAndDrop()
 
         task.wait(0.2)
         StopLock()
+
+        -- ✅ Unlock Camera ពេល Drop រួច
+        UnlockCamera()
 
         task.spawn(function()
             task.wait(0.3)
@@ -612,6 +673,7 @@ end
 local function FullReset()
     StopLock()
     CleanupMovers()
+    UnlockCamera()  -- ✅ Unlock Camera
     RestoreStats()
 
     if State.DropHeldEggConnection then
@@ -675,4 +737,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk 265 + CFrame Instant + Shot TP 1.15s + Lock + Drop)")
+print("✅ TeleportSystem Loaded (Camera Lock + Walk 265 + CFrame Instant + Shot TP 1.15s + Drop)")
