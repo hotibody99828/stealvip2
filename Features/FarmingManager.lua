@@ -1,10 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (WALK TP + FAST)
+-- YOKUDO HUB | FEATURE | Farming Manager (FAST + CLEAR)
 -- ✅ Spawn Path First → Workspace Backup
 -- ✅ Cache System → លឿន
--- ✅ Walk TP (គ្មាន Fly) → Speed ដើម
 -- ✅ Callback → AFK ពេលអស់ Egg
--- ✅ ប្រើ TeleportSystem (ជំនួស VIPTP)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,8 +32,11 @@ local DAY_CHECK_INTERVAL = 0.05
 local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
-local SAFE_WALK_SPEED = 500
-local RETURN_WALK_SPEED = 400
+local FLY_SPEED = 1000
+local SAFE_FLY_SPEED = 500
+local RETURN_SPEED = 800
+local FLY_OFFSET = 15
+local METHOD = "InstantTeleport"
 
 -- ==================================================
 -- CACHE SYSTEM
@@ -177,6 +178,7 @@ end
 local function FindBestEgg()
     local EggList = {}
 
+    -- ✅ ១. Check Spawn Path (AreaEggSlotsClient) ជាមុន
     local Container = workspace:FindFirstChild("AreaEggSlotsClient")
     if Container then
         for _, Slot in ipairs(Container:GetChildren()) do
@@ -199,11 +201,13 @@ local function FindBestEgg()
         end
     end
 
+    -- ✅ ២. បើឃើញក្នុង Spawn រួច → Return ភ្លាម
     if #EggList > 0 then
         SortEggs(EggList)
         return EggList[1]
     end
 
+    -- ✅ ៣. បើអត់ឃើញក្នុង Spawn → Check Workspace (Backup)
     for _, Obj in ipairs(workspace:GetChildren()) do
         if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
             local Category = FindAssetCategory(Obj)
@@ -248,10 +252,11 @@ local CurrentPhase = "UNKNOWN"
 local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
-local WaitingForTeleport = false
+local WaitingForVIPTP = false
 
-local WalkConnection = nil
-local SavedWalkSpeed = nil
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
 
 -- ==================================================
 -- GET CHAR / ROOT / HUM
@@ -273,36 +278,32 @@ local function GetHum()
 end
 
 -- ==================================================
--- SAVE / RESTORE WALK SPEED
+-- CLEANUP FLY
 -- ==================================================
-local function SaveWalkSpeed()
-    local Hum = GetHum()
-    if not Hum then return end
-    if SavedWalkSpeed == nil then
-        SavedWalkSpeed = Hum.WalkSpeed
-        print("[FarmingManager] Saved WalkSpeed ដើម:", SavedWalkSpeed)
+local function CleanupFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
     end
-end
-
-local function GetWalkSpeed()
-    return SavedWalkSpeed or 16
-end
-
--- ==================================================
--- CLEANUP WALK
--- ==================================================
-local function CleanupWalk()
-    if WalkConnection then
-        WalkConnection:Disconnect()
-        WalkConnection = nil
+    if BodyVelocity then
+        pcall(function()
+            BodyVelocity.Velocity = Vector3.zero
+            BodyVelocity.MaxForce = Vector3.zero
+        end)
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
     end
-
+    if BodyGyro then
+        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
     local Hum = GetHum()
     local Root = GetRoot()
     if Hum then
         pcall(function()
-            if Root then Hum:MoveTo(Root.Position) end
-            Hum.WalkSpeed = GetWalkSpeed()
+            Hum.PlatformStand = false
+            Hum.Sit = false
         end)
     end
     if Root then
@@ -314,63 +315,77 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- ✅ SELF WALK TP (Humanoid:MoveTo + Speed ដើម)
+-- SELF FLY TP
 -- ==================================================
-local function SelfWalkTP(Destination, Speed, Callback)
-    CleanupWalk()
+local function SelfFlyTP(Destination, Speed, Callback)
+    CleanupFly()
 
     local Hum = GetHum()
     local Root = GetRoot()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
+        if Callback then Callback() end
+        return
+    end
+    if Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    SaveWalkSpeed()
+    Hum.PlatformStand = true
 
-    -- ✅ បើ Speed = nil → ប្រើ Speed ដើម
-    local ActualSpeed = Speed or GetWalkSpeed()
-    Hum.WalkSpeed = ActualSpeed
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1250
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
 
-    print(string.format("[FarmingManager] Walk TP → %s | Speed: %d", tostring(Destination), ActualSpeed))
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 3000
+    BodyGyro.D = 500
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
 
     local StartTime = tick()
-    local LastCheck = 0
 
-    WalkConnection = RunService.Heartbeat:Connect(function()
+    FlyConnection = RunService.Heartbeat:Connect(function()
         if not FarmingEnabled then
-            CleanupWalk()
+            CleanupFly()
             return
         end
 
         local Hum2 = GetHum()
         local Root2 = GetRoot()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then
-            CleanupWalk()
+        if not Hum2 or not Root2 then
+            CleanupFly()
+            return
+        end
+        if Hum2.Health <= 0 then return end
+        if not BodyVelocity or not BodyGyro then CleanupFly() return end
+
+        local CurrentPos = Root2.Position
+        local Direction = Destination - CurrentPos
+        local TotalDist = Direction.Magnitude
+
+        if TotalDist <= 3 then
+            CleanupFly()
+            Root2.CFrame = CFrame.new(Destination)
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+            if Callback then Callback() end
             return
         end
 
-        Hum2.WalkSpeed = ActualSpeed
-        Hum2:MoveTo(Destination)
-
-        if tick() - LastCheck > 0.05 then
-            LastCheck = tick()
-
-            local Dist = (Root2.Position - Destination).Magnitude
-            if Dist <= 3 then
-                CleanupWalk()
-                print(string.format("[FarmingManager] ✅ Walk TP Arrived | Dist: %.1f", Dist))
-                if Callback then Callback() end
-                return
-            end
-
-            if tick() - StartTime > 60 then
-                CleanupWalk()
-                print("[FarmingManager] Walk TP Timeout")
-                if Callback then Callback() end
-                return
-            end
+        if tick() - StartTime > 30 then
+            CleanupFly()
+            if Callback then Callback() end
+            return
         end
+
+        BodyVelocity.Velocity = Direction.Unit * Speed
+        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
     end)
 end
 
@@ -421,19 +436,20 @@ local function StopAll()
         end
     end
 
-    -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
+    if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
+        _G.YOKUDO_VIPTP.Disable()
+    end
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
-        print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
 
-    CleanupWalk()
+    CleanupFly()
 end
 
 -- ==================================================
--- ✅ WALK TO SAFE ZONE AND WAIT
+-- FLY TO SAFE ZONE AND WAIT
 -- ==================================================
-local function WalkToSafeZoneAndWait()
+local function FlyToSafeZoneAndWait()
     local Root = GetRoot()
     if not Root then return false end
 
@@ -442,10 +458,10 @@ local function WalkToSafeZoneAndWait()
         return true
     end
 
-    SelfWalkTP(SAFE_ZONE, SAFE_WALK_SPEED)
+    SelfFlyTP(SAFE_ZONE, SAFE_FLY_SPEED)
 
     local WaitTime = 0
-    while FarmingEnabled and WaitTime < 30 do
+    while FarmingEnabled and WaitTime < 10 do
         local Root2 = GetRoot()
         if Root2 then
             local Dist = (Root2.Position - SAFE_ZONE).Magnitude
@@ -459,37 +475,37 @@ local function WalkToSafeZoneAndWait()
 end
 
 -- ==================================================
--- ✅ START TELEPORT SYSTEM
+-- START VIPTP
 -- ==================================================
-local function StartTeleportSystem(EggUid)
-    if not _G.YOKUDO_TeleportSystem then
-        warn("[FarmingManager] TeleportSystem not loaded!")
+local function StartVIPTP(EggUid)
+    if not _G.YOKUDO_VIPTP then
+        warn("[FarmingManager] VIPTP not loaded!")
         return
     end
 
-    print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
+    print("[FarmingManager] Starting VIPTP | UID:", EggUid)
 
-    WaitingForTeleport = true
-    _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
-    _G.YOKUDO_TeleportSystem.Enable()
+    WaitingForVIPTP = true
+    _G.YOKUDO_VIPTP.SetTargetId(EggUid)
+    _G.YOKUDO_VIPTP.Enable()
 end
 
 -- ==================================================
--- ✅ CALLBACK ពី TeleportSystem
+-- CALLBACK ពី VIPTP
 -- ==================================================
-local function OnTeleportComplete()
+local function OnVIPTPComplete()
     if not FarmingEnabled then
-        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
+        print("[FarmingManager] OnVIPTPComplete: Farming not enabled → Skip")
         return
     end
-    if not WaitingForTeleport then
-        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
+    if not WaitingForVIPTP then
+        print("[FarmingManager] OnVIPTPComplete: Not waiting → Skip")
         return
     end
 
-    WaitingForTeleport = false
+    WaitingForVIPTP = false
     AFKStarted = false
-    print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
+    print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
 
     local BestEgg = FindBestEgg()
 
@@ -498,10 +514,10 @@ local function OnTeleportComplete()
         PendingEggUid = BestEgg.Uid
 
         task.spawn(function()
-            local ReachedSafe = WalkToSafeZoneAndWait()
+            local ReachedSafe = FlyToSafeZoneAndWait()
             if ReachedSafe and PendingEggUid then
                 task.wait(SAFE_WAIT_AFTER_REACH)
-                StartTeleportSystem(PendingEggUid)
+                StartVIPTP(PendingEggUid)
                 PendingEggUid = nil
             else
                 print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
@@ -562,14 +578,14 @@ local function NightLoop()
             StopAll()
             task.wait(0.3)
 
-            local ReachedSafe = WalkToSafeZoneAndWait()
+            local ReachedSafe = FlyToSafeZoneAndWait()
             if ReachedSafe then
                 task.wait(SAFE_WAIT_AFTER_REACH)
                 local IsDay = WaitForDay()
                 if IsDay and PendingEggUid then
-                    StartTeleportSystem(PendingEggUid)
+                    StartVIPTP(PendingEggUid)
                     PendingEggUid = nil
-                    while WaitingForTeleport and FarmingEnabled do
+                    while WaitingForVIPTP and FarmingEnabled do
                         task.wait(0.2)
                     end
                 end
@@ -608,12 +624,12 @@ local function DayLoop()
             StopAll()
             task.wait(0.3)
 
-            WalkToSafeZoneAndWait()
+            FlyToSafeZoneAndWait()
             task.wait(0.5)
 
-            StartTeleportSystem(BestEgg.Uid)
+            StartVIPTP(BestEgg.Uid)
 
-            while WaitingForTeleport and FarmingEnabled do
+            while WaitingForVIPTP and FarmingEnabled do
                 task.wait(0.2)
             end
         else
@@ -631,7 +647,7 @@ end
 -- MAIN LOOP
 -- ==================================================
 local function MainLoop()
-    print("[FarmingManager] MainLoop Started (WALK TP ONLY)")
+    print("[FarmingManager] MainLoop Started")
 
     while FarmingEnabled do
         local Phase = GetPhase()
@@ -657,9 +673,7 @@ local function Enable()
     CurrentState = "CHECK_TIME"
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForTeleport = false
-
-    SaveWalkSpeed()
+    WaitingForVIPTP = false
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -667,7 +681,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (Walk TP Only)")
+    print("[YOKUDO] FarmingManager: ON")
 end
 
 local function Disable()
@@ -683,7 +697,7 @@ local function Disable()
 
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForTeleport = false
+    WaitingForVIPTP = false
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -706,6 +720,7 @@ _G.YOKUDO_FarmingManager = {
     GetPhase = function() return CurrentPhase end,
     FindBestEgg = FindBestEgg,
 
+    -- ✅ Get Egg Data តាម UID
     GetEggData = function(Uid)
         if not Uid then return nil end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -716,6 +731,7 @@ _G.YOKUDO_FarmingManager = {
         return GetPetData(Category)
     end,
 
+    -- ✅ Get UID Location
     GetUidLocation = function(Uid)
         if not Uid then return "none" end
         local Container = workspace:FindFirstChild("AreaEggSlotsClient")
@@ -728,13 +744,12 @@ _G.YOKUDO_FarmingManager = {
 
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
-    SAFE_WALK_SPEED = SAFE_WALK_SPEED,
-    RETURN_WALK_SPEED = RETURN_WALK_SPEED,
-    GetWalkSpeed = GetWalkSpeed,
-
-    -- ✅ Callback
-    OnTeleportComplete = OnTeleportComplete,
-    OnVIPTPComplete = OnTeleportComplete,
+    FLY_SPEED = FLY_SPEED,
+    SAFE_FLY_SPEED = SAFE_FLY_SPEED,
+    RETURN_SPEED = RETURN_SPEED,
+    FLY_OFFSET = FLY_OFFSET,
+    METHOD = METHOD,
+    OnVIPTPComplete = OnVIPTPComplete,
 }
 
 -- ==================================================
@@ -756,4 +771,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (WALK TP ONLY + TeleportSystem)")
+print("✅ FarmingManager Loaded (FAST + CLEAR + Spawn Path First)")
