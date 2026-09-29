@@ -1,7 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v3 FINAL)
+-- YOKUDO HUB | FEATURE | Manager Drone (v4 FINAL)
 -- ✅ Portal ឃើញ = SPAWN → AutoEventNew.Enable()
--- ✅ Portal បាត់ = DONE → AutoEventNew.Disable() → AFK
+-- ✅ Portal បាត់ = DONE → AutoEventNew.Disable() → AFKSystem
 -- ✅ AutoEventNew CallManagerDone() → Manager ចាប់យក
 -- ✅ Full Reset ពេល User ដកធិក
 -- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
@@ -111,22 +111,35 @@ local function FullReset()
 end
 
 -- ==================================================
--- ✅ CALL MANAGER AFTER DONE
+-- ✅ CALL MANAGER AFTER DONE (ពេល Portal បាត់)
 -- ==================================================
 local function CallManagerAfterDone()
-    print("[ManagerDrone] 🎉 Event Done → Call Manager → AFK")
+    print("[ManagerDrone] ================================")
+    print("[ManagerDrone] 🎉 Portal Gone → Call Manager → AFK")
+    print("[ManagerDrone] ================================")
 
+    -- ✅ 1. Stop AutoEventNew
     if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
-        _G.YOKUDO_AutoEventNew.Disable()
+        print("[ManagerDrone] Stop AutoEventNew")
+        pcall(function()
+            _G.YOKUDO_AutoEventNew.Disable()
+        end)
     end
 
     task.wait(0.5)
 
+    -- ✅ 2. Enable AFKSystem
     if not IsFarmingManagerActive() then
         EnableAFKSystem()
+        print("[ManagerDrone] ✅ AFKSystem Enabled")
     else
         print("[ManagerDrone] FarmingManager Active → Skip AFK")
     end
+
+    -- ✅ 3. Reset Portal State
+    LastPortalState = false
+
+    print("[ManagerDrone] ✅ Call Manager Complete")
 end
 
 -- ==================================================
@@ -292,6 +305,8 @@ _G.YOKUDO_ManagerDrone = {
     IsAutoEventNewActive = IsAutoEventNewActive,
     CallManagerAfterDone = CallManagerAfterDone,
     FullReset = FullReset,
+    EnableAFKSystem = EnableAFKSystem,
+    IsFarmingManagerActive = IsFarmingManagerActive,
 }
 
-print("✅ ManagerDrone Feature Loaded (v3 FINAL + Full Reset)")
+print("✅ ManagerDrone Feature Loaded (v4 FINAL + Portal Signal + Call Done)")
