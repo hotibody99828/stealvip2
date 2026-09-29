@@ -1,9 +1,9 @@
---==================================================
+-- ==================================================
 -- YOKUDO HUB | FEATURE | Auto Farm (FAST)
 -- ✅ Cache PetData + UidCategory → លឿន
 -- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Walk TP + Shot TP)
--- ✅ ដក SetMethod/SetSpeed ចេញ
---==================================================
+-- ✅ Disable VIPTP ពេល StartTeleport (ការពារជាន់គ្នា)
+-- ==================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -236,12 +236,20 @@ local function SelectEgg(EggData)
 end
 
 --==================================================
--- START TELEPORT (✅ ដក SetMethod/SetSpeed ចេញ)
+-- ✅ START TELEPORT (Disable VIPTP មុន)
 --==================================================
 local function StartTeleport()
     if not SelectedEgg then
         warn("[YOKUDO] No Egg Selected")
         return
+    end
+
+    -- ✅ Disable VIPTP (Tab Farming) មុន
+    if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
+        pcall(function()
+            _G.YOKUDO_VIPTP.Disable()
+        end)
+        print("[AutoFarm] ✅ Disabled VIPTP (Prevent Conflict)")
     end
 
     print("[YOKUDO] Start Teleport | Target: " .. SelectedEgg.Id)
@@ -308,4 +316,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem)")
+print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem + No Conflict)")
