@@ -1,12 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v7 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v8 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
 -- ✅ Boss2 (Ball): Find Closest Coil (ជិត Boss បំផុត) → Fly 4 studs → Stop → Fall
 -- ✅ Boss2: Face Boss when Boss 20 studs → Attack (Range 50)
 -- ✅ Boss2: No Lock Boss + Auto Switch Coil
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
 -- ✅ Full Reset ពេល User ដកធិក
--- ✅ Register ជាមួយ CharacterSystem
+-- ❌ ដក CharacterSystem Register (គ្មាន CharacterSystem)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -26,11 +26,11 @@ local COILS_CONTAINER = "Coils"
 local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
 -- ✅ Coil Settings
-local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }   -- ✅ 4 Coils
-local COIL_CHECK_INTERVAL = 1        -- ✅ Check Coil រាល់ 1s
-local COIL_NEAR_DISTANCE = 4         -- ✅ Fly ជិត 4 studs
-local COIL_BOSS_TRIGGER = 20         -- ✅ Boss មកជិត 20 studs → Face + Attack
-local COIL_WAIT_TIMEOUT = 120        -- ✅ រង់ចាំ Coil អតិបរមា 120s
+local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }
+local COIL_CHECK_INTERVAL = 1
+local COIL_NEAR_DISTANCE = 4
+local COIL_BOSS_TRIGGER = 20
+local COIL_WAIT_TIMEOUT = 120
 
 -- ✅ Lock Settings (Boss 1 & 3)
 local LOCK_BEHIND_NORMAL = 3
@@ -248,7 +248,7 @@ local function AnyBossAlive()
 end
 
 -- ==================================================
--- ✅ FIND ALL COILS (ទាំង 4 — មិន Check Attribute)
+-- ✅ FIND ALL COILS
 -- ==================================================
 local function FindAllCoils()
     local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
@@ -273,7 +273,7 @@ local function FindAllCoils()
 end
 
 -- ==================================================
--- ✅ FIND CLOSEST COIL TO BOSS (ជិត Boss បំផុត)
+-- ✅ FIND CLOSEST COIL TO BOSS
 -- ==================================================
 local function FindClosestCoilToBoss(Boss)
     if not Boss then return nil, nil end
@@ -303,7 +303,7 @@ local function FindClosestCoilToBoss(Boss)
 end
 
 -- ==================================================
--- ✅ WAIT FOR COIL (រង់ចាំ Coil ចេញ)
+-- ✅ WAIT FOR COIL
 -- ==================================================
 local function WaitForCoil()
     DebugPrint("⏳ Wait for Coil...")
@@ -387,7 +387,7 @@ local function FlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ FLY TO COIL (ជិត 4 studs → Stop → Fall)
+-- ✅ FLY TO COIL
 -- ==================================================
 local function FlyToCoil(Coil)
     if not Coil then return false end
@@ -448,7 +448,7 @@ local function StopFaceBoss()
 end
 
 -- ==================================================
--- ✅ LOCK BOSS (Boss 1 & 3)
+-- ✅ LOCK BOSS
 -- ==================================================
 local function StartLockBoss()
     if LockConnection then LockConnection:Disconnect() end
@@ -634,7 +634,7 @@ local function StopPushUpY()
 end
 
 -- ==================================================
--- ✅ CALL MANAGER (Done) — Portal បាត់
+-- ✅ CALL MANAGER (Done)
 -- ==================================================
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
@@ -762,7 +762,7 @@ local function MainLoop()
         end
         if IsDead then IsDead = false end
 
-        -- ✅ Boss បាត់ → Done → Call Manager
+        -- ✅ Boss បាត់ → Done
         if not CurrentTarget or not CurrentTarget.Parent then
             DebugPrint("✅", CurrentBossName, "Dead / Gone")
             StopFaceBoss()
@@ -793,7 +793,6 @@ local function MainLoop()
 
         -- ✅ Boss 2 (Ball) — Coil Task
         if CurrentBossName == "Ball" then
-            -- ✅ Check Coil ថ្មីជិត Boss ជាង រាល់ 1s
             if now - LastCoilCheck >= COIL_CHECK_INTERVAL then
                 LastCoilCheck = now
 
@@ -814,7 +813,6 @@ local function MainLoop()
                 end
             end
 
-            -- ✅ Check Boss ↔ Coil Distance
             local BossPos = GetPosition(CurrentTarget)
             local CoilPos = CurrentCoil and GetPosition(CurrentCoil) or nil
             local InRange = false
@@ -864,7 +862,6 @@ local function MainLoop()
     -- ✅ Full Reset
     FullReset()
 
-    -- ✅ បើនៅ AutoEventEnabled → Call Manager (Safety)
     if AutoEventEnabled then
         CallManagerDone()
     end
@@ -922,27 +919,7 @@ _G.YOKUDO_AutoEventNew = {
 }
 
 -- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
+-- ❌ ដក CharacterSystem Register ចេញ
 -- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "AutoEventNew",
-        Enable = Enable,
-        Disable = Disable,
-        IsEnabled = function() return AutoEventEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if AutoEventEnabled then
-                task.wait(DEATH_WAIT)
-                StartAutoEquip()
-                CleanupMovers()
-                CurrentTarget = nil
-                CurrentBossName = nil
-                CurrentCoil = nil
-                if MainThread then pcall(function() task.cancel(MainThread) end) end
-                MainThread = task.spawn(MainLoop)
-            end
-        end
-    })
-end
 
-print("✅ AutoEventNew Feature Loaded (v7 FINAL + Coil 4 Nearest Boss)")
+print("✅ AutoEventNew Feature Loaded (v8 FINAL + Coil 4 Nearest Boss + No CharacterSystem)")
