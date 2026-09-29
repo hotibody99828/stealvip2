@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (WALK TP + FAST)
+-- YOKUDO HUB | FEATURE | Farming Manager (TELEPORT SYSTEM ONLY)
 -- ✅ Spawn Path First → Workspace Backup
--- ✅ Walk TP (Speed ដើម) ជំនួស SelfFlyTP
+-- ✅ Walk TP (Speed ដើម) → Safe Zone
 -- ✅ Callback → AFK ពេលអស់ Egg
--- ✅ Disable TeleportSystem ពេល Enable (ការពារជាន់គ្នា)
+-- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -242,7 +242,7 @@ local CurrentPhase = "UNKNOWN"
 local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
-local WaitingForVIPTP = false
+local WaitingForTeleport = false
 
 local WalkConnection = nil
 
@@ -398,11 +398,10 @@ local function StopAll()
         end
     end
 
-    if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
-        _G.YOKUDO_VIPTP.Disable()
-    end
+    -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
+        print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
 
     CleanupWalk()
@@ -437,37 +436,37 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- START VIPTP
+-- ✅ START TELEPORT SYSTEM (ជំនួស VIPTP)
 -- ==================================================
-local function StartVIPTP(EggUid)
-    if not _G.YOKUDO_VIPTP then
-        warn("[FarmingManager] VIPTP not loaded!")
+local function StartTeleportSystem(EggUid)
+    if not _G.YOKUDO_TeleportSystem then
+        warn("[FarmingManager] TeleportSystem not loaded!")
         return
     end
 
-    print("[FarmingManager] Starting VIPTP | UID:", EggUid)
+    print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
 
-    WaitingForVIPTP = true
-    _G.YOKUDO_VIPTP.SetTargetId(EggUid)
-    _G.YOKUDO_VIPTP.Enable()
+    WaitingForTeleport = true
+    _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
+    _G.YOKUDO_TeleportSystem.Enable()
 end
 
 -- ==================================================
--- CALLBACK ពី VIPTP
+-- ✅ CALLBACK ពី TELEPORT SYSTEM
 -- ==================================================
-local function OnVIPTPComplete()
+local function OnTeleportComplete()
     if not FarmingEnabled then
-        print("[FarmingManager] OnVIPTPComplete: Farming not enabled → Skip")
+        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
         return
     end
-    if not WaitingForVIPTP then
-        print("[FarmingManager] OnVIPTPComplete: Not waiting → Skip")
+    if not WaitingForTeleport then
+        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
         return
     end
 
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
     AFKStarted = false
-    print("[FarmingManager] ✅ VIPTP Completed → Check New Egg")
+    print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
     local BestEgg = FindBestEgg()
 
@@ -479,7 +478,7 @@ local function OnVIPTPComplete()
             local ReachedSafe = FlyToSafeZoneAndWait()
             if ReachedSafe and PendingEggUid then
                 task.wait(SAFE_WAIT_AFTER_REACH)
-                StartVIPTP(PendingEggUid)
+                StartTeleportSystem(PendingEggUid)
                 PendingEggUid = nil
             else
                 print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
@@ -541,9 +540,9 @@ local function NightLoop()
                 task.wait(SAFE_WAIT_AFTER_REACH)
                 local IsDay = WaitForDay()
                 if IsDay and PendingEggUid then
-                    StartVIPTP(PendingEggUid)
+                    StartTeleportSystem(PendingEggUid)
                     PendingEggUid = nil
-                    while WaitingForVIPTP and FarmingEnabled do
+                    while WaitingForTeleport and FarmingEnabled do
                         task.wait(0.2)
                     end
                 end
@@ -585,9 +584,9 @@ local function DayLoop()
             FlyToSafeZoneAndWait()
             task.wait(0.5)
 
-            StartVIPTP(BestEgg.Uid)
+            StartTeleportSystem(BestEgg.Uid)
 
-            while WaitingForVIPTP and FarmingEnabled do
+            while WaitingForTeleport and FarmingEnabled do
                 task.wait(0.2)
             end
         else
@@ -623,24 +622,15 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ✅ ENABLE (Disable TeleportSystem មុន)
+-- ENABLE / DISABLE
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
-
-    -- ✅ Disable TeleportSystem (Tab Auto Farming) មុន
-    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-        pcall(function()
-            _G.YOKUDO_TeleportSystem.Disable()
-        end)
-        print("[FarmingManager] ✅ Disabled TeleportSystem (Prevent Conflict)")
-    end
-
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -648,7 +638,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (Walk TP)")
+    print("[YOKUDO] FarmingManager: ON (TeleportSystem)")
 end
 
 local function Disable()
@@ -664,7 +654,7 @@ local function Disable()
 
     AFKStarted = false
     PendingEggUid = nil
-    WaitingForVIPTP = false
+    WaitingForTeleport = false
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -710,7 +700,8 @@ _G.YOKUDO_FarmingManager = {
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     WALK_TIMEOUT = WALK_TIMEOUT,
-    OnVIPTPComplete = OnVIPTPComplete,
+    OnVIPTPComplete = OnTeleportComplete,  -- ✅ Callback Name ដូចដើម
+    OnTeleportComplete = OnTeleportComplete,  -- ✅ Alias ថ្មី
     WalkTP = WalkTP,
 }
 
@@ -733,4 +724,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (Walk TP + Fast + Spawn Path First + No Conflict)")
+print("✅ FarmingManager Loaded (TeleportSystem Only — No VIPTP)")
