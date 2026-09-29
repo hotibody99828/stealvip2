@@ -3,6 +3,7 @@
 -- ✅ Spawn Path First → Workspace Backup
 -- ✅ Walk TP (Speed ដើម) ជំនួស SelfFlyTP
 -- ✅ Callback → AFK ពេលអស់ Egg
+-- ✅ Disable TeleportSystem ពេល Enable (ការពារជាន់គ្នា)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -622,10 +623,19 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE
+-- ✅ ENABLE (Disable TeleportSystem មុន)
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
+
+    -- ✅ Disable TeleportSystem (Tab Auto Farming) មុន
+    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+        pcall(function()
+            _G.YOKUDO_TeleportSystem.Disable()
+        end)
+        print("[FarmingManager] ✅ Disabled TeleportSystem (Prevent Conflict)")
+    end
+
     FarmingEnabled = true
     CurrentState = "CHECK_TIME"
     AFKStarted = false
@@ -723,4 +733,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (Walk TP + Fast + Spawn Path First)")
+print("✅ FarmingManager Loaded (Walk TP + Fast + Spawn Path First + No Conflict)")
