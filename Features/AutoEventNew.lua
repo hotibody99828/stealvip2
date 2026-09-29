@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v12 FINAL)
--- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Find Closest Position (ត្រង់ Boss) → Fly TP → Stop → Face + Attack (Range 50)
--- ✅ Boss2: No Lock + Auto Switch Position រាល់ 1s
+-- YOKUDO HUB | FEATURE | Auto Event New (v13 FINAL)
+-- ✅ Boss1: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
+-- ✅ Boss2 (Ball): Fly Position → Stop → Face Boss (Always) + Attack (Range 100)
+-- ✅ Boss3: Lock Front 2 + Above 5 + Face + Attack (Range 100)
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
 -- ✅ Full Reset ពេល User ដកធិក
 -- ❌ គ្មាន ConfigSystem
@@ -32,17 +32,17 @@ local POSITIONS = {
     Vector3.new(-14763, -468, 4594),  -- Position 4 (Coil4)
 }
 
--- ✅ Position Settings
+-- ✅ Position Settings (Boss 2)
 local POSITION_CHECK_INTERVAL = 1   -- ✅ Check Position រាល់ 1s
-local POSITION_BOSS_TRIGGER = 20    -- ✅ Boss មកជិត 20 studs → Face + Attack
 
 -- ✅ Lock Settings (Boss 1 & 3)
-local LOCK_BEHIND_NORMAL = 3
+local LOCK_BEHIND_NORMAL = 3         -- Boss 1: Behind 3
+local LOCK_FRONT_BOSS3 = 2           -- Boss 3: Front 2
 local LOCK_ABOVE_HEIGHT = 5
 
 -- ✅ Attack Range
-local ATTACK_RANGE_NORMAL = 100
-local ATTACK_RANGE_BALL = 50
+local ATTACK_RANGE_NORMAL = 100      -- Boss 1 & 3
+local ATTACK_RANGE_BALL = 100        -- ✅ Boss 2 = 100m
 local ATTACK_INTERVAL = 0.05
 
 local TELEPORT_SPEED = 800
@@ -144,6 +144,7 @@ local function GetLookVector(Object)
     return Vector3.new(0, 0, -1)
 end
 
+-- ✅ Get Lock Position (Boss 1: Behind 3 | Boss 3: Front 2)
 local function GetLockPosition(Target, BossName)
     if not Target then return nil, nil end
     local CenterPos = nil
@@ -154,9 +155,19 @@ local function GetLockPosition(Target, BossName)
     if not CenterPos then CenterPos = GetPosition(Target) end
     if not CenterPos then return nil, nil end
 
-    local BehindDist = LOCK_BEHIND_NORMAL
     local LookVector = GetLookVector(Target)
-    local LockPos = CenterPos - (LookVector * BehindDist)
+    local LockPos
+
+    if BossName == "ScrambleHuman" then
+        -- ✅ Boss 3: Lock ពីមុខ 2 studs
+        LockPos = CenterPos + (LookVector * LOCK_FRONT_BOSS3)
+        DebugPrint("🔒 Boss 3 → Front 2 studs")
+    else
+        -- ✅ Boss 1: Lock ក្រោយ 3 studs
+        LockPos = CenterPos - (LookVector * LOCK_BEHIND_NORMAL)
+        DebugPrint("🔒 Boss 1 → Behind 3 studs")
+    end
+
     LockPos = Vector3.new(LockPos.X, CenterPos.Y + LOCK_ABOVE_HEIGHT, LockPos.Z)
     return LockPos, CenterPos
 end
@@ -250,9 +261,7 @@ local function AnyBossAlive()
     return false
 end
 
--- ==================================================
--- ✅ FIND CLOSEST POSITION TO BOSS (Position ទាំង 4)
--- ==================================================
+-- ✅ Find Closest Position to Boss
 local function FindClosestPositionToBoss(Boss)
     if not Boss then return nil, nil end
     local BossPos = GetPosition(Boss)
@@ -341,13 +350,10 @@ local function FlyTP(Destination, Callback)
     end)
 end
 
--- ==================================================
--- ✅ FLY TO POSITION (Fly TP → Stop — គ្មាន Lock)
--- ==================================================
+-- ✅ Fly To Position (Stop — No Lock)
 local function FlyToPosition(Position)
     if not Position then return false end
 
-    -- ✅ Disconnect Lock ចាស់
     if LockConnection then
         LockConnection:Disconnect()
         LockConnection = nil
@@ -374,9 +380,7 @@ local function FlyToPosition(Position)
     return Arrived
 end
 
--- ==================================================
--- ✅ FACE BOSS
--- ==================================================
+-- ✅ Face Boss
 local function StartFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() end
     FaceConnection = RunService.Heartbeat:Connect(function()
@@ -401,9 +405,7 @@ local function StopFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() FaceConnection = nil end
 end
 
--- ==================================================
--- ✅ LOCK BOSS (Boss 1 & 3)
--- ==================================================
+-- ✅ Lock Boss (Boss 1 & 3)
 local function StartLockBoss()
     if LockConnection then LockConnection:Disconnect() end
     LockConnection = RunService.Heartbeat:Connect(function()
@@ -425,9 +427,7 @@ local function StartLockBoss()
     end)
 end
 
--- ==================================================
--- FIRE AT BOSS
--- ==================================================
+-- ✅ Fire At Boss
 local function FireAtBoss(Boss, Range)
     if not Boss or not Boss.Parent then return end
     local Remote = GetBatSwingRemote()
@@ -443,9 +443,7 @@ local function FireAtBoss(Boss, Range)
     pcall(function() Remote:FireServer(nil, TraceId) end)
 end
 
--- ==================================================
--- FIND BAT TOOL
--- ==================================================
+-- ✅ Find Bat Tool
 local function FindBatTool()
     local Char = Player.Character
     if Char then
@@ -465,9 +463,7 @@ local function FindBatTool()
     return nil
 end
 
--- ==================================================
--- AUTO EQUIP BAT
--- ==================================================
+-- ✅ Auto Equip Bat
 local EquipConnection, LastBatCheck, BatEquipped = nil, 0, false
 local function StartAutoEquip()
     if EquipConnection then EquipConnection:Disconnect() end
@@ -498,9 +494,7 @@ local function StopAutoEquip()
     BatEquipped = false
 end
 
--- ==================================================
--- FLY TO CLOSEST PORTAL
--- ==================================================
+-- ✅ Fly To Closest Portal
 local function FlyToClosestPortal()
     if IsPlayerAtPortalLeave() then return true end
     local Portal, PortalPos = GetClosestPortal()
@@ -517,9 +511,7 @@ local function FlyToClosestPortal()
     return Arrived
 end
 
--- ==================================================
--- ✅ SETUP TARGET
--- ==================================================
+-- ✅ Setup Target
 local function SetupTargetForBoss(Boss, BossName)
     if not Boss or not Boss.Parent then return false end
     CurrentTarget = Boss
@@ -532,7 +524,7 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Position ជិត Boss
+    -- ✅ Boss 2 (Ball) → Fly Position → Face (Always)
     if BossName == "Ball" then
         DebugPrint("🚀 Boss 2 (Ball) → Find Closest Position")
 
@@ -542,8 +534,9 @@ local function SetupTargetForBoss(Boss, BossName)
             return true
         end
 
-        FlyToPosition(CurrentPosition)  -- ✅ Fly TP → Stop
-        DebugPrint("✅ At Position → Wait for Boss")
+        FlyToPosition(CurrentPosition)
+        StartFaceBoss()  -- ✅ Face Boss ជាប់
+        DebugPrint("✅ At Position → Face Boss + Wait")
         return true
     end
 
@@ -561,9 +554,7 @@ local function SetupTargetForBoss(Boss, BossName)
     return true
 end
 
--- ==================================================
--- ✅ PUSH UP Y
--- ==================================================
+-- ✅ Push Up Y
 local function StartPushUpY()
     if PushUpConnection then PushUpConnection:Disconnect() end
     PushUpConnection = RunService.Heartbeat:Connect(function()
@@ -583,9 +574,7 @@ local function StopPushUpY()
     if PushUpConnection then PushUpConnection:Disconnect() PushUpConnection = nil end
 end
 
--- ==================================================
--- ✅ CALL MANAGER (Done)
--- ==================================================
+-- ✅ Call Manager Done
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
     AutoEventEnabled = false
@@ -601,9 +590,7 @@ local function CallManagerDone()
     end
 end
 
--- ==================================================
--- ✅ FULL RESET
--- ==================================================
+-- ✅ Full Reset
 local function FullReset()
     DebugPrint("🔄 Full Reset...")
     if MainThread then
@@ -637,9 +624,7 @@ local function FullReset()
     DebugPrint("✅ Full Reset Complete")
 end
 
--- ==================================================
--- ✅ MAIN LOOP
--- ==================================================
+-- ✅ Main Loop
 local function MainLoop()
     DebugPrint("MainLoop Started")
     StartPushUpY()
@@ -733,31 +718,26 @@ local function MainLoop()
             -- ✅ Check Position ថ្មីជិត Boss ជាង រាល់ 1s
             if now - LastPositionCheck >= POSITION_CHECK_INTERVAL then
                 LastPositionCheck = now
-                local NewPos, NewDist = FindClosestPositionToBoss(CurrentTarget)
+                local NewPos = FindClosestPositionToBoss(CurrentTarget)
                 if NewPos and CurrentPosition then
-                    local OldDist = (CurrentPosition - GetPosition(CurrentTarget)).Magnitude
-                    local NewDistVal = (NewPos - GetPosition(CurrentTarget)).Magnitude
-                    if NewDistVal < OldDist - 3 then
-                        DebugPrint("🔄 Switch Position → New Pos:", tostring(NewPos))
-                        CurrentPosition = NewPos
-                        FlyToPosition(CurrentPosition)  -- ✅ Fly ទៅ Position ថ្មី → Stop
+                    local BossPos = GetPosition(CurrentTarget)
+                    if BossPos then
+                        local OldDist = (CurrentPosition - BossPos).Magnitude
+                        local NewDist = (NewPos - BossPos).Magnitude
+                        if NewDist < OldDist - 3 then
+                            DebugPrint("🔄 Switch Position")
+                            CurrentPosition = NewPos
+                            FlyToPosition(CurrentPosition)  -- ✅ Fly ទៅ Position ថ្មី → Stop
+                            StartFaceBoss()  -- ✅ Face បន្ត
+                        end
                     end
                 end
             end
 
-            -- ✅ Check Boss ↔ Position Distance
-            local BossPos = GetPosition(CurrentTarget)
-            local PosDist = BossPos and CurrentPosition and (BossPos - CurrentPosition).Magnitude or math.huge
-            local InRange = PosDist <= POSITION_BOSS_TRIGGER
-
-            if InRange then
-                StartFaceBoss()  -- ✅ Face Boss
-                if now - LastFire >= ATTACK_INTERVAL then
-                    LastFire = now
-                    FireAtBoss(CurrentTarget, ATTACK_RANGE_BALL)
-                end
-            else
-                StopFaceBoss()
+            -- ✅ Attack (Range 100)
+            if now - LastFire >= ATTACK_INTERVAL then
+                LastFire = now
+                FireAtBoss(CurrentTarget, ATTACK_RANGE_BALL)
             end
         else
             -- ✅ Boss 1 & 3 — Attack Range 100
@@ -821,7 +801,7 @@ local function Toggle()
 end
 
 -- ==================================================
--- EXPORT (គ្មាន Register / ConfigSystem)
+-- EXPORT
 -- ==================================================
 _G.YOKUDO_AutoEventNew = {
     Enable = Enable,
@@ -834,9 +814,10 @@ _G.YOKUDO_AutoEventNew = {
     FindClosestPositionToBoss = FindClosestPositionToBoss,
     FlyToPosition = FlyToPosition,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
+    LOCK_FRONT_BOSS3 = LOCK_FRONT_BOSS3,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
     POSITIONS = POSITIONS,
 }
 
-print("✅ AutoEventNew Feature Loaded (v12 FINAL — Position Only + No Lock)")
+print("✅ AutoEventNew Feature Loaded (v13 FINAL — Boss2 Face + Range 100 | Boss3 Front 2)")
