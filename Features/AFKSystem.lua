@@ -1,10 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (WALK TP + ORIGINAL SPEED)
--- រក Plot + Treadmill → Walk TP → Jump Out
--- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើមរបស់ Player
--- ✅ Save Speed ដើម មុន Walk | Restore ពេល Stop
--- ✅ JumpOut រហូតដល់ Dist > 5
--- ✅ Register ជាមួយ CharacterSystem
+-- YOKUDO HUB | FEATURE | AFK System (WALK TP ONLY)
+-- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
+-- ✅ Server បិទ Fly → ប្រើ Walk TP ទាំងអស់
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +12,8 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local ARRIVE_TIMEOUT = 30
+local WALK_SPEED = nil              -- ✅ Save Speed ដើម
+local ARRIVE_TIMEOUT = 60
 local JUMP_DISTANCE_THRESHOLD = 5
 local JUMP_MAX_ATTEMPTS = 50
 local JUMP_ATTEMPT_WAIT = 0.2
@@ -32,9 +30,7 @@ local MyPlot = nil
 local MyTreadmill = nil
 local MyTreadmillPos = nil
 local WalkConnection = nil
-local IsWalking = false
 local DistCheckThread = nil
-local SavedWalkSpeed = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -53,20 +49,14 @@ end
 local function SaveWalkSpeed()
     local Hum = GetHumanoid()
     if not Hum then return end
-    if SavedWalkSpeed == nil then
-        SavedWalkSpeed = Hum.WalkSpeed
-        print("[AFK] Saved WalkSpeed ដើម:", SavedWalkSpeed)
+    if WALK_SPEED == nil then
+        WALK_SPEED = Hum.WalkSpeed
+        print("[AFK] Saved WalkSpeed ដើម:", WALK_SPEED)
     end
 end
 
-local function RestoreWalkSpeed()
-    local Hum = GetHumanoid()
-    if not Hum then return end
-    if SavedWalkSpeed ~= nil then
-        pcall(function()
-            Hum.WalkSpeed = SavedWalkSpeed
-        end)
-    end
+local function GetWalkSpeed()
+    return WALK_SPEED or 16
 end
 
 -- ==================================================
@@ -81,11 +71,8 @@ local function CleanupMovers()
     local Hum, Root = GetHumanoid()
     if Hum then
         pcall(function()
-            if SavedWalkSpeed ~= nil then
-                Hum.WalkSpeed = SavedWalkSpeed
-            end
-            Hum.PlatformStand = false
-            Hum.Sit = false
+            Hum:MoveTo(Root and Root.Position or Hum.Parent.HumanoidRootPart.Position)
+            Hum.WalkSpeed = GetWalkSpeed()
         end)
     end
     if Root then
@@ -94,8 +81,62 @@ local function CleanupMovers()
             Root.AssemblyAngularVelocity = Vector3.zero
         end)
     end
+end
 
-    IsWalking = false
+-- ==================================================
+-- ✅ WALK TP (Humanoid:MoveTo + Speed ដើម)
+-- ==================================================
+local function WalkTP(Destination, Callback)
+    CleanupMovers()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    SaveWalkSpeed()
+    Hum.WalkSpeed = GetWalkSpeed()
+
+    print(string.format("[AFK] Walk TP → %s | Speed: %d", tostring(Destination), GetWalkSpeed()))
+
+    local StartTime = tick()
+    local LastCheck = 0
+
+    WalkConnection = RunService.Heartbeat:Connect(function()
+        if not AFKEnabled then
+            CleanupMovers()
+            return
+        end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then
+            CleanupMovers()
+            return
+        end
+
+        Hum2.WalkSpeed = GetWalkSpeed()
+        Hum2:MoveTo(Destination)
+
+        if tick() - LastCheck > 0.05 then
+            LastCheck = tick()
+
+            local Dist = (Root2.Position - Destination).Magnitude
+            if Dist <= 3 then
+                CleanupMovers()
+                print(string.format("[AFK] ✅ Walk TP Arrived | Dist: %.1f", Dist))
+                if Callback then Callback() end
+                return
+            end
+
+            if tick() - StartTime > ARRIVE_TIMEOUT then
+                CleanupMovers()
+                print("[AFK] Walk TP Timeout")
+                if Callback then Callback() end
+                return
+            end
+        end
+    end)
 end
 
 -- ==================================================
@@ -127,65 +168,6 @@ local function FindMyPlotAndTreadmill()
         end
     end
     return nil, nil
-end
-
--- ==================================================
--- ✅ WALK TP (ប្រើ Speed ដើមរបស់ Player)
--- ==================================================
-local function WalkTP(Destination, Callback)
-    CleanupMovers()
-
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
-        if Callback then Callback() end
-        return
-    end
-
-    -- ✅ Save WalkSpeed ដើម
-    SaveWalkSpeed()
-
-    -- ✅ ប្រើ Speed ដើម
-    Hum.WalkSpeed = SavedWalkSpeed or Hum.WalkSpeed
-    IsWalking = true
-
-    print(string.format("[AFK] Walk TP → %s | Speed: %d", tostring(Destination), Hum.WalkSpeed))
-
-    local StartTime = tick()
-
-    WalkConnection = RunService.Heartbeat:Connect(function()
-        if not AFKEnabled then
-            CleanupMovers()
-            return
-        end
-
-        local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then
-            CleanupMovers()
-            return
-        end
-
-        -- ✅ ប្រើ Speed ដើមរាល់ Heartbeat
-        Hum2.WalkSpeed = SavedWalkSpeed or Hum2.WalkSpeed
-
-        local Dist = (Root2.Position - Destination).Magnitude
-
-        if Dist <= 3 then
-            CleanupMovers()
-            Hum2:MoveTo(Root2.Position)
-            print("[AFK] ✅ Walk TP Arrived")
-            if Callback then Callback() end
-            return
-        end
-
-        if tick() - StartTime > ARRIVE_TIMEOUT then
-            CleanupMovers()
-            print("[AFK] Walk TP Timeout")
-            if Callback then Callback() end
-            return
-        end
-
-        Hum2:MoveTo(Destination)
-    end)
 end
 
 -- ==================================================
@@ -259,6 +241,8 @@ local function EnableAFK()
     if AFKEnabled then return end
     AFKEnabled = true
 
+    SaveWalkSpeed()
+
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
@@ -279,7 +263,7 @@ local function EnableAFK()
         end)
     end)
 
-    print("[AFK] AFK System: ON (Walk TP + Speed ដើម)")
+    print("[AFK] AFK System: ON (Walk TP Only)")
 end
 
 -- ==================================================
@@ -295,7 +279,6 @@ local function DisableAFK()
     end
 
     CleanupMovers()
-    RestoreWalkSpeed()
     MyPlot = nil
     MyTreadmill = nil
     MyTreadmillPos = nil
@@ -312,36 +295,14 @@ _G.YOKUDO_AFKSystem = {
     IsEnabled = function() return AFKEnabled end,
     FindMyPlotAndTreadmill = FindMyPlotAndTreadmill,
     WalkTP = WalkTP,
-    FlyTP = WalkTP,  -- ✅ Alias
+    FlyTP = WalkTP,  -- ✅ Alias ចាស់
     JumpOutTreadmill = JumpOutTreadmill,
     GetMyTreadmillPos = function() return MyTreadmillPos end,
     GetMyTreadmill = function() return MyTreadmill end,
     GetMyPlot = function() return MyPlot end,
-    IsFlying = function() return IsWalking end,
-    IsWalking = function() return IsWalking end,
+    IsFlying = function() return WalkConnection ~= nil end,
+    GetWalkSpeed = GetWalkSpeed,
     SAFE_ZONE = SAFE_ZONE,
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
-if _G.YOKUDO_CharacterSystem then
-    _G.YOKUDO_CharacterSystem:RegisterFeature({
-        Name = "AFKSystem",
-        Enable = EnableAFK,
-        Disable = DisableAFK,
-        IsEnabled = function() return AFKEnabled end,
-        OnCharacterAdded = function(Char, Hum, Root)
-            if AFKEnabled then
-                task.wait(1)
-                pcall(function()
-                    if MyTreadmillPos then
-                        StartDistanceCheck()
-                    end
-                end)
-            end
-        end
-    })
-end
-
-print("✅ AFKSystem Feature Loaded (WALK TP + ORIGINAL SPEED)")
+print("✅ AFKSystem Loaded (WALK TP ONLY | Speed ដើម)")
