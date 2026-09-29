@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v16 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v17 FINAL — No Fallback)
 -- ✅ Boss1: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
 -- ✅ Boss2 & 3: Fly Position (ជិត Boss) → Lock Front 1 + Face + Attack (Range 100)
--- ✅ Portal Gone → Stop + Reset + Call Manager + Fallback AFK
+-- ✅ Portal Gone → Call ManagerDrone (គ្មាន Fallback AFK)
 -- ✅ Full Reset ពេល User ដកធិក
 -- ❌ គ្មាន ConfigSystem
 -- ❌ គ្មាន Register CharacterSystem
@@ -559,7 +559,7 @@ local function StopPushUpY()
 end
 
 -- ==================================================
--- ✅ CALL MANAGER DONE (Portal Gone) — Fallback AFK
+-- ✅ CALL MANAGER DONE (Portal Gone) — គ្មាន Fallback
 -- ==================================================
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
@@ -571,35 +571,19 @@ local function CallManagerDone()
 
     AutoEventEnabled = false
 
-    -- ✅ 1. Call ManagerDrone (បើ Enabled)
-    local ManagerCalled = false
+    -- ✅ Call ManagerDrone (បើ Enabled)
     if _G.YOKUDO_ManagerDrone and _G.YOKUDO_ManagerDrone.IsEnabled() then
         if _G.YOKUDO_ManagerDrone.CallManagerAfterDone then
             pcall(function()
                 _G.YOKUDO_ManagerDrone.CallManagerAfterDone()
             end)
-            ManagerCalled = true
             DebugPrint("✅ Called ManagerDrone.CallManagerAfterDone()")
         end
+    else
+        DebugPrint("⚠️ ManagerDrone not enabled — No Fallback")
     end
 
-    -- ✅ 2. Fallback: បើ ManagerDrone មិន Enabled → Enable AFKSystem ដោយខ្លួនឯង
-    if not ManagerCalled then
-        DebugPrint("⚠️ ManagerDrone not enabled → Fallback AFKSystem")
-
-        if _G.YOKUDO_AFKSystem then
-            if _G.YOKUDO_AFKSystem.IsEnabled() then
-                pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
-                task.wait(0.3)
-            end
-            pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
-            DebugPrint("✅ Fallback AFKSystem Enabled")
-        else
-            DebugPrint("❌ AFKSystem not loaded!")
-        end
-    end
-
-    -- ✅ 3. Full Reset
+    -- ✅ Full Reset
     task.wait(0.5)
     FullReset()
 end
@@ -692,7 +676,7 @@ local function MainLoop()
 
     local LastPositionCheck = 0
     while AutoEventEnabled do
-        -- ✅ Check Portal Gone → Stop + Reset + Call Manager
+        -- ✅ Check Portal Gone → Stop + Call Manager
         local Portal = workspace:FindFirstChild(PORTAL_NAME)
         if not Portal then
             DebugPrint("🚪 Portal Gone → Call Manager")
@@ -838,4 +822,4 @@ _G.YOKUDO_AutoEventNew = {
     POSITIONS = POSITIONS,
 }
 
-print("✅ AutoEventNew Feature Loaded (v16 FINAL — Portal Gone → Fallback AFK)")
+print("✅ AutoEventNew Feature Loaded (v17 FINAL — No Fallback)")
