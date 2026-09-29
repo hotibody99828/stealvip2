@@ -847,4 +847,39 @@ _G.YOKUDO_AutoEventNew = {
     POSITIONS = POSITIONS,
 }
 
+-- ==================================================
+-- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not AutoEventEnabled then return end
+
+    DebugPrint("🔄 Character Added → Wait for Respawn...")
+    task.wait(DEATH_WAIT)
+
+    -- ✅ Cleanup + Restart
+    CleanupMovers()
+    StopAutoEquip()
+    StopPushUpY()
+    StopFaceBoss()
+
+    CurrentTarget = nil
+    CurrentBossName = nil
+    CurrentPosition = nil
+    LastFire = 0
+    FlySequence = 0
+    IsDead = false
+
+    -- ✅ Restart AutoEquip
+    StartAutoEquip()
+
+    -- ✅ Restart MainLoop
+    if MainThread then
+        pcall(function() task.cancel(MainThread) end)
+        MainThread = nil
+    end
+    MainThread = task.spawn(MainLoop)
+
+    DebugPrint("✅ Resumed after Respawn")
+end)
+
 print("✅ AutoEventNew Feature Loaded (v18 FINAL — Boss2 No Lock | Boss3 Lock Front 1)")
