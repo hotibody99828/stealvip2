@@ -1,5 +1,5 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v8 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v7 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
 -- ✅ Boss2 (Ball): Find Closest Coil (ជិត Boss បំផុត) → Fly 4 studs → Stop → Fall
 -- ✅ Boss2: Face Boss when Boss 20 studs → Attack (Range 50)
@@ -25,10 +25,8 @@ local COILS_CONTAINER = "Coils"
 
 local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
--- ✅ Coil Names (ត្រឹមត្រូវតាម Game — 4 Coils)
-local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }
-
 -- ✅ Coil Settings
+local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }   -- ✅ 4 Coils
 local COIL_CHECK_INTERVAL = 1        -- ✅ Check Coil រាល់ 1s
 local COIL_NEAR_DISTANCE = 4         -- ✅ Fly ជិត 4 studs
 local COIL_BOSS_TRIGGER = 20         -- ✅ Boss មកជិត 20 studs → Face + Attack
@@ -299,13 +297,13 @@ local function FindClosestCoilToBoss(Boss)
     end
 
     if Closest then
-        DebugPrint(string.Format("🎯 Closest Coil: %s | Dist: %.1f", Closest.Name, ClosestDist))
+        DebugPrint(string.format("🎯 Closest Coil: %s | Dist: %.1f", Closest.Name, ClosestDist))
     end
     return Closest, ClosestDist
 end
 
 -- ==================================================
--- ✅ WAIT FOR COIL
+-- ✅ WAIT FOR COIL (រង់ចាំ Coil ចេញ)
 -- ==================================================
 local function WaitForCoil()
     DebugPrint("⏳ Wait for Coil...")
@@ -636,7 +634,7 @@ local function StopPushUpY()
 end
 
 -- ==================================================
--- ✅ CALL MANAGER (Done)
+-- ✅ CALL MANAGER (Done) — Portal បាត់
 -- ==================================================
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
@@ -889,7 +887,9 @@ local function Enable()
     if MainThread then pcall(function() task.cancel(MainThread) end) end
     MainThread = task.spawn(MainLoop)
     DebugPrint("✅ AutoEventNew: ON")
-endlocal function Disable()
+end
+
+local function Disable()
     if not AutoEventEnabled then
         FullReset()
         return
@@ -945,4 +945,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoEventNew Feature Loaded (v8 FINAL + Coil1-4 Nearest Boss)")
+print("✅ AutoEventNew Feature Loaded (v7 FINAL + Coil 4 Nearest Boss)")
