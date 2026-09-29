@@ -1,294 +1,237 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (FAST + CLEAR)
--- ✅ Spawn Path First → Workspace Backup
--- ✅ Cache System → លឿន
--- ✅ Callback → AFK ពេលអស់ Egg
--- ✅ ប្រើ TeleportSystem (ជំនួស VIPTP)
--- ✅ Walk TP Only + Speed ដើមរបស់ Player
+-- YOKUDO HUB | TELEPORT SYSTEM (WALK TP ONLY)
+-- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម (Server បិទ Fly)
+-- ✅ Safe Speed Mode (265 / ដើម)
+-- ✅ ជិតដល់ 30m → Pause Safe Speed
+-- ✅ DropHeldEgg = true (Signal) → Lock Camera → Walk TP → Position 1
+-- ✅ Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
+-- ✅ Walk TP → Collect វិញ → Position 2 → Stop
+-- ✅ Callback → FarmingManager ពេល AutoStop
+-- ✅ Forward Declarations (ការពារ Nil Error Line 200)
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
+local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- AREA EGG CYCLE
+-- CONFIG
 -- ==================================================
-local AreaEggCycle = nil
-pcall(function()
-    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
-end)
+local Config = {
+    SafeSpeed = 250,
+    ArriveDistance = 2,
+    LockWait = 0.1,
+    NearDistance = 25,
+    SlowDistance = 30,
+    LockDistance = 1,
 
-if not AreaEggCycle then
-    warn("[FarmingManager] AreaEggCycle not found! Using fallback.")
-end
+    Position1 = Vector3.new(598, 70, -330),
+    Position2 = Vector3.new(544, 70, -301),
 
--- ==================================================
--- SETTINGS (FAST)
--- ==================================================
-local NIGHT_CHECK_INTERVAL = 0.03
-local DAY_CHECK_INTERVAL = 0.05
-local SAFE_ZONE = Vector3.new(533, 70, -366)
-local SAFE_ZONE_DIST = 5
-local SAFE_WAIT_AFTER_REACH = 1
-local METHOD = "WalkTP"
-
--- ==================================================
--- CACHE SYSTEM
--- ==================================================
-local Cache = {
-    MeshIdMap = {},
-    MeshIdMapBuilt = false,
-    PetData = {},
-    UidCategory = {},
-}
-
-local SelectedRarities = { Divine = true, Eternal = true, Secret = true }
-
-local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3
+    WalkTimeout = 1000,
+    CollectInterval = 0.02,
 }
 
 -- ==================================================
--- BUILD MESHID MAP (ម្ដងគត់)
+-- REMOTES
 -- ==================================================
-local function BuildMeshIdMap()
-    if Cache.MeshIdMapBuilt then return end
+local CollectEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggCarry")
+local DropEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggDrop")
 
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return end
-    local Configs = Assets:FindFirstChild("Configs")
-    local EggModels = ReplicatedStorage:FindFirstChild("Assets")
-    if EggModels then EggModels = EggModels:FindFirstChild("Models") end
-    if EggModels then EggModels = EggModels:FindFirstChild("Eggs") end
-    if not Configs or not EggModels then return end
-
-    for _, Config in ipairs(Configs:GetChildren()) do
-        local Success, Module = pcall(function() return require(Config) end)
-        if Success and Module and Module.Egg then
-            local ModelName = Module.Egg.ModelName or Config.Name
-            local Template = EggModels:FindFirstChild(ModelName)
-            if Template then
-                for _, Desc in ipairs(Template:GetDescendants()) do
-                    if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-                        Cache.MeshIdMap[Desc.MeshId] = Config.Name
-                    end
-                    if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-                        Cache.MeshIdMap[Desc.MeshId] = Config.Name
-                    end
-                end
-            end
-        end
-    end
-
-    Cache.MeshIdMapBuilt = true
-    print("[FarmingManager] MeshId Map Built (Cache)")
+if not CollectEvent then
+    warn("[TeleportSystem] CollectEvent not found")
+    return
 end
 
--- ==================================================
--- GET PET DATA (CACHE)
--- ==================================================
-local function GetPetData(AssetCategory)
-    if not AssetCategory then return nil end
-
-    if Cache.PetData[AssetCategory] then
-        return Cache.PetData[AssetCategory]
-    end
-
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return nil end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return nil end
-    local Configs = Assets:FindFirstChild("Configs")
-    if not Configs then return nil end
-
-    local Config = Configs:FindFirstChild(AssetCategory)
-    if not Config then return nil end
-
-    local Success, Module = pcall(function() return require(Config) end)
-    if not Success or not Module then return nil end
-
-    local Data = {
-        Rarity = Module.Rarity and (Module.Rarity._id or Module.Rarity.RarityId) or nil,
-        EarningRate = Module.EarningRate or 0,
-        DisplayName = Module.DisplayName or AssetCategory
-    }
-
-    Cache.PetData[AssetCategory] = Data
-    return Data
+if not DropEvent then
+    warn("[TeleportSystem] DropEvent not found")
+    return
 end
 
--- ==================================================
--- FIND ASSET CATEGORY (CACHE Uid)
--- ==================================================
-local function FindAssetCategory(EggModel)
-    if not EggModel then return nil end
-
-    local Uid = EggModel.Name
-    if Cache.UidCategory[Uid] then
-        return Cache.UidCategory[Uid]
-    end
-
-    if not Cache.MeshIdMapBuilt then BuildMeshIdMap() end
-
-    for _, Desc in ipairs(EggModel:GetDescendants()) do
-        if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-            local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
-        end
-        if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-            local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
-        end
-    end
-
-    return nil
-end
-
--- ==================================================
--- SORT EGGS
--- ==================================================
-local function SortEggs(EggList)
-    table.sort(EggList, function(a, b)
-        local Pa = RARITY_PRIORITY[a.Rarity] or 999
-        local Pb = RARITY_PRIORITY[b.Rarity] or 999
-        if Pa ~= Pb then return Pa < Pb end
-        return a.EarningRate > b.EarningRate
-    end)
-end
-
--- ==================================================
--- FIND BEST EGG (Spawn Path First → Workspace Backup)
--- ==================================================
-local function FindBestEgg()
-    local EggList = {}
-
-    local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if Container then
-        for _, Slot in ipairs(Container:GetChildren()) do
-            if Slot:IsA("Model") then
-                local Category = FindAssetCategory(Slot)
-                if Category then
-                    local Data = GetPetData(Category)
-                    if Data and SelectedRarities[Data.Rarity] then
-                        table.insert(EggList, {
-                            Slot = Slot,
-                            Uid = Slot.Name,
-                            Rarity = Data.Rarity,
-                            EarningRate = Data.EarningRate,
-                            DisplayName = Data.DisplayName,
-                            Location = "spawn"
-                        })
-                    end
-                end
-            end
-        end
-    end
-
-    if #EggList > 0 then
-        SortEggs(EggList)
-        return EggList[1]
-    end
-
-    for _, Obj in ipairs(workspace:GetChildren()) do
-        if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
-            local Category = FindAssetCategory(Obj)
-            if Category then
-                local Data = GetPetData(Category)
-                if Data and SelectedRarities[Data.Rarity] then
-                    table.insert(EggList, {
-                        Slot = Obj,
-                        Uid = Obj.Name,
-                        Rarity = Data.Rarity,
-                        EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName,
-                        Location = "workspace"
-                    })
-                end
-            end
-        end
-    end
-
-    if #EggList == 0 then return nil end
-    SortEggs(EggList)
-    return EggList[1]
-end
-
--- ==================================================
--- SET RARITIES
--- ==================================================
-local function SetRarities(List)
-    SelectedRarities = {}
-    for _, r in ipairs(List) do
-        SelectedRarities[r] = true
-    end
-    print("[FarmingManager] Rarities: " .. table.concat(List, ", "))
-end
+print("[TeleportSystem] CollectEvent + DropEvent OK")
 
 -- ==================================================
 -- STATE
 -- ==================================================
-local FarmingEnabled = false
-local CurrentState = "IDLE"
-local CurrentPhase = "UNKNOWN"
-local FarmingThread = nil
-local AFKStarted = false
-local PendingEggUid = nil
-local WaitingForTeleport = false
+local State = {
+    Running = false,
+    Step = "idle",
+    TargetUid = nil,
 
-local WalkConnection = nil
-local SavedWalkSpeed = nil
+    WalkConnection = nil,
+    LockConnection = nil,
+
+    DropHeldEgg = nil,
+    DropHeldEggConnection = nil,
+
+    TargetCollected = false,
+    CollectedAgain = false,
+    DropDone = false,
+
+    SavedWalkSpeed = nil,
+    SafeSpeedMode = false,
+    SafeSpeedPaused = false,
+
+    CameraLockConnection = nil,
+    LockedCameraCFrame = nil,
+}
 
 -- ==================================================
--- GET CHAR / ROOT / HUM
+-- ✅ FORWARD DECLARATIONS (ការពារ Nil Error Line 200)
 -- ==================================================
-local function GetChar()
-    return Player.Character
+local Step3_WalkToPosition1
+local Step4_LockAndDrop
+local Step5_WalkToCollectAgain
+local Step7_WalkToPosition2
+
+-- ==================================================
+-- UTILS
+-- ==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    return Char:FindFirstChildOfClass("Humanoid"), Char:FindFirstChild("HumanoidRootPart")
 end
 
-local function GetRoot()
-    local Char = GetChar()
-    if not Char then return nil end
-    return Char:FindFirstChild("HumanoidRootPart")
-end
-
-local function GetHum()
-    local Char = GetChar()
-    if not Char then return nil end
-    return Char:FindFirstChildOfClass("Humanoid")
+local function GetPosition(Object)
+    if not Object then return nil end
+    if Object:IsA("Model") then
+        if Object.PrimaryPart then return Object.PrimaryPart.Position end
+        local Part = Object:FindFirstChildWhichIsA("BasePart")
+        if Part then return Part.Position end
+        for _, Desc in ipairs(Object:GetDescendants()) do
+            if Desc:IsA("BasePart") then return Desc.Position end
+        end
+    elseif Object:IsA("BasePart") then
+        return Object.Position
+    end
+    return nil
 end
 
 -- ==================================================
--- CLEANUP WALK
+-- ✅ GET WALK SPEED (Safe Mode / ដើម)
 -- ==================================================
-local function CleanupWalk()
-    if WalkConnection then
-        WalkConnection:Disconnect()
-        WalkConnection = nil
+local function GetWalkSpeed()
+    if State.SafeSpeedMode and not State.SafeSpeedPaused then
+        return Config.SafeSpeed
+    else
+        return State.SavedWalkSpeed or Config.SafeSpeed
+    end
+end
+
+local function SaveStats()
+    local Hum = GetHumanoid()
+    if not Hum then return end
+    if State.SavedWalkSpeed == nil then
+        State.SavedWalkSpeed = Hum.WalkSpeed
+        print("[TeleportSystem] Saved WalkSpeed ដើម:", State.SavedWalkSpeed)
+    end
+end
+
+local function RestoreStats()
+    local Hum = GetHumanoid()
+    if not Hum then return end
+    if State.SavedWalkSpeed ~= nil then
+        pcall(function()
+            Hum.WalkSpeed = State.SavedWalkSpeed
+        end)
+    end
+end
+
+-- ==================================================
+-- ✅ SAFE SPEED PAUSE / RESUME
+-- ==================================================
+local function PauseSafeSpeed()
+    if not State.SafeSpeedMode then return end
+    if State.SafeSpeedPaused then return end
+
+    State.SafeSpeedPaused = true
+
+    local Hum = GetHumanoid()
+    if Hum then
+        Hum.WalkSpeed = State.SavedWalkSpeed or 16
     end
 
-    local Hum = GetHum()
-    local Root = GetRoot()
+    print("[TeleportSystem] ⏸️ Safe Speed Mode PAUSED | Speed:", Hum and Hum.WalkSpeed or "nil")
+end
+
+local function ResumeSafeSpeed()
+    if not State.SafeSpeedMode then return end
+    if not State.SafeSpeedPaused then return end
+
+    State.SafeSpeedPaused = false
+
+    local Hum = GetHumanoid()
     if Hum then
-        pcall(function()
-            if SavedWalkSpeed ~= nil then
-                Hum.WalkSpeed = SavedWalkSpeed
+        Hum.WalkSpeed = Config.SafeSpeed
+    end
+
+    print("[TeleportSystem] ▶️ Safe Speed Mode RESUMED | Speed:", Config.SafeSpeed)
+end
+
+-- ==================================================
+-- ✅ CAMERA LOCK
+-- ==================================================
+local function LockCamera()
+    local Camera = workspace.CurrentCamera
+    if not Camera then return end
+
+    State.LockedCameraCFrame = Camera.CFrame
+
+    if State.CameraLockConnection then
+        State.CameraLockConnection:Disconnect()
+        State.CameraLockConnection = nil
+    end
+
+    State.CameraLockConnection = RunService.RenderStepped:Connect(function()
+        if not State.LockedCameraCFrame then return end
+
+        local Cam = workspace.CurrentCamera
+        if Cam then
+            Cam.CFrame = State.LockedCameraCFrame
+            Cam.Focus = State.LockedCameraCFrame
+        end
+    end)
+
+    print("[TeleportSystem] 🔒 Camera Locked:", State.LockedCameraCFrame.Position)
+end
+
+local function UnlockCamera()
+    if State.CameraLockConnection then
+        State.CameraLockConnection:Disconnect()
+        State.CameraLockConnection = nil
+    end
+    State.LockedCameraCFrame = nil
+
+    local Camera = workspace.CurrentCamera
+    if Camera then
+        local Char = Player.Character
+        if Char then
+            local Hum = Char:FindFirstChildOfClass("Humanoid")
+            if Hum then
+                Camera.CameraSubject = Hum
             end
-            Hum.PlatformStand = false
-            Hum.Sit = false
+        end
+    end
+
+    print("[TeleportSystem] 🔓 Camera Unlocked")
+end
+
+-- ==================================================
+-- CLEANUP
+-- ==================================================
+local function CleanupMovers()
+    if State.WalkConnection then State.WalkConnection:Disconnect() State.WalkConnection = nil end
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+
+    local Hum, Root = GetHumanoid()
+    if Hum and Root then
+        pcall(function()
+            Hum:MoveTo(Root.Position)
+            Hum.WalkSpeed = GetWalkSpeed()
         end)
     end
     if Root then
@@ -300,447 +243,512 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- ✅ SELF WALK TP (ប្រើ Speed ដើមរបស់ Player)
+-- ✅ LOCK
 -- ==================================================
-local function SelfWalkTP(Destination, Speed, Callback)
-    CleanupWalk()
+local function StartLock(TargetPos)
+    if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
 
-    local Hum = GetHum()
-    local Root = GetRoot()
+    local LockedCFrame = CFrame.new(TargetPos + Vector3.new(0, Config.LockDistance, 0))
+
+    print("[TeleportSystem] 🔒 Lock at:", TargetPos)
+
+    State.LockConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then
+            if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
+            return
+        end
+
+        local _, Root = GetHumanoid()
+        if not Root then return end
+
+        Root.CFrame = LockedCFrame
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local function StopLock()
+    if State.LockConnection then
+        State.LockConnection:Disconnect()
+        State.LockConnection = nil
+    end
+end
+
+-- ==================================================
+-- ✅ WALK TP (Humanoid:MoveTo + Speed ដើម)
+-- ✅ ជិតដល់ 30m → Pause Safe Speed
+-- ✅ ជិតដល់ 25m → Stop Walk + Lock
+-- ==================================================
+local function WalkTP(Destination, LockAfterArrive, Callback)
+    CleanupMovers()
+
+    local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    -- ✅ Save WalkSpeed ដើម
-    if SavedWalkSpeed == nil then
-        SavedWalkSpeed = Hum.WalkSpeed
-        print("[FarmingManager] Saved WalkSpeed ដើម:", SavedWalkSpeed)
-    end
+    SaveStats()
+    ResumeSafeSpeed()
 
-    -- ✅ ប្រើ Speed ដើម (មិនប្រើ Speed Parameter)
-    Hum.WalkSpeed = SavedWalkSpeed or Hum.WalkSpeed
+    Hum.WalkSpeed = GetWalkSpeed()
 
     local StartTime = tick()
+    local LastCheck = 0
+    local LockDone = false
+    local SlowDone = false
 
-    WalkConnection = RunService.Heartbeat:Connect(function()
-        if not FarmingEnabled then
-            CleanupWalk()
-            return
-        end
+    print(string.format("[TeleportSystem] Walk TP → %s | Speed: %d", tostring(Destination), GetWalkSpeed()))
 
-        local Hum2 = GetHum()
-        local Root2 = GetRoot()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then
-            CleanupWalk()
-            return
-        end
+    State.WalkConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then CleanupMovers() return end
 
-        -- ✅ ប្រើ Speed ដើមរាល់ Heartbeat
-        Hum2.WalkSpeed = SavedWalkSpeed or Hum2.WalkSpeed
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+
+        Hum2.WalkSpeed = GetWalkSpeed()
 
         local Dist = (Root2.Position - Destination).Magnitude
 
-        if Dist <= 3 then
-            CleanupWalk()
-            Hum2:MoveTo(Root2.Position)
-            if Callback then Callback() end
-            return
+        -- ✅ ជិតដល់ 30m → Pause Safe Speed
+        if not SlowDone and Dist <= Config.SlowDistance then
+            SlowDone = true
+            PauseSafeSpeed()
+            Hum2.WalkSpeed = GetWalkSpeed()
         end
 
-        if tick() - StartTime > 30 then
-            CleanupWalk()
+        -- ✅ ជិតដល់ 25m → Stop Walk + Lock
+        if not LockDone and Dist <= Config.NearDistance then
+            LockDone = true
+
+            State.WalkConnection:Disconnect()
+            State.WalkConnection = nil
+            Hum2:MoveTo(Root2.Position)
+            Hum2.WalkSpeed = 0
+
+            print(string.format("[TeleportSystem] ⚡ ជិតដល់ %.0f studs → Lock", Dist))
+
+            task.wait(0.05)
+
+            if LockAfterArrive then
+                StartLock(Destination)
+            end
+
             if Callback then Callback() end
             return
         end
 
         Hum2:MoveTo(Destination)
+
+        if tick() - LastCheck > 0.05 then
+            LastCheck = tick()
+
+            if Dist <= Config.ArriveDistance then
+                CleanupMovers()
+                Hum2:MoveTo(Root2.Position)
+                Hum2.WalkSpeed = 0
+
+                if LockAfterArrive then
+                    StartLock(Destination)
+                end
+
+                if Callback then Callback() end
+                return
+            end
+
+            if tick() - StartTime > Config.WalkTimeout then
+                CleanupMovers()
+                if Callback then Callback() end
+                return
+            end
+        end
     end)
 end
 
 -- ==================================================
--- GET PHASE (FAST)
+-- REMOTES
 -- ==================================================
-local function GetPhase()
-    if AreaEggCycle then
-        local Success, IsNight = pcall(function()
-            return AreaEggCycle.IsNightPhase(Workspace:GetServerTimeNow())
-        end)
-        if Success then
-            return IsNight and "Night" or "Day"
-        end
-    end
-
-    local Success, Text = pcall(function()
-        return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+local function RemoteCollectTarget()
+    if not CollectEvent or not State.TargetUid then return false end
+    local success = pcall(function()
+        return CollectEvent:InvokeServer({ Uid = State.TargetUid })
     end)
-    if Success and Text then
-        local M = tonumber(string.match(Text, "(%d+)m")) or 0
-        local S = tonumber(string.match(Text, "(%d+)s")) or 0
-        local Sec = M * 60 + S
-        return Sec > 10 and "Day" or "Night"
-    end
+    return success
+end
 
-    return "UNKNOWN"
+local function RemoteDrop()
+    if not DropEvent then return false end
+    local Success, Result = pcall(function()
+        return DropEvent:InvokeServer({ Reason = "PlayerRequest" })
+    end)
+    return Success and Result
 end
 
 -- ==================================================
--- STOP ALL
+-- ✅ DROPHELDEGG (Signal Listener)
 -- ==================================================
-local function StopAll()
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-        local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
-        if not TreadmillPos then
-            local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
-            if Treadmill then TreadmillPos = Treadmill.Position end
-        end
-        if TreadmillPos then
-            _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
-                _G.YOKUDO_AFKSystem.Disable()
-                AFKStarted = false
+local function SetupDropHeldEgg()
+    local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
+    if not PG then return end
+
+    State.DropHeldEgg = PG:FindFirstChild("DropHeldEgg")
+    if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
+
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
+    end
+
+    State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
+        local IsEnabled = State.DropHeldEgg.Enabled == true
+        print("[TeleportSystem] ⚡ DropHeldEgg.Enabled Changed →", IsEnabled)
+
+        if IsEnabled and State.Running and State.Step == "2_collect_target" then
+            print("[TeleportSystem] ✅ DETECTED TRUE → Walk TP Position 1")
+
+            State.TargetCollected = true
+            StopLock()
+
+            task.spawn(function()
+                task.wait(0.02)
+                Step3_WalkToPosition1()
             end)
-        else
-            _G.YOKUDO_AFKSystem.Disable()
-            AFKStarted = false
+        end
+
+        if IsEnabled and State.Running and State.Step == "6_collect_again" then
+            print("[TeleportSystem] ✅ Step 6 DETECTED TRUE → Walk Position 2")
+
+            State.CollectedAgain = true
+            StopLock()
+
+            task.spawn(function()
+                task.wait(0.2)
+                Step7_WalkToPosition2()
+            end)
+        end
+    end)
+
+    print("[TeleportSystem] ✅ DropHeldEgg Signal Listener Setup")
+end
+
+local function IsTargetInContainer()
+    return State.TargetUid and Container and Container:FindFirstChild(State.TargetUid) ~= nil
+end
+
+local function IsTargetInWorkspace()
+    return State.TargetUid and workspace:FindFirstChild(State.TargetUid) ~= nil
+end
+
+local function GetTargetPosition()
+    if IsTargetInContainer() then
+        local Egg = Container:FindFirstChild(State.TargetUid)
+        if Egg then return GetPosition(Egg) end
+    elseif IsTargetInWorkspace() then
+        local Egg = workspace:FindFirstChild(State.TargetUid)
+        if Egg then return GetPosition(Egg) end
+    end
+    return nil
+end
+
+-- ==================================================
+-- ✅ AUTO STOP (Reset WalkSpeed + Unlock Camera + Resume + Callback)
+-- ==================================================
+local function AutoStop()
+    StopLock()
+    CleanupMovers()
+    UnlockCamera()
+    ResumeSafeSpeed()
+
+    local Char = Player.Character
+    if Char then
+        local Hum = Char:FindFirstChildOfClass("Humanoid")
+        if Hum then
+            Hum.WalkSpeed = GetWalkSpeed()
+            print("[TeleportSystem] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
         end
     end
 
-    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-        _G.YOKUDO_TeleportSystem.Disable()
-        print("[FarmingManager] ✅ TeleportSystem Stopped")
-    end
+    State.Running = false
+    State.Step = "done"
+    State.TargetCollected = false
+    State.CollectedAgain = false
+    State.DropDone = false
 
-    CleanupWalk()
+    print("[TeleportSystem] ✅ Auto Stop")
 
-    -- ✅ Restore Speed ដើម
-    local Hum = GetHum()
-    if Hum and SavedWalkSpeed ~= nil then
-        pcall(function()
-            Hum.WalkSpeed = SavedWalkSpeed
-        end)
-    end
-end
-
--- ==================================================
--- FLY TO SAFE ZONE AND WAIT (Walk TP)
--- ==================================================
-local function FlyToSafeZoneAndWait()
-    local Root = GetRoot()
-    if not Root then return false end
-
-    local DistToSafe = (Root.Position - SAFE_ZONE).Magnitude
-    if DistToSafe <= SAFE_ZONE_DIST then
-        return true
-    end
-
-    -- ✅ ប្រើ SelfWalkTP ដោយ Speed ដើម
-    SelfWalkTP(SAFE_ZONE, nil)
-
-    local WaitTime = 0
-    while FarmingEnabled and WaitTime < 30 do
-        local Root2 = GetRoot()
-        if Root2 then
-            local Dist = (Root2.Position - SAFE_ZONE).Magnitude
-            if Dist <= SAFE_ZONE_DIST then return true end
+    -- ✅ Callback → FarmingManager
+    task.spawn(function()
+        task.wait(0.3)
+        if _G.YOKUDO_FarmingManager then
+            if type(_G.YOKUDO_FarmingManager.OnTeleportComplete) == "function" then
+                local Success, Err = pcall(function()
+                    _G.YOKUDO_FarmingManager.OnTeleportComplete()
+                end)
+                if not Success then
+                    warn("[TeleportSystem] OnTeleportComplete Error:", Err)
+                end
+            elseif type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
+                pcall(function()
+                    _G.YOKUDO_FarmingManager.OnVIPTPComplete()
+                end)
+            end
         end
-        task.wait(0.05)
-        WaitTime = WaitTime + 0.05
-    end
-
-    return false
+    end)
 end
 
 -- ==================================================
--- ✅ START TELEPORT SYSTEM
+-- ✅ STEP 1: Walk → Target → Lock → Collect
 -- ==================================================
-local function StartTeleportSystem(EggUid)
-    if not _G.YOKUDO_TeleportSystem then
-        warn("[FarmingManager] TeleportSystem not loaded!")
-        return
-    end
+local function Step1_WalkToTarget()
+    State.Step = "1_to_target"
+    State.TargetCollected = false
 
-    print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
+    local TargetPos = GetTargetPosition()
+    if not TargetPos then AutoStop() return end
 
-    WaitingForTeleport = true
-    _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
-    _G.YOKUDO_TeleportSystem.Enable()
-end
+    print("[TeleportSystem] Step 1: Walk → Target")
 
--- ==================================================
--- ✅ CALLBACK ពី TeleportSystem
--- ==================================================
-local function OnTeleportComplete()
-    if not FarmingEnabled then
-        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
-        return
-    end
-    if not WaitingForTeleport then
-        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
-        return
-    end
+    WalkTP(TargetPos, true, function()
+        print("[TeleportSystem] Step 1 Done: At Target + Locked → Collect")
 
-    WaitingForTeleport = false
-    AFKStarted = false
-    print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
+        local NewTargetPos = GetTargetPosition()
+        if NewTargetPos then
+            StartLock(NewTargetPos)
+        end
 
-    local BestEgg = FindBestEgg()
-
-    if BestEgg then
-        print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Location:", BestEgg.Location)
-        PendingEggUid = BestEgg.Uid
+        State.Step = "2_collect_target"
+        State.TargetCollected = false
 
         task.spawn(function()
-            local ReachedSafe = FlyToSafeZoneAndWait()
-            if ReachedSafe and PendingEggUid then
-                task.wait(SAFE_WAIT_AFTER_REACH)
-                StartTeleportSystem(PendingEggUid)
-                PendingEggUid = nil
-            else
-                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
+            while State.Running and State.Step == "2_collect_target" do
+                task.wait(Config.CollectInterval)
+                RemoteCollectTarget()
             end
         end)
-    else
-        print("[FarmingManager] ❌ No Egg → Enable AFK")
-
-        if _G.YOKUDO_AFKSystem then
-            if not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-                print("[FarmingManager] ✅ AFKSystem Enabled")
-            else
-                print("[FarmingManager] AFKSystem already enabled")
-            end
-        else
-            warn("[FarmingManager] AFKSystem not loaded!")
-        end
-    end
+    end)
 end
 
 -- ==================================================
--- WAIT FOR DAY
+-- ✅ STEP 3: Lock Camera → Walk TP → Position 1
 -- ==================================================
-local function WaitForDay()
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-        if Phase == "Day" then return true end
-        task.wait(DAY_CHECK_INTERVAL)
+Step3_WalkToPosition1 = function()
+    if not State.Running then return end
+
+    State.Step = "3_to_position1"
+    StopLock()
+
+    LockCamera()
+
+    local Hum = GetHumanoid()
+    if Hum then
+        Hum.WalkSpeed = GetWalkSpeed()
     end
-    return false
+
+    print("[TeleportSystem] Step 3: Lock Camera → Walk TP → Position 1")
+
+    WalkTP(Config.Position1, true, function()
+        print("[TeleportSystem] Step 3 Done: At Position 1 → Lock + Drop")
+        Step4_LockAndDrop()
+    end)
 end
 
 -- ==================================================
--- NIGHT LOOP (FAST)
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Resume
 -- ==================================================
-local function NightLoop()
-    print("[FarmingManager] NightLoop (0.03s)")
+Step4_LockAndDrop = function()
+    if not State.Running then return end
 
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
+    State.Step = "4_drop_at_p1"
 
-        if Phase == "Day" then return end
+    print("[TeleportSystem] Step 4: Lock Position 1 + Drop")
 
-        local BestEgg = FindBestEgg()
+    StartLock(Config.Position1)
 
-        if BestEgg then
-            print("[FarmingManager] ✅ Night + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-            PendingEggUid = BestEgg.Uid
+    task.spawn(function()
+        task.wait(Config.LockWait)
 
-            StopAll()
+        RemoteDrop()
+        print("[TeleportSystem] Step 4 Done: Remote Drop")
+
+        State.DropDone = true
+
+        task.wait(0.2)
+        StopLock()
+
+        UnlockCamera()
+        ResumeSafeSpeed()
+
+        task.spawn(function()
             task.wait(0.3)
+            Step5_WalkToCollectAgain()
+        end)
+    end)
+end
 
-            local ReachedSafe = FlyToSafeZoneAndWait()
-            if ReachedSafe then
-                task.wait(SAFE_WAIT_AFTER_REACH)
-                local IsDay = WaitForDay()
-                if IsDay and PendingEggUid then
-                    StartTeleportSystem(PendingEggUid)
-                    PendingEggUid = nil
-                    while WaitingForTeleport and FarmingEnabled do
-                        task.wait(0.2)
-                    end
-                end
-            end
-            return
-        else
-            if not AFKStarted then
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
-            end
+-- ==================================================
+-- ✅ STEP 5: Walk → Collect វិញ
+-- ==================================================
+Step5_WalkToCollectAgain = function()
+    if not State.Running then return end
+
+    State.Step = "5_to_collect_again"
+    State.CollectedAgain = false
+
+    local TargetPos = GetTargetPosition()
+    if not TargetPos then
+        print("[TeleportSystem] Target Gone → Position 2")
+        Step7_WalkToPosition2()
+        return
+    end
+
+    print("[TeleportSystem] Step 5: Walk → Collect Again")
+
+    WalkTP(TargetPos, true, function()
+        print("[TeleportSystem] Step 5 Done: At Target + Locked → Collect Again")
+
+        local NewTargetPos = GetTargetPosition()
+        if NewTargetPos then
+            StartLock(NewTargetPos)
         end
 
-        task.wait(NIGHT_CHECK_INTERVAL)
-    end
-end
+        State.Step = "6_collect_again"
+        State.CollectedAgain = false
 
--- ==================================================
--- DAY LOOP (FAST)
--- ==================================================
-local function DayLoop()
-    print("[FarmingManager] DayLoop (0.05s)")
-
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-
-        if Phase == "Night" then return end
-
-        local BestEgg = FindBestEgg()
-
-        if BestEgg then
-            print("[FarmingManager] ✅ Day + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-
-            StopAll()
-            task.wait(0.3)
-
-            FlyToSafeZoneAndWait()
-            task.wait(0.5)
-
-            StartTeleportSystem(BestEgg.Uid)
-
-            while WaitingForTeleport and FarmingEnabled do
-                task.wait(0.2)
+        task.spawn(function()
+            while State.Running and State.Step == "6_collect_again" do
+                task.wait(Config.CollectInterval)
+                RemoteCollectTarget()
             end
-        else
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-            end
-        end
-
-        task.wait(DAY_CHECK_INTERVAL)
-    end
+        end)
+    end)
 end
 
 -- ==================================================
--- MAIN LOOP
+-- ✅ STEP 7: Walk → Position 2 → Stop
 -- ==================================================
-local function MainLoop()
-    print("[FarmingManager] MainLoop Started")
+Step7_WalkToPosition2 = function()
+    if not State.Running then return end
 
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
+    State.Step = "7_to_position2"
 
-        if Phase == "Day" then
-            DayLoop()
-        else
-            NightLoop()
-        end
+    print("[TeleportSystem] Step 7: Walk → Position 2")
 
-        task.wait(0.05)
-    end
-    print("[FarmingManager] MainLoop Stopped")
+    WalkTP(Config.Position2, false, function()
+        print("[TeleportSystem] Step 7 Done: At Position 2 → Stop")
+
+        State.Step = "8_done"
+
+        task.wait(0.2)
+        AutoStop()
+    end)
 end
 
 -- ==================================================
--- ENABLE / DISABLE
+-- ✅ START PROCESS
 -- ==================================================
-local function Enable()
-    if FarmingEnabled then return end
-    FarmingEnabled = true
-    CurrentState = "CHECK_TIME"
-    AFKStarted = false
-    PendingEggUid = nil
-    WaitingForTeleport = false
+local function StartProcess()
+    State.Running = true
+    State.Step = "idle"
+    State.TargetCollected = false
+    State.CollectedAgain = false
+    State.DropDone = false
 
-    if FarmingThread then
-        pcall(function() task.cancel(FarmingThread) end)
-        FarmingThread = nil
-    end
-    FarmingThread = task.spawn(function() MainLoop() end)
+    SetupDropHeldEgg()
+    SaveStats()
 
-    print("[YOKUDO] FarmingManager: ON")
-end
+    print("[TeleportSystem] ========== START (Walk TP Only) ==========")
+    print("[TeleportSystem] Target UID:", State.TargetUid)
+    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode)
+    print("[TeleportSystem] Current Speed:", GetWalkSpeed())
 
-local function Disable()
-    if not FarmingEnabled then return end
-    FarmingEnabled = false
-
-    if FarmingThread then
-        pcall(function() task.cancel(FarmingThread) end)
-        FarmingThread = nil
-    end
-
-    StopAll()
-
-    AFKStarted = false
-    PendingEggUid = nil
-    WaitingForTeleport = false
-    CurrentState = "IDLE"
-    CurrentPhase = "UNKNOWN"
-    print("[YOKUDO] FarmingManager: OFF")
-end
-
-local function Toggle()
-    if FarmingEnabled then Disable() else Enable() end
+    task.spawn(function()
+        task.wait(0.3)
+        Step1_WalkToTarget()
+    end)
 end
 
 -- ==================================================
--- EXPORT
+-- FULL RESET
 -- ==================================================
-_G.YOKUDO_FarmingManager = {
-    Enable = Enable,
-    Disable = Disable,
-    Toggle = Toggle,
-    IsEnabled = function() return FarmingEnabled end,
-    SetRarities = SetRarities,
-    GetState = function() return CurrentState end,
-    GetPhase = function() return CurrentPhase end,
-    FindBestEgg = FindBestEgg,
+local function FullReset()
+    StopLock()
+    CleanupMovers()
+    UnlockCamera()
+    ResumeSafeSpeed()
+    RestoreStats()
 
-    GetEggData = function(Uid)
-        if not Uid then return nil end
-        local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-        local Slot = (Container and Container:FindFirstChild(Uid)) or workspace:FindFirstChild(Uid)
-        if not Slot then return nil end
-        local Category = FindAssetCategory(Slot)
-        if not Category then return nil end
-        return GetPetData(Category)
-    end,
-
-    GetUidLocation = function(Uid)
-        if not Uid then return "none" end
-        local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-        local InContainer = Container and Container:FindFirstChild(Uid) ~= nil
-        if InContainer then return "spawn" end
-        local InWorkspace = workspace:FindFirstChild(Uid) ~= nil
-        if InWorkspace then return "workspace" end
-        return "none"
-    end,
-
-    NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
-    DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
-    METHOD = METHOD,
-
-    OnTeleportComplete = OnTeleportComplete,
-    OnVIPTPComplete = OnTeleportComplete,
-}
-
--- ==================================================
--- BUILD CACHE ON LOAD
--- ==================================================
-task.spawn(function()
-    task.wait(1)
-    BuildMeshIdMap()
-    print("[FarmingManager] Cache Ready")
-end)
-
--- ==================================================
--- PERIODIC CACHE CLEANUP (រាល់ 30s)
--- ==================================================
-task.spawn(function()
-    while task.wait(30) do
-        Cache.UidCategory = {}
-        print("[FarmingManager] Uid Cache Cleaned")
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
     end
-end)
+    State.DropHeldEgg = nil
 
-print("✅ FarmingManager Loaded (Walk TP + Speed ដើម + TeleportSystem
+    State.Running = false
+    State.Step = "idle"
+    State.TargetCollected = false
+    State.CollectedAgain = false
+    State.DropDone = false
+    State.SafeSpeedPaused = false
+
+    print("[TeleportSystem] Full Reset")
+end
+
+-- ==================================================
+-- PUBLIC API
+-- ==================================================
+local TeleportSystem = {}
+
+function TeleportSystem.Enable()
+    if State.Running then return end
+    if not CollectEvent then warn("[TeleportSystem] CollectEvent not found") return end
+    if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
+    if not State.TargetUid then warn("[TeleportSystem] No Target ID") return end
+
+    FullReset()
+    StartProcess()
+
+    print("[TeleportSystem] ON | Target: " .. tostring(State.TargetUid))
+end
+
+function TeleportSystem.Disable()
+    FullReset()
+    print("[TeleportSystem] OFF")
+end
+
+function TeleportSystem.SetTargetId(Id)
+    State.TargetUid = Id
+    print("[TeleportSystem] Target ID: " .. tostring(Id))
+end
+
+function TeleportSystem.SetSafeSpeedMode(Enabled)
+    State.SafeSpeedMode = Enabled == true
+
+    local Hum = GetHumanoid()
+    if Hum and State.SavedWalkSpeed == nil then
+        State.SavedWalkSpeed = Hum.WalkSpeed
+    end
+
+    State.SafeSpeedPaused = false
+
+    if Hum then
+        Hum.WalkSpeed = GetWalkSpeed()
+    end
+
+    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode, "| Speed:", GetWalkSpeed())
+end
+
+function TeleportSystem.GetSafeSpeedMode()
+    return State.SafeSpeedMode
+end
+
+function TeleportSystem.GetCurrentSpeed()
+    return GetWalkSpeed()
+end
+
+function TeleportSystem.IsEnabled() return State.Running end
+function TeleportSystem.GetTargetId() return State.TargetUid end
+
+-- Export
+_G.YOKUDO_TeleportSystem = TeleportSystem
+
+print("✅ TeleportSystem Loaded (Walk TP Only + Forward Declarations)")
