@@ -1,8 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader
--- ✅ Load CharacterSystem មុន Features
--- ✅ FarmingManager មុន VIPTP (ដោះស្រាយ Callback nil)
--- ✅ SafeSpeedMode (ថ្មី) | ❌ AntiRagdoll (ដកចេញ)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED)
+-- ✅ SafeSpeedMode Feature
+-- ✅ CollectEggNew + ESP Tabs
+-- ✅ TeleportSystem (បញ្ចូល Lock Camera + Drop)
+-- ❌ គ្មាន AntiGuard (បញ្ចូលក្នុង TeleportSystem)
+-- ❌ គ្មាន DropEgg (បញ្ចូលក្នុង TeleportSystem)
+-- ❌ គ្មាន AntiRagdoll
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -152,9 +155,6 @@ local function CreateLoadingScreen()
     }
 end
 
--- ==================================================
--- CREATE LOADING SCREEN
--- ==================================================
 local Loading = CreateLoadingScreen()
 Loading.Update(5)
 
@@ -188,11 +188,12 @@ loadstring(GetScript("Features/WalkSpeed.lua"))()
 Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
 
--- ✅ ដក AntiRagdoll ចេញ
+-- ❌ ដក AntiRagdoll
 
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
+-- ✅ TeleportSystem (បញ្ចូល Lock Camera + Drop)
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -226,37 +227,44 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(61)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
+-- ❌ ដក DropEgg (បញ្ចូលក្នុង TeleportSystem)
+-- ❌ ដក AntiGuard (បញ្ចូលក្នុង TeleportSystem)
+
 -- ✅ ConfigSystem
 Loading.Update(63)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
--- ✅ BypassAntiCheat
-Loading.Update(65)
-loadstring(GetScript("Features/BypassAntiCheat.lua"))()
-
 -- ==================================================
 -- LOAD TABS
 -- ==================================================
-Loading.Update(68)
+Loading.Update(65)
 loadstring(GetScript("Tabs/Info.lua"))()
 
-Loading.Update(70)
+Loading.Update(68)
 loadstring(GetScript("Tabs/Farming.lua"))()
 
-Loading.Update(73)
+Loading.Update(70)
 loadstring(GetScript("Tabs/Combat.lua"))()
 
-Loading.Update(76)
+Loading.Update(73)
 loadstring(GetScript("Tabs/AutoFarming.lua"))()
 
-Loading.Update(80)
+Loading.Update(76)
 loadstring(GetScript("Tabs/Event.lua"))()
 
-Loading.Update(85)
+Loading.Update(80)
 loadstring(GetScript("Tabs/HopServer.lua"))()
 
-Loading.Update(90)
+Loading.Update(85)
 loadstring(GetScript("Tabs/Setting.lua"))()
+
+-- ✅ Collect Egg new Tab
+Loading.Update(88)
+loadstring(GetScript("Tabs/CollectEggNew.lua"))()
+
+-- ✅ ESP Tab (Name + Distance + Box)
+Loading.Update(90)
+loadstring(GetScript("Tabs/ESP.lua"))()
 
 -- ==================================================
 -- SELECT DEFAULT TAB
@@ -267,6 +275,12 @@ if _G.YOKUDO_TabsManager then
 end
 
 Loading.Update(95)
+
+-- ==================================================
+-- LOAD ANTI CHEAT
+-- ==================================================
+Loading.Update(98)
+loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 -- ==================================================
 -- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
