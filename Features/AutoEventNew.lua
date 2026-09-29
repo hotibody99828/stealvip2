@@ -1,9 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New
+-- YOKUDO HUB | FEATURE | Auto Event New (v2)
+-- ✅ ពេល PortalLeave បាត់ → DONE → Call Manager
 -- ✅ Boss ទាំង ៣: Lock Behind (3/5) + Above + Face + Attack
 -- ✅ Range: Boss 1 & 3 = 100 | Boss 2 = 50
--- ✅ Check Portal ជិតជាង Boss → Fly Portal មុន
--- ✅ Push Up Y ពេលធ្លាក់ក្រោម -472
 -- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
@@ -54,6 +53,10 @@ local EQUIP_CHECK_INTERVAL = 0.1
 
 local NEXT_BOSS_WAIT_TIMEOUT = 60
 local PORTAL_LEAVE_NEAR_THRESHOLD = 50
+
+-- ✅ Check LeaveTeleport Gone
+local LEAVE_CHECK_INTERVAL = 0.5
+local LEAVE_GONE_TIMEOUT = 60   -- ✅ បើ LeaveTeleport បាត់ រង់ចាំ Timeout 60s
 
 -- ==================================================
 -- STATE
@@ -175,10 +178,16 @@ local function CleanupMovers(KeepPlatformStand)
 end
 
 local function FindPortal() return workspace:FindFirstChild(PORTAL_NAME) end
+
 local function FindPortalLeave()
     local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
     if not Arena then return nil end
     return Arena:FindFirstChild(PORTAL_LEAVE_NAME)
+end
+
+-- ✅ Check LeaveTeleport Gone
+local function IsLeaveTeleportGone()
+    return FindPortalLeave() == nil
 end
 
 local function IsPlayerAtPortalLeave()
@@ -430,6 +439,28 @@ local function StopPushUpY()
 end
 
 -- ==================================================
+-- ✅ CALL MANAGER (ពេល Done)
+-- ==================================================
+local function CallManagerOnDone()
+    DebugPrint("🎉 Event Complete → Call Manager")
+
+    -- ✅ Call ManagerDrone
+    if _G.YOKUDO_ManagerDrone then
+        pcall(function()
+            _G.YOKUDO_ManagerDrone.Enable()
+        end)
+        DebugPrint("✅ ManagerDrone Called")
+    end
+
+    -- ✅ Enable AFK (បើ ManagerDrone មិន Enable)
+    if _G.YOKUDO_AFKSystem then
+        pcall(function()
+            _G.YOKUDO_AFKSystem.Enable()
+        end)
+    end
+end
+
+-- ==================================================
 -- MAIN LOOP
 -- ==================================================
 local function MainLoop()
@@ -479,6 +510,7 @@ local function MainLoop()
         SetupTargetForBoss(Boss, BossName)
     else
         AutoEventEnabled = false
+        CallManagerOnDone()
         return
     end
 
@@ -517,14 +549,20 @@ local function MainLoop()
         task.wait(0.01)
     end
 
+    -- ✅ Wait LeaveTeleport Gone
+    DebugPrint("⏳ Waiting for LeaveTeleport Gone...")
     local Elapsed = 0
-    while AutoEventEnabled and Elapsed < 60 do
-        local LeaveTP = FindPortalLeave()
-        local BossAlive = AnyBossAlive()
-        if not LeaveTP and not BossAlive then break end
-        task.wait(0.5)
-        Elapsed = Elapsed + 0.5
+    while AutoEventEnabled and Elapsed < LEAVE_GONE_TIMEOUT do
+        if IsLeaveTeleportGone() and not AnyBossAlive() then
+            DebugPrint("✅ LeaveTeleport Gone + No Boss → DONE")
+            break
+        end
+        task.wait(LEAVE_CHECK_INTERVAL)
+        Elapsed = Elapsed + LEAVE_CHECK_INTERVAL
     end
+
+    -- ✅ DONE → Auto Stop + Call Manager
+    DebugPrint("🎉 DONE → Call Manager")
 
     AutoEventEnabled = false
     CleanupMovers()
@@ -538,6 +576,12 @@ local function MainLoop()
         pcall(function() task.cancel(MainThread) end)
         MainThread = nil
     end
+
+    -- ✅ Call Manager
+    task.spawn(function()
+        task.wait(0.5)
+        CallManagerOnDone()
+    end)
 end
 
 -- ==================================================
@@ -586,15 +630,14 @@ _G.YOKUDO_AutoEventNew = {
     IsEnabled = function() return AutoEventEnabled end,
     FindAnyBoss = FindAnyBoss,
     SetupTargetForBoss = SetupTargetForBoss,
+    IsLeaveTeleportGone = IsLeaveTeleportGone,
+    CallManagerOnDone = CallManagerOnDone,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     LOCK_BEHIND_BALL = LOCK_BEHIND_BALL,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
 }
 
--- ==================================================
--- REGISTER WITH CHARACTER SYSTEM
--- ==================================================
 if _G.YOKUDO_CharacterSystem then
     _G.YOKUDO_CharacterSystem:RegisterFeature({
         Name = "AutoEventNew",
@@ -615,4 +658,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoEventNew Feature Loaded")
+print("✅ AutoEventNew Feature Loaded (Call Manager on Done)")
