@@ -24,7 +24,7 @@ local Config = {
     ShotTPTime = 1.15,
     ArriveDistance = 2,
     LockWait = 0.1,
-    NearDistance = 20,
+    NearDistance = 10,
     StopSafeSpeedDistance = 30,   -- ✅ ជិតដល់ 30m → Stop Safe Speed
     LockDistance = 1,
 
