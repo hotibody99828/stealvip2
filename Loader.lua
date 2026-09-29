@@ -221,7 +221,7 @@ loadstring(GetScript("Features/FarmingManager.lua"))()
 
 -- ✅ VIPTP (Walk TP + Safe Speed Mode)
 Loading.Update(54)
-loadstring(GetScript("Features/VIPTP.lua"))()
+--loadstring(GetScript("Features/VIPTP.lua"))()
 
 -- ✅ AutoEventNew
 Loading.Update(58)
