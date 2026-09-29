@@ -1,12 +1,14 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v7 FINAL)
+-- YOKUDO HUB | FEATURE | Manager Drone (v8 FINAL — Full Control)
+-- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
 -- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
--- ✅ ឃើញ Portal → AFKSystem.Disable() → AutoEventNew.Enable()
--- ✅ Portal បាត់ → AutoEventNew.Disable() → Full Reset → AFKSystem.Enable()
+-- ✅ ឃើញ Portal → AFKSystem.Disable() → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
+-- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
 -- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
 -- ==================================================
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Player = Players.LocalPlayer
 
 -- ==================================================
@@ -14,6 +16,11 @@ local Player = Players.LocalPlayer
 -- ==================================================
 local PORTAL_CHECK_INTERVAL = 0.5
 local PORTAL_NAME = "ScrambleArenaPortal"
+local SAFE_ZONE = Vector3.new(533, 70, -366)
+local SAFE_ZONE_WAIT = 3          -- ✅ រង់ចាំ 3s នៅ Safe Zone
+local FLY_SPEED = 500
+local ARRIVE_DISTANCE = 5
+local FLY_TIMEOUT = 15
 
 -- ==================================================
 -- STATE
@@ -21,6 +28,9 @@ local PORTAL_NAME = "ScrambleArenaPortal"
 local ManagerEnabled = false
 local ManagerThread = nil
 local LastPortalState = false
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
 
 -- ==================================================
 -- CHECK FARMING MANAGER
@@ -51,6 +61,150 @@ local function IsAutoEventNewActive()
 end
 
 -- ==================================================
+-- GET HUMANOID
+-- ==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    return Char:FindFirstChildOfClass("Humanoid"), Char:FindFirstChild("HumanoidRootPart")
+end
+
+-- ==================================================
+-- CLEANUP FLY
+-- ==================================================
+local function CleanupFly()
+    if FlyConnection then FlyConnection:Disconnect() FlyConnection = nil end
+    if BodyVelocity then
+        pcall(function()
+            BodyVelocity.Velocity = Vector3.zero
+            BodyVelocity.MaxForce = Vector3.zero
+        end)
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
+    if BodyGyro then
+        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
+    local Hum, Root = GetHumanoid()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
+    end
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+end
+
+-- ==================================================
+-- ✅ FLY TP (BodyV + BodyG)
+-- ==================================================
+local function FlyTP(Destination, Callback)
+    CleanupFly()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    Hum.PlatformStand = true
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1250
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 3000
+    BodyGyro.D = 500
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
+
+    local StartTime = tick()
+
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not ManagerEnabled then CleanupFly() return end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupFly() return end
+        if not BodyVelocity or not BodyGyro then CleanupFly() return end
+
+        local CurrentPos = Root2.Position
+        local Dir = Destination - CurrentPos
+        local TotalDist = Dir.Magnitude
+
+        if TotalDist <= ARRIVE_DISTANCE then
+            CleanupFly()
+            Root2.CFrame = CFrame.new(Destination)
+            if Callback then Callback() end
+            return
+        end
+
+        if tick() - StartTime > FLY_TIMEOUT then
+            CleanupFly()
+            if Callback then Callback() end
+            return
+        end
+
+        BodyVelocity.Velocity = Dir.Unit * FLY_SPEED
+        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
+    end)
+end
+
+-- ==================================================
+-- ✅ FLY TO SAFE ZONE
+-- ==================================================
+local function FlyToSafeZone(Callback)
+    print("[ManagerDrone] 🚀 Fly TP → Safe Zone")
+
+    FlyTP(SAFE_ZONE, function()
+        print("[ManagerDrone] ✅ Arrived Safe Zone")
+        if Callback then Callback() end
+    end)
+end
+
+-- ==================================================
+-- ✅ FLY TO PORTAL
+-- ==================================================
+local function FlyToPortal(Callback)
+    local Portal = workspace:FindFirstChild(PORTAL_NAME)
+    if not Portal then
+        print("[ManagerDrone] ⚠️ Portal not found")
+        if Callback then Callback() end
+        return
+    end
+
+    local PortalPart = Portal:IsA("Model") and (Portal.PrimaryPart or Portal:FindFirstChildWhichIsA("BasePart")) or Portal
+    local PortalPos = PortalPart and PortalPart.Position or nil
+    if not PortalPos then
+        print("[ManagerDrone] ⚠️ Portal position not found")
+        if Callback then Callback() end
+        return
+    end
+
+    -- ✅ Y = Ground + 5 (Portal Y 75)
+    local TargetPos = Vector3.new(PortalPos.X, 75, PortalPos.Z)
+
+    print("[ManagerDrone] 🚀 Fly TP → Portal | Pos:", tostring(TargetPos))
+
+    FlyTP(TargetPos, function()
+        print("[ManagerDrone] ✅ Arrived Portal")
+        if Callback then Callback() end
+    end)
+end
+
+-- ==================================================
 -- FORCE STOP ALL
 -- ==================================================
 local function ForceStopAll()
@@ -62,6 +216,8 @@ local function ForceStopAll()
     if _G.YOKUDO_AFKSystem then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
     end
+
+    CleanupFly()
 end
 
 -- ==================================================
@@ -78,19 +234,15 @@ local function EnableAFKSystem()
         return
     end
 
-    -- ✅ Disable មុនបើ Enabled (Reset State)
+    -- ✅ Disable មុនបើ Enabled
     if _G.YOKUDO_AFKSystem.IsEnabled() then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         task.wait(0.3)
     end
 
-    -- ✅ Enable AFKSystem ជាប់
-    local OK = pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
-    if OK then
-        print("[ManagerDrone] ✅ AFKSystem Enabled (Walk TP)")
-    else
-        print("[ManagerDrone] ❌ AFKSystem Enable Failed")
-    end
+    -- ✅ Enable AFKSystem
+    pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+    print("[ManagerDrone] ✅ AFKSystem Enabled (Walk TP)")
 end
 
 -- ==================================================
@@ -98,6 +250,8 @@ end
 -- ==================================================
 local function FullReset()
     print("[ManagerDrone] 🔄 Full Reset...")
+
+    CleanupFly()
 
     if _G.YOKUDO_AutoEventNew then
         pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
@@ -116,7 +270,7 @@ end
 -- ==================================================
 local function CallManagerAfterDone()
     print("[ManagerDrone] ================================")
-    print("[ManagerDrone] 🎉 Portal Gone → Stop + Reset → AFK")
+    print("[ManagerDrone] 🎉 Portal Gone → Stop Attack + Call AFK")
     print("[ManagerDrone] ================================")
 
     -- ✅ 1. Stop AutoEventNew
@@ -127,7 +281,7 @@ local function CallManagerAfterDone()
 
     task.wait(0.5)
 
-    -- ✅ 2. Enable AFKSystem ជាប់
+    -- ✅ 2. Enable AFKSystem (Walk TP)
     if not IsFarmingManagerActive() then
         EnableAFKSystem()
     else
@@ -159,11 +313,21 @@ local function SwitchAFKToAttack()
 
     task.wait(0.5)
 
-    -- ✅ 2. Enable AutoEventNew
-    if _G.YOKUDO_AutoEventNew then
-        pcall(function() _G.YOKUDO_AutoEventNew.Enable() end)
-        print("[ManagerDrone] ✅ AutoEventNew Enabled")
-    end
+    -- ✅ 2. Fly TP → Safe Zone
+    FlyToSafeZone(function()
+        -- ✅ 3. រង់ចាំ 3s នៅ Safe Zone
+        print("[ManagerDrone] ⏳ Wait 3s at Safe Zone...")
+        task.wait(SAFE_ZONE_WAIT)
+
+        -- ✅ 4. Fly TP → Portal
+        FlyToPortal(function()
+            -- ✅ 5. Enable AutoEventNew
+            if _G.YOKUDO_AutoEventNew then
+                _G.YOKUDO_AutoEventNew.Enable()
+                print("[ManagerDrone] ✅ AutoEventNew Enabled")
+            end
+        end)
+    end)
 end
 
 -- ==================================================
@@ -282,6 +446,8 @@ _G.YOKUDO_ManagerDrone = {
     FullReset = FullReset,
     EnableAFKSystem = EnableAFKSystem,
     IsFarmingManagerActive = IsFarmingManagerActive,
+    FlyToSafeZone = FlyToSafeZone,
+    FlyToPortal = FlyToPortal,
 }
 
-print("✅ ManagerDrone Feature Loaded (v7 FINAL — Portal Gone → AFK)")
+print("✅ ManagerDrone Feature Loaded (v8 FINAL — Full Control)")
