@@ -491,4 +491,25 @@ _G.YOKUDO_ManagerDrone = {
     FlyToPortal = FlyToPortal,
 }
 
+-- ==================================================
+-- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not ManagerEnabled then return end
+
+    DebugPrint("🔄 Character Added → Wait for Respawn...")
+    task.wait(2)
+
+    DebugPrint("✅ Resumed after Respawn")
+
+    -- ✅ បើ Portal បាត់ → Enable AFK
+    task.spawn(function()
+        task.wait(0.5)
+        if not IsPortalSpawned() then
+            DebugPrint("No Portal → Enable AFK")
+            EnableAFKSystem()
+        end
+    end)
+end)
+
 print("✅ ManagerDrone Feature Loaded (v10 DEBUG)")
