@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (WALK TP ONLY) (v3 FINAL)
+-- YOKUDO HUB | FEATURE | AFK System (v4 FINAL)
 -- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
--- ✅ គ្មាន Fly | គ្មាន Shot TP
+-- ✅ Reset PlatformStand ពេល Arrived
+-- ✅ Check Grounded ពេល Arrived
 -- ✅ Character Respawn → Resume
--- ❌ គ្មាន Debug Print
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -22,6 +22,7 @@ local DIST_TREADMILL_THRESHOLD = 5
 local DIST_CHECK_INTERVAL = 4
 local SAFE_WAIT_TIME = 1
 local SAFE_ZONE = Vector3.new(533, 70, -366)
+local GROUND_CHECK_DISTANCE = 10
 
 -- ==================================================
 -- STATE
@@ -42,6 +43,45 @@ local function GetHumanoid()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     local Root = Char:FindFirstChild("HumanoidRootPart")
     return Hum, Root
+end
+
+-- ==================================================
+-- CHECK GROUNDED
+-- ==================================================
+local function IsGrounded()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then return false end
+
+    local RaycastParams = RaycastParams.new()
+    RaycastParams.FilterDescendantsInstances = { Player.Character }
+    RaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local Result = workspace:Raycast(
+        Root.Position,
+        Vector3.new(0, -GROUND_CHECK_DISTANCE, 0),
+        RaycastParams
+    )
+
+    return Result ~= nil
+end
+
+-- ==================================================
+-- RESET PLATFORMSTAND
+-- ==================================================
+local function ResetPlatformStand()
+    local Hum, Root = GetHumanoid()
+    if Hum then
+        pcall(function()
+            Hum.PlatformStand = false
+            Hum.Sit = false
+        end)
+    end
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
 end
 
 -- ==================================================
@@ -79,6 +119,9 @@ local function WalkTP(Destination, Callback)
         return
     end
 
+    -- ✅ Reset PlatformStand មុន Walk
+    ResetPlatformStand()
+
     local StartTime = tick()
     local LastCheck = 0
 
@@ -102,12 +145,28 @@ local function WalkTP(Destination, Callback)
             local Dist = (Root2.Position - Destination).Magnitude
             if Dist <= 3 then
                 CleanupMovers()
+
+                -- ✅ Reset PlatformStand ពេល Arrived
+                ResetPlatformStand()
+
+                -- ✅ Wait ឲ្យ Grounded
+                task.wait(0.5)
+
+                -- ✅ Check Grounded
+                if IsGrounded() then
+                    print("[AFK] ✅ Player Grounded")
+                else
+                    print("[AFK] ⚠️ Player NOT Grounded → Reset")
+                    ResetPlatformStand()
+                end
+
                 if Callback then Callback() end
                 return
             end
 
             if tick() - StartTime > ARRIVE_TIMEOUT then
                 CleanupMovers()
+                ResetPlatformStand()
                 if Callback then Callback() end
                 return
             end
@@ -156,6 +215,9 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
         return
     end
 
+    -- ✅ Reset PlatformStand មុន Jump
+    ResetPlatformStand()
+
     task.spawn(function()
         local Attempts = 0
         while AFKEnabled and Attempts < JUMP_MAX_ATTEMPTS do
@@ -166,6 +228,8 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             local DistToTreadmill = math.floor((Root2.Position - TreadmillPos).Magnitude)
 
             if DistToTreadmill > JUMP_DISTANCE_THRESHOLD then
+                -- ✅ Reset PlatformStand ពេល Jump Out
+                ResetPlatformStand()
                 if Callback then Callback() end
                 return
             end
@@ -175,6 +239,7 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             task.wait(JUMP_ATTEMPT_WAIT)
         end
 
+        ResetPlatformStand()
         if Callback then Callback() end
     end)
 end
@@ -199,6 +264,8 @@ local function StartDistanceCheck()
             local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
 
             if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
+                -- ✅ Reset PlatformStand មុន Walk
+                ResetPlatformStand()
                 WalkTP(MyTreadmillPos)
             end
         end
@@ -221,14 +288,32 @@ local function EnableAFK()
         return
     end
 
+    -- ✅ Reset PlatformStand មុន Walk
+    ResetPlatformStand()
+
     WalkTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
         WalkTP(MyTreadmillPos, function()
+            -- ✅ Reset PlatformStand ពេល Arrived
+            ResetPlatformStand()
+
+            -- ✅ Wait ឲ្យ Grounded
+            task.wait(0.5)
+
+            -- ✅ Check Grounded
+            if IsGrounded() then
+                print("[AFK] ✅ Player Grounded at Treadmill")
+            else
+                print("[AFK] ⚠️ Player NOT Grounded → Reset")
+                ResetPlatformStand()
+                task.wait(0.5)
+            end
+
             StartDistanceCheck()
         end)
     end)
 
-    print("[AFK] AFK System: ON (Walk TP Only)")
+    print("[AFK] AFK System: ON (Walk TP + Grounded Check)")
 end
 
 -- ==================================================
@@ -244,6 +329,7 @@ local function DisableAFK()
     end
 
     CleanupMovers()
+    ResetPlatformStand()
     MyPlot = nil
     MyTreadmill = nil
     MyTreadmillPos = nil
@@ -257,12 +343,11 @@ end
 Player.CharacterAdded:Connect(function(Char)
     if not AFKEnabled then return end
 
-    task.wait(2)  -- ✅ រង់ចាំ Character Load
+    task.wait(2)
 
-    -- ✅ Cleanup ចាស់
     CleanupMovers()
+    ResetPlatformStand()
 
-    -- ✅ Re-Find Treadmill
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
@@ -272,8 +357,18 @@ Player.CharacterAdded:Connect(function(Char)
         return
     end
 
-    -- ✅ Walk to Treadmill again
     WalkTP(MyTreadmillPos, function()
+        ResetPlatformStand()
+        task.wait(0.5)
+
+        if IsGrounded() then
+            print("[AFK] ✅ Player Grounded after Respawn")
+        else
+            print("[AFK] ⚠️ NOT Grounded after Respawn → Reset")
+            ResetPlatformStand()
+            task.wait(0.5)
+        end
+
         StartDistanceCheck()
     end)
 
@@ -295,7 +390,9 @@ _G.YOKUDO_AFKSystem = {
     GetMyTreadmill = function() return MyTreadmill end,
     GetMyPlot = function() return MyPlot end,
     IsFlying = function() return WalkConnection ~= nil end,
+    ResetPlatformStand = ResetPlatformStand,
+    IsGrounded = IsGrounded,
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Loaded (v3 FINAL — No Debug + Resume)")
+print("✅ AFKSystem Loaded (v4 FINAL — Grounded Check + Reset PlatformStand)")
