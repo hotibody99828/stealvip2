@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone
--- គ្រប់គ្រង Event → ហៅ Attack ឬ AFK
--- ✅ Event ចេញ → Stop AFK → Jump Out → Call Attack
--- ✅ Event Sec <= 10 → Stop Attack → Call AFK
+-- YOKUDO HUB | FEATURE | Manager Drone (UPDATED)
+-- គ្រប់គ្រង Event → ហៅ AutoEventNew ឬ AFK
+-- ✅ Event ចេញ → Stop AFK → Jump Out → Call AutoEventNew
+-- ✅ Event Sec <= 10 → Stop AutoEventNew → Call AFK
 -- ✅ Stop ពេល Disable
 -- ✅ Guard: បើ FarmingManager ដំណើរការ → មិនហៅ AFKSystem
 -- ✅ Register ជាមួយ CharacterSystem
@@ -40,6 +40,16 @@ local function IsFarmingManagerActive()
 end
 
 -- ==================================================
+-- ✅ CHECK AUTO EVENT NEW
+-- ==================================================
+local function IsAutoEventNewActive()
+    if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+        return true
+    end
+    return false
+end
+
+-- ==================================================
 -- GET EVENT INFO
 -- ==================================================
 local function GetEventInfo()
@@ -69,8 +79,8 @@ end
 local function ForceStopAll()
     print("[ManagerDrone] Force Stop All Features")
 
-    if _G.YOKUDO_AttackDrone then
-        pcall(function() _G.YOKUDO_AttackDrone.Stop() end)
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
     end
     if _G.YOKUDO_AFKSystem then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
@@ -81,7 +91,6 @@ end
 -- ✅ ENABLE AFK SYSTEM (មាន Guard)
 -- ==================================================
 local function EnableAFKSystem()
-    -- ✅ បើ FarmingManager ដំណើរការ → មិនហៅ AFKSystem
     if IsFarmingManagerActive() then
         print("[ManagerDrone] Skip AFK (FarmingManager active)")
         return
@@ -94,12 +103,11 @@ local function EnableAFKSystem()
 end
 
 -- ==================================================
--- SWITCH FROM AFK TO ATTACK
+-- SWITCH FROM AFK TO AUTO EVENT NEW
 -- ==================================================
 local function SwitchAFKToAttack()
-    print("[ManagerDrone] Event Detected → Switch AFK to Attack")
+    print("[ManagerDrone] Event Detected → Switch AFK to AutoEventNew")
 
-    -- ✅ បើ FarmingManager ដំណើរការ → មិនធ្វើអ្វីទេ
     if IsFarmingManagerActive() then
         print("[ManagerDrone] Skip Switch (FarmingManager active)")
         return
@@ -118,13 +126,13 @@ local function SwitchAFKToAttack()
     end
 
     if not TreadmillPos then
-        print("[ManagerDrone] No Treadmill → Stop AFK → Call Attack")
+        print("[ManagerDrone] No Treadmill → Stop AFK → Call AutoEventNew")
         if _G.YOKUDO_AFKSystem then
             _G.YOKUDO_AFKSystem.Disable()
         end
         task.wait(0.5)
-        if _G.YOKUDO_AttackDrone then
-            _G.YOKUDO_AttackDrone.Start()
+        if _G.YOKUDO_AutoEventNew then
+            _G.YOKUDO_AutoEventNew.Enable()
         end
         return
     end
@@ -139,9 +147,9 @@ local function SwitchAFKToAttack()
 
         task.wait(AFK_JUMP_WAIT)
 
-        print("[ManagerDrone] Call Attack Drone → Fly TP to Safe Zone → Spawn Loop")
-        if _G.YOKUDO_AttackDrone then
-            _G.YOKUDO_AttackDrone.Start()
+        print("[ManagerDrone] Call AutoEventNew → Fly TP → Attack Boss")
+        if _G.YOKUDO_AutoEventNew then
+            _G.YOKUDO_AutoEventNew.Enable()
         end
     end)
 end
@@ -151,14 +159,13 @@ end
 -- ==================================================
 local function MainLoop()
     while ManagerEnabled do
-        -- ✅ បើ FarmingManager ដំណើរការ → Stop AttackDrone
+        -- ✅ បើ FarmingManager ដំណើរការ → Stop AutoEventNew
         if IsFarmingManagerActive() then
-            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] FarmingManager active → Stop AttackDrone")
-                _G.YOKUDO_AttackDrone.Stop()
+            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+                print("[ManagerDrone] FarmingManager active → Stop AutoEventNew")
+                _G.YOKUDO_AutoEventNew.Disable()
             end
 
-            -- ✅ មិនហៅ AFKSystem (ទុកឲ្យ FarmingManager គ្រប់គ្រង)
             LastEventSec = 0
             LastEventText = ""
             task.wait(EVENT_CHECK_INTERVAL)
@@ -171,31 +178,29 @@ local function MainLoop()
         local EventStopAttack = IsEventActive and EventSec > 0 and EventSec <= EVENT_STOP_ATTACK_THRESHOLD
         local EventActive = IsEventActive and EventSec > EVENT_STOP_ATTACK_THRESHOLD
 
-        print("[ManagerDrone] Text:", EventText, "| Sec:", EventSec, "| IsActive:", IsEventActive, "| NotActive:", EventNotActive, "| StopAttack:", EventStopAttack, "| Active:", EventActive)
+        print("[ManagerDrone] Text:", EventText, "| Sec:", EventSec, "| IsActive:", IsEventActive)
 
         if EventNotActive then
-            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] Event Not Active → Stop Attack")
-                _G.YOKUDO_AttackDrone.Stop()
+            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+                print("[ManagerDrone] Event Not Active → Stop AutoEventNew")
+                _G.YOKUDO_AutoEventNew.Disable()
             end
 
-            -- ✅ ប្រើ Function ថ្មី EnableAFKSystem() ដែលមាន Guard
             EnableAFKSystem()
         elseif EventStopAttack then
-            if _G.YOKUDO_AttackDrone and _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] Event <= 10s → Stop Attack → AFK System")
-                _G.YOKUDO_AttackDrone.Stop()
+            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+                print("[ManagerDrone] Event <= 10s → Stop AutoEventNew → AFK System")
+                _G.YOKUDO_AutoEventNew.Disable()
             end
 
-            -- ✅ ប្រើ Function ថ្មី EnableAFKSystem() ដែលមាន Guard
             EnableAFKSystem()
         elseif EventActive then
             if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-                print("[ManagerDrone] Event Active → Switch AFK to Attack")
+                print("[ManagerDrone] Event Active → Switch AFK to AutoEventNew")
                 SwitchAFKToAttack()
-            elseif _G.YOKUDO_AttackDrone and not _G.YOKUDO_AttackDrone.IsEnabled() then
-                print("[ManagerDrone] Event Active → Attack Drone")
-                _G.YOKUDO_AttackDrone.Start()
+            elseif _G.YOKUDO_AutoEventNew and not _G.YOKUDO_AutoEventNew.IsEnabled() then
+                print("[ManagerDrone] Event Active → AutoEventNew")
+                _G.YOKUDO_AutoEventNew.Enable()
             end
         end
 
@@ -258,7 +263,7 @@ _G.YOKUDO_ManagerDrone = {
     GetEventInfo = GetEventInfo,
     ForceStopAll = ForceStopAll,
     SwitchAFKToAttack = SwitchAFKToAttack,
+    IsAutoEventNewActive = IsAutoEventNewActive,
 }
 
-
-print("✅ ManagerDrone Feature Loaded (Switch AFK to Attack + Guard + Register)")
+print("✅ ManagerDrone Feature Loaded (AutoEventNew + Guard + Register)")
