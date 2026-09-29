@@ -1,6 +1,8 @@
 --==================================================
--- YOKUDO HUB | TAB | Setting (UPDATED)
--- ✅ Safe Speed Mode | ❌ គ្មាន Method/Speed TextBox/AntiRagdoll
+-- YOKUDO HUB | TAB | Setting (UPDATED v2)
+-- ✅ Safe Speed Mode
+-- ❌ គ្មាន Method/Speed TextBox/AntiRagdoll
+-- ❌ គ្មាន Walk Speed (REMOVED)
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -87,15 +89,12 @@ local function ToggleSafeSpeed()
         SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
     end
 
-    -- ✅ ហៅ TeleportSystem
     if _G.YOKUDO_TeleportSystem then
         _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(SafeSpeedEnabled)
     end
 
-    -- ✅ Save _G
     _G.YOKUDO_SafeSpeedMode = SafeSpeedEnabled
 
-    -- ✅ Save Config
     if _G.YOKUDO_ConfigSystem then
         _G.YOKUDO_ConfigSystem.Save()
     end
@@ -108,122 +107,12 @@ SafeSpeedBtn.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 2: WALK SPEED
---==================================================
-local WalkSpeedHolder = Instance.new("Frame")
-WalkSpeedHolder.Size = UDim2.new(1, 0, 0, 32)
-WalkSpeedHolder.BackgroundTransparency = 1
-WalkSpeedHolder.LayoutOrder = 3
-WalkSpeedHolder.Parent = SettingPage
-
-local WalkSpeedLabel = Instance.new("TextLabel")
-WalkSpeedLabel.Size = UDim2.new(0, 100, 1, 0)
-WalkSpeedLabel.BackgroundTransparency = 1
-WalkSpeedLabel.Text = "Walk Speed"
-WalkSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-WalkSpeedLabel.TextSize = 12
-WalkSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-WalkSpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
-WalkSpeedLabel.Font = Enum.Font.GothamMedium
-WalkSpeedLabel.Parent = WalkSpeedHolder
-
-local WalkSpeedTextBox = Instance.new("TextBox")
-WalkSpeedTextBox.Size = UDim2.new(0, 40, 1, -6)
-WalkSpeedTextBox.Position = UDim2.new(0, 105, 0, 3)
-WalkSpeedTextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
-WalkSpeedTextBox.BorderSizePixel = 0
-WalkSpeedTextBox.Text = "50"
-WalkSpeedTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-WalkSpeedTextBox.TextSize = 12
-WalkSpeedTextBox.TextXAlignment = Enum.TextXAlignment.Center
-WalkSpeedTextBox.TextYAlignment = Enum.TextYAlignment.Center
-WalkSpeedTextBox.Font = Enum.Font.GothamMedium
-WalkSpeedTextBox.Parent = WalkSpeedHolder
-
-local WalkSpeedBoxCorner = Instance.new("UICorner")
-WalkSpeedBoxCorner.CornerRadius = UDim.new(0, 4)
-WalkSpeedBoxCorner.Parent = WalkSpeedTextBox
-
-local WalkSpeedBoxStroke = Instance.new("UIStroke")
-WalkSpeedBoxStroke.Color = Color3.fromRGB(200, 200, 220)
-WalkSpeedBoxStroke.Thickness = 0.5
-WalkSpeedBoxStroke.Transparency = 0.2
-WalkSpeedBoxStroke.Parent = WalkSpeedTextBox
-
-local WalkSpeedCheckButton = Instance.new("TextButton")
-WalkSpeedCheckButton.Size = UDim2.new(0, 26, 0, 26)
-WalkSpeedCheckButton.Position = UDim2.new(1, -26, 0.5, -13)
-WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-WalkSpeedCheckButton.BorderSizePixel = 0
-WalkSpeedCheckButton.Text = ""
-WalkSpeedCheckButton.AutoButtonColor = false
-WalkSpeedCheckButton.Parent = WalkSpeedHolder
-
-local WalkSpeedCorner = Instance.new("UICorner")
-WalkSpeedCorner.CornerRadius = UDim.new(0, 6)
-WalkSpeedCorner.Parent = WalkSpeedCheckButton
-
-local WalkSpeedStroke = Instance.new("UIStroke")
-WalkSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-WalkSpeedStroke.Thickness = 1.5
-WalkSpeedStroke.Parent = WalkSpeedCheckButton
-
-local WalkSpeedCheck = Instance.new("TextLabel")
-WalkSpeedCheck.Size = UDim2.new(1, 0, 1, 0)
-WalkSpeedCheck.BackgroundTransparency = 1
-WalkSpeedCheck.Text = "✓"
-WalkSpeedCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-WalkSpeedCheck.TextSize = 18
-WalkSpeedCheck.Font = Enum.Font.GothamBold
-WalkSpeedCheck.Visible = false
-WalkSpeedCheck.Parent = WalkSpeedCheckButton
-
-local WalkSpeedEnabled = false
-local WalkSpeedValue = 50
-
-local function ToggleWalkSpeed()
-    WalkSpeedEnabled = not WalkSpeedEnabled
-    WalkSpeedCheck.Visible = WalkSpeedEnabled
-    if WalkSpeedEnabled then
-        WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        WalkSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
-            _G.YOKUDO_WalkSpeed.Enable()
-        end
-    else
-        WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        WalkSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.Disable()
-        end
-    end
-end
-
-WalkSpeedCheckButton.MouseButton1Click:Connect(function()
-    ToggleWalkSpeed()
-end)
-
-WalkSpeedTextBox.FocusLost:Connect(function()
-    local val = tonumber(WalkSpeedTextBox.Text)
-    if val then
-        WalkSpeedValue = math.clamp(val, 50, 1000)
-        WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
-        if WalkSpeedEnabled and _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
-        end
-    else
-        WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
-    end
-end)
-
---==================================================
--- FEATURE 3: ANTI TRAP
+-- FEATURE 2: ANTI TRAP
 --==================================================
 local AntiTrapHolder = Instance.new("Frame")
 AntiTrapHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiTrapHolder.BackgroundTransparency = 1
-AntiTrapHolder.LayoutOrder = 4
+AntiTrapHolder.LayoutOrder = 3
 AntiTrapHolder.Parent = SettingPage
 
 local AntiTrapLabel = Instance.new("TextLabel")
@@ -302,12 +191,12 @@ AntiTrapCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 4: GOD MODE
+-- FEATURE 3: GOD MODE
 --==================================================
 local GodModeHolder = Instance.new("Frame")
 GodModeHolder.Size = UDim2.new(1, 0, 0, 52)
 GodModeHolder.BackgroundTransparency = 1
-GodModeHolder.LayoutOrder = 5
+GodModeHolder.LayoutOrder = 4
 GodModeHolder.Parent = SettingPage
 
 local GodModeLabel = Instance.new("TextLabel")
@@ -452,12 +341,12 @@ GodModeButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 5: MANUAL FAST CLICK
+-- FEATURE 4: MANUAL FAST CLICK
 --==================================================
 local FastClickHolder = Instance.new("Frame")
 FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
 FastClickHolder.BackgroundTransparency = 1
-FastClickHolder.LayoutOrder = 6
+FastClickHolder.LayoutOrder = 5
 FastClickHolder.Parent = SettingPage
 
 local FastClickLabel = Instance.new("TextLabel")
@@ -559,12 +448,12 @@ task.spawn(function()
 end)
 
 --==================================================
--- FEATURE 6: ANTI AFK
+-- FEATURE 5: ANTI AFK
 --==================================================
 local AntiAFKHolder = Instance.new("Frame")
 AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiAFKHolder.BackgroundTransparency = 1
-AntiAFKHolder.LayoutOrder = 7
+AntiAFKHolder.LayoutOrder = 6
 AntiAFKHolder.Parent = SettingPage
 
 local AntiAFKLabel = Instance.new("TextLabel")
@@ -648,7 +537,6 @@ end)
 task.spawn(function()
     task.wait(0.5)
 
-    -- ✅ Sync Safe Speed Mode
     if _G.YOKUDO_TeleportSystem then
         local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
         if SafeState then
@@ -659,7 +547,6 @@ task.spawn(function()
         end
     end
 
-    -- ✅ Sync Anti AFK
     if _G.YOKUDO_AntiAFK then
         if _G.YOKUDO_AntiAFK.IsEnabled() then
             AntiAFKEnabled = true
@@ -671,7 +558,7 @@ task.spawn(function()
 end)
 
 --==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
+-- ✅ REFRESH FUNCTION
 --==================================================
 _G.YOKUDO_RefreshSettingUI = function()
     if _G.YOKUDO_TeleportSystem then
@@ -691,4 +578,4 @@ _G.YOKUDO_RefreshSettingUI = function()
     end
 end
 
-print("✅ Setting Tab Loaded (Safe Speed Mode | No Method/Speed TextBox/AntiRagdoll)")
+print("✅ Setting Tab Loaded (No Walk Speed)")
