@@ -1,7 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v6 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v7 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Check CoilBaseEnabled=true រាល់ 1s → Fly 4 studs → Stop → Fall
+-- ✅ Boss2 (Ball): Find Closest Coil (ជិត Boss បំផុត) → Fly 4 studs → Stop → Fall
 -- ✅ Boss2: Face Boss when Boss 20 studs → Attack (Range 50)
 -- ✅ Boss2: No Lock Boss + Auto Switch Coil
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
@@ -26,7 +26,7 @@ local COILS_CONTAINER = "Coils"
 local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
 -- ✅ Coil Settings
-local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4", "Coil5" }
+local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }   -- ✅ 4 Coils
 local COIL_CHECK_INTERVAL = 1        -- ✅ Check Coil រាល់ 1s
 local COIL_NEAR_DISTANCE = 4         -- ✅ Fly ជិត 4 studs
 local COIL_BOSS_TRIGGER = 20         -- ✅ Boss មកជិត 20 studs → Face + Attack
@@ -248,27 +248,9 @@ local function AnyBossAlive()
 end
 
 -- ==================================================
--- ✅ CHECK COIL ACTIVE (CoilBaseEnabled = true)
+-- ✅ FIND ALL COILS (ទាំង 4 — មិន Check Attribute)
 -- ==================================================
-local function IsCoilActive(Coil)
-    if not Coil then return false end
-
-    -- ✅ Check Attribute CoilBaseEnabled
-    local Success, Value = pcall(function()
-        return Coil:GetAttribute("CoilBaseEnabled")
-    end)
-
-    if Success and Value == true then
-        return true
-    end
-
-    return false
-end
-
--- ==================================================
--- ✅ FIND ALL ACTIVE COILS (Debug Print)
--- ==================================================
-local function FindAllActiveCoils()
+local function FindAllCoils()
     local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
     if not Arena then
         DebugPrint("❌ No ScrambleArena")
@@ -284,26 +266,21 @@ local function FindAllActiveCoils()
     for _, CoilName in ipairs(COIL_NAMES) do
         local Coil = CoilsFolder:FindFirstChild(CoilName)
         if Coil then
-            local Active = IsCoilActive(Coil)
-            DebugPrint(string.format("🔍 %s | CoilBaseEnabled: %s", CoilName, tostring(Active)))
-            if Active then
-                table.insert(Coils, Coil)
-            end
+            table.insert(Coils, Coil)
         end
     end
-    DebugPrint("✅ Total Active Coils:", #Coils)
     return Coils
 end
 
 -- ==================================================
--- ✅ FIND CLOSEST ACTIVE COIL TO BOSS
+-- ✅ FIND CLOSEST COIL TO BOSS (ជិត Boss បំផុត)
 -- ==================================================
-local function FindClosestActiveCoilToBoss(Boss)
+local function FindClosestCoilToBoss(Boss)
     if not Boss then return nil, nil end
     local BossPos = GetPosition(Boss)
     if not BossPos then return nil, nil end
 
-    local Coils = FindAllActiveCoils()
+    local Coils = FindAllCoils()
     if #Coils == 0 then return nil, nil end
 
     local Closest, ClosestDist = nil, math.huge
@@ -311,28 +288,33 @@ local function FindClosestActiveCoilToBoss(Boss)
         local CoilPos = GetPosition(Coil)
         if CoilPos then
             local Dist = (CoilPos - BossPos).Magnitude
+            DebugPrint(string.format("🔍 Coil: %s | Dist: %.1f", Coil.Name, Dist))
             if Dist < ClosestDist then
                 ClosestDist = Dist
                 Closest = Coil
             end
         end
     end
+
+    if Closest then
+        DebugPrint(string.format("🎯 Closest Coil: %s | Dist: %.1f", Closest.Name, ClosestDist))
+    end
     return Closest, ClosestDist
 end
 
 -- ==================================================
--- ✅ WAIT FOR ACTIVE COIL (Check រាល់ 1s)
+-- ✅ WAIT FOR COIL (រង់ចាំ Coil ចេញ)
 -- ==================================================
-local function WaitForActiveCoil()
-    DebugPrint("⏳ Wait for Active Coil (Check 1s)...")
+local function WaitForCoil()
+    DebugPrint("⏳ Wait for Coil...")
     local Elapsed = 0
     while AutoEventEnabled and Elapsed < COIL_WAIT_TIMEOUT do
-        local Coils = FindAllActiveCoils()
+        local Coils = FindAllCoils()
         if #Coils > 0 then
-            DebugPrint("✅ Active Coil Found:", Coils[1].Name)
+            DebugPrint("✅ Coils Found:", #Coils)
             return Coils
         end
-        task.wait(COIL_CHECK_INTERVAL)   -- ✅ Check រាល់ 1s
+        task.wait(COIL_CHECK_INTERVAL)
         Elapsed = Elapsed + COIL_CHECK_INTERVAL
     end
     DebugPrint("❌ Coil Timeout")
@@ -595,16 +577,16 @@ local function SetupTargetForBoss(Boss, BossName)
 
     -- ✅ Boss 2 (Ball) → Coil Task
     if BossName == "Ball" then
-        DebugPrint("🚀 Boss 2 (Ball) → Check Coil")
+        DebugPrint("🚀 Boss 2 (Ball) → Find Closest Coil")
 
-        local Coils = WaitForActiveCoil()
+        local Coils = WaitForCoil()
         if #Coils == 0 then
-            DebugPrint("❌ No Active Coils → Skip Boss 2")
+            DebugPrint("❌ No Coils → Skip Boss 2")
             return true
         end
         if not AutoEventEnabled then return false end
 
-        CurrentCoil = FindClosestActiveCoilToBoss(CurrentTarget)
+        CurrentCoil = FindClosestCoilToBoss(CurrentTarget)
         if not CurrentCoil then
             DebugPrint("❌ No Coil → Skip")
             return true
@@ -657,7 +639,6 @@ end
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
 
-    -- ✅ Stop AutoEventNew ខ្លួនឯង
     AutoEventEnabled = false
 
     if _G.YOKUDO_ManagerDrone and _G.YOKUDO_ManagerDrone.CallManagerAfterDone then
@@ -812,33 +793,22 @@ local function MainLoop()
 
         -- ✅ Boss 2 (Ball) — Coil Task
         if CurrentBossName == "Ball" then
-            -- ✅ Check Coil រាល់ 1s
+            -- ✅ Check Coil ថ្មីជិត Boss ជាង រាល់ 1s
             if now - LastCoilCheck >= COIL_CHECK_INTERVAL then
                 LastCoilCheck = now
 
-                -- ✅ បើ Coil បច្ចុប្បន្នអត់ Active → រកថ្មី
-                if not IsCoilActive(CurrentCoil) then
-                    local NewCoil = FindClosestActiveCoilToBoss(CurrentTarget)
-                    if NewCoil then
-                        DebugPrint("🔄 Current Coil Inactive → Switch to:", NewCoil.Name)
-                        CurrentCoil = NewCoil
-                        FlyToCoil(CurrentCoil)
-                    end
-                else
-                    -- ✅ Check Coil ថ្មីជិត Boss ជាង
-                    local NewCoil = FindClosestActiveCoilToBoss(CurrentTarget)
-                    if NewCoil and NewCoil ~= CurrentCoil then
-                        local OldCoilPos = GetPosition(CurrentCoil)
-                        local NewCoilPos = GetPosition(NewCoil)
-                        local BossPos = GetPosition(CurrentTarget)
-                        if OldCoilPos and NewCoilPos and BossPos then
-                            local OldDist = (OldCoilPos - BossPos).Magnitude
-                            local NewDist = (NewCoilPos - BossPos).Magnitude
-                            if NewDist < OldDist - 3 then
-                                DebugPrint("🔄 Switch Coil:", NewCoil.Name)
-                                CurrentCoil = NewCoil
-                                FlyToCoil(CurrentCoil)
-                            end
+                local NewCoil = FindClosestCoilToBoss(CurrentTarget)
+                if NewCoil and NewCoil ~= CurrentCoil then
+                    local OldCoilPos = CurrentCoil and GetPosition(CurrentCoil)
+                    local NewCoilPos = GetPosition(NewCoil)
+                    local BossPos = GetPosition(CurrentTarget)
+                    if OldCoilPos and NewCoilPos and BossPos then
+                        local OldDist = (OldCoilPos - BossPos).Magnitude
+                        local NewDist = (NewCoilPos - BossPos).Magnitude
+                        if NewDist < OldDist - 3 then
+                            DebugPrint("🔄 Switch Coil:", NewCoil.Name)
+                            CurrentCoil = NewCoil
+                            FlyToCoil(CurrentCoil)
                         end
                     end
                 end
@@ -944,8 +914,8 @@ _G.YOKUDO_AutoEventNew = {
     FullReset = FullReset,
     CallManagerDone = CallManagerDone,
     FindAnyBoss = FindAnyBoss,
-    FindAllActiveCoils = FindAllActiveCoils,
-    IsCoilActive = IsCoilActive,
+    FindAllCoils = FindAllCoils,
+    FindClosestCoilToBoss = FindClosestCoilToBoss,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
@@ -975,4 +945,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoEventNew Feature Loaded (v6 FINAL + Coil Check 1s + Portal Gone → AFK)")
+print("✅ AutoEventNew Feature Loaded (v7 FINAL + Coil 4 Nearest Boss)")
