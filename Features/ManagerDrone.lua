@@ -1,8 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v15 FINAL)
--- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
--- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
--- ✅ ឃើញ Portal → Check Treadmill → Jump Out → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
+-- YOKUDO HUB | FEATURE | Manager Drone (v16 FINAL)
+-- ✅ ប្រើ AFKSystem.JumpOutTreadmill (ដូច FarmingManager)
+-- ✅ ឃើញ Portal → Jump Out → Stop AFK → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
 -- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
 -- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
 -- ✅ CharacterAdded Resume
@@ -22,10 +21,6 @@ local SAFE_ZONE_WAIT = 3
 local FLY_SPEED = 500
 local ARRIVE_DISTANCE = 5
 local FLY_TIMEOUT = 15
-local JUMP_MAX_ATTEMPTS = 50
-local JUMP_ATTEMPT_WAIT = 0.2
-local JUMP_DISTANCE_THRESHOLD = 5
-local ON_TREADMILL_DISTANCE = 10    -- ✅ Dist ≤ 10 → នៅលើ Treadmill
 
 -- ==================================================
 -- STATE
@@ -299,51 +294,7 @@ local function CallManagerAfterDone()
 end
 
 -- ==================================================
--- ✅ MANAGER JUMP OUT TREADMILL
--- ==================================================
-local function ManagerJumpOut(TreadmillPos)
-    if not TreadmillPos then
-        DebugPrint("⚠️ No TreadmillPos → Skip Jump")
-        return
-    end
-
-    DebugPrint("🦘 Manager Jump Out Treadmill...")
-
-    local Hum, Root = GetHumanoid()
-    if not Hum or not Root then
-        DebugPrint("❌ No Humanoid → Skip Jump")
-        return
-    end
-
-    local Attempts = 0
-    while Attempts < JUMP_MAX_ATTEMPTS do
-        local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 then break end
-        if Hum2.Health <= 0 then break end
-
-        local Dist = math.floor((Root2.Position - TreadmillPos).Magnitude)
-        DebugPrint("Attempt", Attempts, "| Dist:", Dist)
-
-        if Dist > JUMP_DISTANCE_THRESHOLD then
-            DebugPrint("✅ Jumped out! Dist:", Dist)
-            return
-        end
-
-        -- ✅ Jump + MoveTo ចេញពី Treadmill
-        pcall(function()
-            Hum2.Jump = true
-            Hum2:MoveTo(Root2.Position + Vector3.new(0, 0, -10))
-        end)
-
-        Attempts = Attempts + 1
-        task.wait(JUMP_ATTEMPT_WAIT)
-    end
-
-    DebugPrint("⏰ Jump timeout")
-end
-
--- ==================================================
--- ✅ SWITCH FROM AFK TO AUTO EVENT (Check Treadmill Directly)
+-- ✅ SWITCH FROM AFK TO AUTO EVENT (ដូច FarmingManager)
 -- ==================================================
 local function SwitchAFKToAttack()
     DebugPrint("=========================================")
@@ -355,66 +306,68 @@ local function SwitchAFKToAttack()
         return
     end
 
-    -- ✅ Step 1: យក Treadmill Pos (មិនពឹង AFKEnabled)
+    -- ✅ Step 1: យក TreadmillPos (ដូច FarmingManager)
     local TreadmillPos = nil
-
     if _G.YOKUDO_AFKSystem then
-        pcall(function()
-            TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
-        end)
-
-        if not TreadmillPos and _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill then
+        TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+        if not TreadmillPos then
             local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
-            if Treadmill then
-                TreadmillPos = Treadmill.Position
-            end
+            if Treadmill then TreadmillPos = Treadmill.Position end
         end
     end
 
     DebugPrint("TreadmillPos:", tostring(TreadmillPos))
 
-    -- ✅ Step 2: Check ថា Player នៅលើ Treadmill ឬអត់
-    local Hum, Root = GetHumanoid()
-    local OnTreadmill = false
+    -- ✅ Step 2: Jump Out ដោយ AFKSystem.JumpOutTreadmill (ដូច FarmingManager)
+    if _G.YOKUDO_AFKSystem and TreadmillPos then
+        DebugPrint("🦘 AFKSystem.JumpOutTreadmill...")
 
-    if Root and TreadmillPos then
-        local Dist = (Root.Position - TreadmillPos).Magnitude
-        DebugPrint("Dist to Treadmill:", math.floor(Dist))
+        _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+            DebugPrint("✅ Jumped out!")
 
-        if Dist <= ON_TREADMILL_DISTANCE then
-            OnTreadmill = true
-            DebugPrint("✅ Player On Treadmill → Need Jump")
-        end
-    end
-
-    -- ✅ Step 3: Stop AFKSystem
-    if _G.YOKUDO_AFKSystem then
-        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
-        DebugPrint("✅ AFKSystem Disabled")
-    end
-
-    task.wait(0.3)
-
-    -- ✅ Step 4: Jump Out បើនៅលើ Treadmill
-    if OnTreadmill and TreadmillPos then
-        ManagerJumpOut(TreadmillPos)
-        task.wait(0.5)
-    else
-        DebugPrint("⚠️ Not On Treadmill → Skip Jump")
-    end
-
-    -- ✅ Step 5: Fly Safe Zone → Wait 3s → Fly Portal → Enable AutoEventNew
-    FlyToSafeZone(function()
-        DebugPrint("⏳ Wait 3s at Safe Zone...")
-        task.wait(SAFE_ZONE_WAIT)
-
-        FlyToPortal(function()
-            if _G.YOKUDO_AutoEventNew then
-                _G.YOKUDO_AutoEventNew.Enable()
-                DebugPrint("✅ AutoEventNew Enabled")
+            -- ✅ Step 3: Stop AFKSystem
+            if _G.YOKUDO_AFKSystem then
+                pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+                DebugPrint("✅ AFKSystem Disabled")
             end
+
+            task.wait(0.5)
+
+            -- ✅ Step 4: Fly Safe Zone → Wait 3s → Fly Portal → Enable AutoEventNew
+            FlyToSafeZone(function()
+                DebugPrint("⏳ Wait 3s at Safe Zone...")
+                task.wait(SAFE_ZONE_WAIT)
+
+                FlyToPortal(function()
+                    if _G.YOKUDO_AutoEventNew then
+                        _G.YOKUDO_AutoEventNew.Enable()
+                        DebugPrint("✅ AutoEventNew Enabled")
+                    end
+                end)
+            end)
         end)
-    end)
+    else
+        -- ✅ គ្មាន Treadmill → Stop AFK → Fly Safe Zone ភ្លាម
+        DebugPrint("⚠️ No Treadmill → Stop AFK → Fly Safe Zone")
+
+        if _G.YOKUDO_AFKSystem then
+            pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+        end
+
+        task.wait(0.5)
+
+        FlyToSafeZone(function()
+            DebugPrint("⏳ Wait 3s at Safe Zone...")
+            task.wait(SAFE_ZONE_WAIT)
+
+            FlyToPortal(function()
+                if _G.YOKUDO_AutoEventNew then
+                    _G.YOKUDO_AutoEventNew.Enable()
+                    DebugPrint("✅ AutoEventNew Enabled")
+                end
+            end)
+        end)
+    end
 end
 
 -- ==================================================
@@ -563,7 +516,6 @@ _G.YOKUDO_ManagerDrone = {
     IsFarmingManagerActive = IsFarmingManagerActive,
     FlyToSafeZone = FlyToSafeZone,
     FlyToPortal = FlyToPortal,
-    ManagerJumpOut = ManagerJumpOut,
 }
 
-print("✅ ManagerDrone Feature Loaded (v15 FINAL — Check Treadmill Directly)")
+print("✅ ManagerDrone Feature Loaded (v16 FINAL — AFKSystem.JumpOutTreadmill)")
