@@ -21,7 +21,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    SafeSpeed = 265,
+    SafeSpeed = 250,
     ShotTPTime = 1.2,
     ArriveDistance = 2,
     LockWait = 0.1,
@@ -32,7 +32,7 @@ local Config = {
     Position1 = Vector3.new(598, 70, -330),
     Position2 = Vector3.new(544, 70, -301),
 
-    WalkTimeout = 30,
+    WalkTimeout = 1000,
     CollectInterval = 0.02,
     MaxCollectAttempts = 10000,
 }
