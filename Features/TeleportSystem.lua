@@ -1,13 +1,13 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (LOGIC ដើម 100%)
+-- YOKUDO HUB | TELEPORT SYSTEM (WALK + SHOT TP P1 + LOCK + DROP)
 -- ✅ Step 1: Walk TP → Target Egg
--- ✅ Step 2: Lock + Collect
+-- ✅ Step 2: ជិត 20m → Lock + Collect
 -- ✅ Step 3: DropHeldEgg = true ភ្លាម → Shot TP → Position 1 (1.2s)
--- ✅ Step 4: Lock Position 1 → Drop
--- ✅ Step 5: Walk TP → Collect វិញ
+-- ✅ Step 4: ដល់ Position 1 → Lock → Drop
+-- ✅ Step 5: Drop រួច → Walk TP → Collect វិញ
 -- ✅ Step 6: DropHeldEgg = true → Walk TP → Position 2 → Stop
 -- ✅ Safe Speed Mode (250 / ដើម)
--- ✅ Callback → FarmingManager
+-- ✅ Forward Declarations (ការពារ Nil Error)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -25,7 +25,7 @@ local Config = {
     ShotTPTime = 1.2,
     ArriveDistance = 2,
     LockWait = 0.1,
-    NearDistance = 25,
+    NearDistance = 20,
     SlowDistance = 30,
     LockDistance = 1,
 
@@ -42,8 +42,15 @@ local Config = {
 local CollectEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggCarry")
 local DropEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggDrop")
 
-if not CollectEvent then warn("[TeleportSystem] CollectEvent not found") return end
-if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
+if not CollectEvent then
+    warn("[TeleportSystem] CollectEvent not found")
+    return
+end
+
+if not DropEvent then
+    warn("[TeleportSystem] DropEvent not found")
+    return
+end
 
 print("[TeleportSystem] CollectEvent + DropEvent OK")
 
@@ -75,7 +82,7 @@ local State = {
 }
 
 -- ==================================================
--- ✅ FORWARD DECLARATIONS
+-- ✅ FORWARD DECLARATIONS (ការពារ Nil Error)
 -- ==================================================
 local Step3_ShotToPosition1
 local Step4_LockAndDrop
@@ -352,12 +359,14 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
 
         local Dist = (Root2.Position - Destination).Magnitude
 
+        -- ✅ ជិតដល់ 30m → Pause Safe Speed
         if not SlowDone and Dist <= Config.SlowDistance then
             SlowDone = true
             PauseSafeSpeed()
             Hum2.WalkSpeed = GetWalkSpeed()
         end
 
+        -- ✅ ជិតដល់ 20m → Stop Walk + Lock
         if not LockDone and Dist <= Config.NearDistance then
             LockDone = true
 
@@ -443,7 +452,7 @@ local function SetupDropHeldEgg()
         local IsEnabled = State.DropHeldEgg.Enabled == true
         print("[TeleportSystem] ⚡ DropHeldEgg.Enabled Changed →", IsEnabled)
 
-        -- ✅ Step 2 (Collect Target) → Shot TP Position 1 ភ្លាម (1.2s)
+        -- ✅ Step 2 (Collect Target) → Shot TP Position 1 ភ្លាម
         if IsEnabled and State.Running and State.Step == "2_collect_target" then
             print("[TeleportSystem] ✅ DETECTED TRUE → Shot TP Position 1 (1.2s)")
 
@@ -493,7 +502,7 @@ local function GetTargetPosition()
 end
 
 -- ==================================================
--- ✅ AUTO STOP (Callback → FarmingManager)
+-- ✅ AUTO STOP
 -- ==================================================
 local function AutoStop()
     StopLock()
@@ -591,7 +600,7 @@ Step3_ShotToPosition1 = function()
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Resume
 -- ==================================================
 Step4_LockAndDrop = function()
     if not State.Running then return end
@@ -756,7 +765,6 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
--- ✅ Safe Speed Mode
 function TeleportSystem.SetSafeSpeedMode(Enabled)
     State.SafeSpeedMode = Enabled == true
 
@@ -788,4 +796,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Shot TP P1 + Walk TP + Safe Speed Mode)")
+print("✅ TeleportSystem Loaded (Walk TP + Shot TP P1 + Walk P2 + Safe Speed Mode)")
