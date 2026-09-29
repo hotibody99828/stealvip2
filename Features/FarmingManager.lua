@@ -1,284 +1,105 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (TELEPORT SYSTEM ONLY)
--- ✅ Spawn Path First → Workspace Backup
--- ✅ Walk TP (Speed ដើម) → Safe Zone
--- ✅ Callback → AFK ពេលអស់ Egg
--- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
+-- YOKUDO HUB | FEATURE | Manager Drone (v12 FINAL)
+-- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
+-- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
+-- ✅ ឃើញ Portal → Stop AFK → Jump Out → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
+-- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
+-- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
 -- ==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-
 local Player = Players.LocalPlayer
 
 -- ==================================================
--- AREA EGG CYCLE
+-- SETTINGS
 -- ==================================================
-local AreaEggCycle = nil
-pcall(function()
-    AreaEggCycle = require(ReplicatedStorage.Shared.Util.AreaEggCycle)
-end)
-
--- ==================================================
--- SETTINGS (WALK TP)
--- ==================================================
-local NIGHT_CHECK_INTERVAL = 0.03
-local DAY_CHECK_INTERVAL = 0.05
+local PORTAL_CHECK_INTERVAL = 0.5
+local PORTAL_NAME = "ScrambleArenaPortal"
 local SAFE_ZONE = Vector3.new(533, 70, -366)
-local SAFE_ZONE_DIST = 5
-local SAFE_WAIT_AFTER_REACH = 1
-local WALK_TIMEOUT = 30
-
--- ==================================================
--- CACHE SYSTEM
--- ==================================================
-local Cache = {
-    MeshIdMap = {},
-    MeshIdMapBuilt = false,
-    PetData = {},
-    UidCategory = {},
-}
-
-local SelectedRarities = { Divine = true, Eternal = true, Secret = true }
-
-local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3
-}
-
--- ==================================================
--- BUILD MESHID MAP (ម្ដងគត់)
--- ==================================================
-local function BuildMeshIdMap()
-    if Cache.MeshIdMapBuilt then return end
-
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return end
-    local Configs = Assets:FindFirstChild("Configs")
-    local EggModels = ReplicatedStorage:FindFirstChild("Assets")
-    if EggModels then EggModels = EggModels:FindFirstChild("Models") end
-    if EggModels then EggModels = EggModels:FindFirstChild("Eggs") end
-    if not Configs or not EggModels then return end
-
-    for _, Config in ipairs(Configs:GetChildren()) do
-        local Success, Module = pcall(function() return require(Config) end)
-        if Success and Module and Module.Egg then
-            local ModelName = Module.Egg.ModelName or Config.Name
-            local Template = EggModels:FindFirstChild(ModelName)
-            if Template then
-                for _, Desc in ipairs(Template:GetDescendants()) do
-                    if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-                        Cache.MeshIdMap[Desc.MeshId] = Config.Name
-                    end
-                    if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-                        Cache.MeshIdMap[Desc.MeshId] = Config.Name
-                    end
-                end
-            end
-        end
-    end
-
-    Cache.MeshIdMapBuilt = true
-    print("[FarmingManager] MeshId Map Built (Cache)")
-end
-
--- ==================================================
--- GET PET DATA (CACHE)
--- ==================================================
-local function GetPetData(AssetCategory)
-    if not AssetCategory then return nil end
-
-    if Cache.PetData[AssetCategory] then
-        return Cache.PetData[AssetCategory]
-    end
-
-    local Assets = ReplicatedStorage:FindFirstChild("Data")
-    if not Assets then return nil end
-    Assets = Assets:FindFirstChild("Assets")
-    if not Assets then return nil end
-    local Configs = Assets:FindFirstChild("Configs")
-    if not Configs then return nil end
-
-    local Config = Configs:FindFirstChild(AssetCategory)
-    if not Config then return nil end
-
-    local Success, Module = pcall(function() return require(Config) end)
-    if not Success or not Module then return nil end
-
-    local Data = {
-        Rarity = Module.Rarity and (Module.Rarity._id or Module.Rarity.RarityId) or nil,
-        EarningRate = Module.EarningRate or 0,
-        DisplayName = Module.DisplayName or AssetCategory
-    }
-
-    Cache.PetData[AssetCategory] = Data
-    return Data
-end
-
--- ==================================================
--- FIND ASSET CATEGORY (CACHE Uid)
--- ==================================================
-local function FindAssetCategory(EggModel)
-    if not EggModel then return nil end
-
-    local Uid = EggModel.Name
-    if Cache.UidCategory[Uid] then
-        return Cache.UidCategory[Uid]
-    end
-
-    if not Cache.MeshIdMapBuilt then BuildMeshIdMap() end
-
-    for _, Desc in ipairs(EggModel:GetDescendants()) do
-        if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
-            local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
-        end
-        if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
-            local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
-        end
-    end
-
-    return nil
-end
-
--- ==================================================
--- SORT EGGS
--- ==================================================
-local function SortEggs(EggList)
-    table.sort(EggList, function(a, b)
-        local Pa = RARITY_PRIORITY[a.Rarity] or 999
-        local Pb = RARITY_PRIORITY[b.Rarity] or 999
-        if Pa ~= Pb then return Pa < Pb end
-        return a.EarningRate > b.EarningRate
-    end)
-end
-
--- ==================================================
--- FIND BEST EGG (Spawn Path First → Workspace Backup)
--- ==================================================
-local function FindBestEgg()
-    local EggList = {}
-
-    local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if Container then
-        for _, Slot in ipairs(Container:GetChildren()) do
-            if Slot:IsA("Model") then
-                local Category = FindAssetCategory(Slot)
-                if Category then
-                    local Data = GetPetData(Category)
-                    if Data and SelectedRarities[Data.Rarity] then
-                        table.insert(EggList, {
-                            Slot = Slot,
-                            Uid = Slot.Name,
-                            Rarity = Data.Rarity,
-                            EarningRate = Data.EarningRate,
-                            DisplayName = Data.DisplayName,
-                            Location = "spawn"
-                        })
-                    end
-                end
-            end
-        end
-    end
-
-    if #EggList > 0 then
-        SortEggs(EggList)
-        return EggList[1]
-    end
-
-    for _, Obj in ipairs(workspace:GetChildren()) do
-        if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
-            local Category = FindAssetCategory(Obj)
-            if Category then
-                local Data = GetPetData(Category)
-                if Data and SelectedRarities[Data.Rarity] then
-                    table.insert(EggList, {
-                        Slot = Obj,
-                        Uid = Obj.Name,
-                        Rarity = Data.Rarity,
-                        EarningRate = Data.EarningRate,
-                        DisplayName = Data.DisplayName,
-                        Location = "workspace"
-                    })
-                end
-            end
-        end
-    end
-
-    if #EggList == 0 then return nil end
-    SortEggs(EggList)
-    return EggList[1]
-end
-
--- ==================================================
--- SET RARITIES
--- ==================================================
-local function SetRarities(List)
-    SelectedRarities = {}
-    for _, r in ipairs(List) do
-        SelectedRarities[r] = true
-    end
-    print("[FarmingManager] Rarities: " .. table.concat(List, ", "))
-end
+local SAFE_ZONE_WAIT = 3
+local AFK_JUMP_WAIT = 0.5
+local FLY_SPEED = 500
+local ARRIVE_DISTANCE = 5
+local FLY_TIMEOUT = 15
 
 -- ==================================================
 -- STATE
 -- ==================================================
-local FarmingEnabled = false
-local CurrentState = "IDLE"
-local CurrentPhase = "UNKNOWN"
-local FarmingThread = nil
-local AFKStarted = false
-local PendingEggUid = nil
-local WaitingForTeleport = false
-
-local WalkConnection = nil
+local ManagerEnabled = false
+local ManagerThread = nil
+local LastPortalState = false
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
 
 -- ==================================================
--- GET CHAR / ROOT / HUM
+-- DEBUG
 -- ==================================================
-local function GetChar()
-    return Player.Character
-end
-
-local function GetRoot()
-    local Char = GetChar()
-    if not Char then return nil end
-    return Char:FindFirstChild("HumanoidRootPart")
-end
-
-local function GetHum()
-    local Char = GetChar()
-    if not Char then return nil end
-    return Char:FindFirstChildOfClass("Humanoid")
+local function DebugPrint(...)
+    print("[ManagerDrone]", ...)
 end
 
 -- ==================================================
--- ✅ CLEANUP WALK
+-- CHECK FARMING MANAGER
 -- ==================================================
-local function CleanupWalk()
-    if WalkConnection then
-        WalkConnection:Disconnect()
-        WalkConnection = nil
+local function IsFarmingManagerActive()
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
+        return true
     end
+    return false
+end
 
-    local Hum = GetHum()
-    local Root = GetRoot()
+-- ==================================================
+-- CHECK PORTAL
+-- ==================================================
+local function IsPortalSpawned()
+    local Portal = workspace:FindFirstChild(PORTAL_NAME)
+    return Portal ~= nil
+end
+
+-- ==================================================
+-- CHECK AUTO EVENT NEW
+-- ==================================================
+local function IsAutoEventNewActive()
+    if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+        return true
+    end
+    return false
+end
+
+-- ==================================================
+-- GET HUMANOID
+-- ==================================================
+local function GetHumanoid()
+    local Char = Player.Character
+    if not Char then return nil, nil end
+    return Char:FindFirstChildOfClass("Humanoid"), Char:FindFirstChild("HumanoidRootPart")
+end
+
+-- ==================================================
+-- CLEANUP FLY
+-- ==================================================
+local function CleanupFly()
+    if FlyConnection then FlyConnection:Disconnect() FlyConnection = nil end
+    if BodyVelocity then
+        pcall(function()
+            BodyVelocity.Velocity = Vector3.zero
+            BodyVelocity.MaxForce = Vector3.zero
+        end)
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
+    if BodyGyro then
+        pcall(function() BodyGyro.MaxTorque = Vector3.zero end)
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
+    local Hum, Root = GetHumanoid()
     if Hum then
         pcall(function()
-            Hum:MoveTo(Root and Root.Position or Hum.Parent.HumanoidRootPart.Position)
+            Hum.PlatformStand = false
+            Hum.Sit = false
         end)
     end
     if Root then
@@ -290,438 +111,414 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- ✅ WALK TP (Humanoid:MoveTo + Speed ដើម)
+-- FLY TP (BodyV + BodyG)
 -- ==================================================
-local function WalkTP(Destination, Callback)
-    CleanupWalk()
+local function FlyTP(Destination, Callback)
+    CleanupFly()
 
-    local Hum = GetHum()
-    local Root = GetRoot()
-    if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    if Hum.Health <= 0 then
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    print(string.format("[FarmingManager] Walk TP → %s | Speed: %d", tostring(Destination), Hum.WalkSpeed))
+    Hum.PlatformStand = true
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "YokudoBV"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1250
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = Root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "YokudoBG"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 3000
+    BodyGyro.D = 500
+    BodyGyro.CFrame = Root.CFrame
+    BodyGyro.Parent = Root
 
     local StartTime = tick()
-    local LastCheck = 0
 
-    WalkConnection = RunService.Heartbeat:Connect(function()
-        if not FarmingEnabled then
-            CleanupWalk()
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not ManagerEnabled then CleanupFly() return end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupFly() return end
+        if not BodyVelocity or not BodyGyro then CleanupFly() return end
+
+        local CurrentPos = Root2.Position
+        local Dir = Destination - CurrentPos
+        local TotalDist = Dir.Magnitude
+
+        if TotalDist <= ARRIVE_DISTANCE then
+            CleanupFly()
+            Root2.CFrame = CFrame.new(Destination)
+            if Callback then Callback() end
             return
         end
 
-        local Hum2 = GetHum()
-        local Root2 = GetRoot()
-        if not Hum2 or not Root2 then
-            CleanupWalk()
-            return
-        end
-        if Hum2.Health <= 0 then
-            CleanupWalk()
+        if tick() - StartTime > FLY_TIMEOUT then
+            CleanupFly()
+            if Callback then Callback() end
             return
         end
 
-        Hum2:MoveTo(Destination)
-
-        if tick() - LastCheck > 0.05 then
-            LastCheck = tick()
-
-            local Dist = (Root2.Position - Destination).Magnitude
-            if Dist <= 3 then
-                CleanupWalk()
-                print(string.format("[FarmingManager] ✅ Walk TP Arrived | Dist: %.1f", Dist))
-                if Callback then Callback() end
-                return
-            end
-
-            if tick() - StartTime > WALK_TIMEOUT then
-                CleanupWalk()
-                print("[FarmingManager] Walk TP Timeout")
-                if Callback then Callback() end
-                return
-            end
-        end
+        BodyVelocity.Velocity = Dir.Unit * FLY_SPEED
+        BodyGyro.CFrame = CFrame.new(CurrentPos, Destination)
     end)
 end
 
 -- ==================================================
--- GET PHASE (FAST)
+-- FLY TO SAFE ZONE
 -- ==================================================
-local function GetPhase()
-    if AreaEggCycle then
-        local Success, IsNight = pcall(function()
-            return AreaEggCycle.IsNightPhase(Workspace:GetServerTimeNow())
-        end)
-        if Success then
-            return IsNight and "Night" or "Day"
-        end
-    end
+local function FlyToSafeZone(Callback)
+    DebugPrint("🚀 Fly TP → Safe Zone")
 
-    local Success, Text = pcall(function()
-        return Player.PlayerGui.HUD.GameHUD.BottomRight.NightTimer.Value.Text
+    FlyTP(SAFE_ZONE, function()
+        DebugPrint("✅ Arrived Safe Zone")
+        if Callback then Callback() end
     end)
-    if Success and Text then
-        local M = tonumber(string.match(Text, "(%d+)m")) or 0
-        local S = tonumber(string.match(Text, "(%d+)s")) or 0
-        local Sec = M * 60 + S
-        return Sec > 10 and "Day" or "Night"
-    end
-
-    return "UNKNOWN"
 end
 
 -- ==================================================
--- STOP ALL
+-- FLY TO PORTAL
 -- ==================================================
-local function StopAll()
-    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
-        local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
-        if not TreadmillPos then
-            local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
-            if Treadmill then TreadmillPos = Treadmill.Position end
-        end
-        if TreadmillPos then
-            _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
-                _G.YOKUDO_AFKSystem.Disable()
-                AFKStarted = false
-            end)
-        else
-            _G.YOKUDO_AFKSystem.Disable()
-            AFKStarted = false
-        end
-    end
-
-    -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
-    if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
-        _G.YOKUDO_TeleportSystem.Disable()
-        print("[FarmingManager] ✅ TeleportSystem Stopped")
-    end
-
-    CleanupWalk()
-end
-
--- ==================================================
--- FLY TO SAFE ZONE AND WAIT (WALK TP)
--- ==================================================
-local function FlyToSafeZoneAndWait()
-    local Root = GetRoot()
-    if not Root then return false end
-
-    local DistToSafe = (Root.Position - SAFE_ZONE).Magnitude
-    if DistToSafe <= SAFE_ZONE_DIST then
-        return true
-    end
-
-    WalkTP(SAFE_ZONE)
-
-    local WaitTime = 0
-    while FarmingEnabled and WaitTime < 15 do
-        local Root2 = GetRoot()
-        if Root2 then
-            local Dist = (Root2.Position - SAFE_ZONE).Magnitude
-            if Dist <= SAFE_ZONE_DIST then return true end
-        end
-        task.wait(0.05)
-        WaitTime = WaitTime + 0.05
-    end
-
-    return false
-end
-
--- ==================================================
--- ✅ START TELEPORT SYSTEM (ជំនួស VIPTP)
--- ==================================================
-local function StartTeleportSystem(EggUid)
-    if not _G.YOKUDO_TeleportSystem then
-        warn("[FarmingManager] TeleportSystem not loaded!")
+local function FlyToPortal(Callback)
+    local Portal = workspace:FindFirstChild(PORTAL_NAME)
+    if not Portal then
+        DebugPrint("⚠️ Portal not found")
+        if Callback then Callback() end
         return
     end
 
-    print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
+    local PortalPart = Portal:IsA("Model") and (Portal.PrimaryPart or Portal:FindFirstChildWhichIsA("BasePart")) or Portal
+    local PortalPos = PortalPart and PortalPart.Position or nil
+    if not PortalPos then
+        DebugPrint("⚠️ Portal position not found")
+        if Callback then Callback() end
+        return
+    end
 
-    WaitingForTeleport = true
-    _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
-    _G.YOKUDO_TeleportSystem.Enable()
+    local TargetPos = Vector3.new(PortalPos.X, 75, PortalPos.Z)
+    DebugPrint("🚀 Fly TP → Portal | Pos:", tostring(TargetPos))
+
+    FlyTP(TargetPos, function()
+        DebugPrint("✅ Arrived Portal")
+        if Callback then Callback() end
+    end)
 end
 
 -- ==================================================
--- ✅ CALLBACK ពី TELEPORT SYSTEM
+-- FORCE STOP ALL
 -- ==================================================
-local function OnTeleportComplete()
-    if not FarmingEnabled then
-        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
+local function ForceStopAll()
+    DebugPrint("Force Stop All Features")
+
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
+    end
+    if _G.YOKUDO_AFKSystem then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+    end
+
+    CleanupFly()
+end
+
+-- ==================================================
+-- ENABLE AFK SYSTEM (Walk TP)
+-- ==================================================
+local function EnableAFKSystem()
+    if IsFarmingManagerActive() then
+        DebugPrint("Skip AFK (FarmingManager active)")
         return
     end
-    if not WaitingForTeleport then
-        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
+
+    if not _G.YOKUDO_AFKSystem then
+        DebugPrint("❌ AFKSystem not loaded!")
         return
     end
 
-    WaitingForTeleport = false
-    AFKStarted = false
-    print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
+    if _G.YOKUDO_AFKSystem.IsEnabled() then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+        task.wait(0.3)
+    end
 
-    local BestEgg = FindBestEgg()
+    pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+    DebugPrint("✅ AFKSystem Enabled (Walk TP)")
+end
 
-    if BestEgg then
-        print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Location:", BestEgg.Location)
-        PendingEggUid = BestEgg.Uid
+-- ==================================================
+-- FULL RESET
+-- ==================================================
+local function FullReset()
+    DebugPrint("🔄 Full Reset...")
 
-        task.spawn(function()
-            local ReachedSafe = FlyToSafeZoneAndWait()
-            if ReachedSafe and PendingEggUid then
-                task.wait(SAFE_WAIT_AFTER_REACH)
-                StartTeleportSystem(PendingEggUid)
-                PendingEggUid = nil
-            else
-                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
-            end
-        end)
+    CleanupFly()
+
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
+    end
+    if _G.YOKUDO_AFKSystem then
+        pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+    end
+
+    LastPortalState = false
+
+    DebugPrint("✅ Full Reset Complete")
+end
+
+-- ==================================================
+-- CALL MANAGER AFTER DONE (Portal បាត់)
+-- ==================================================
+local function CallManagerAfterDone()
+    DebugPrint("=========================================")
+    DebugPrint("🎉 Portal Gone → Stop Attack + Call AFK")
+    DebugPrint("=========================================")
+
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
+        DebugPrint("✅ AutoEventNew Disabled")
+    end
+
+    task.wait(0.5)
+
+    if not IsFarmingManagerActive() then
+        EnableAFKSystem()
     else
-        print("[FarmingManager] ❌ No Egg → Enable AFK")
+        DebugPrint("⚠️ FarmingManager Active → Skip AFK")
+    end
+
+    LastPortalState = false
+    DebugPrint("✅ Call Manager Complete")
+end
+
+-- ==================================================
+-- ✅ SWITCH FROM AFK TO AUTO EVENT (ដូច FarmingManager)
+-- ==================================================
+local function SwitchAFKToAttack()
+    DebugPrint("=========================================")
+    DebugPrint("🚪 Portal Spawned → Switch to AutoEventNew")
+    DebugPrint("=========================================")
+
+    if IsFarmingManagerActive() then
+        DebugPrint("⚠️ Skip Switch (FarmingManager active)")
+        return
+    end
+
+    -- ✅ Step 1: យក Treadmill Position
+    local TreadmillPos = nil
+    if _G.YOKUDO_AFKSystem then
+        TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+    end
+
+    if not TreadmillPos and _G.YOKUDO_AFKSystem then
+        local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+        if Treadmill then
+            TreadmillPos = Treadmill.Position
+        end
+    end
+
+    -- ✅ Step 2: បើគ្មាន Treadmill → Stop AFK ភ្លាម → Fly Safe Zone
+    if not TreadmillPos then
+        DebugPrint("No Treadmill → Stop AFK → Fly Safe Zone")
 
         if _G.YOKUDO_AFKSystem then
-            if not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-                print("[FarmingManager] ✅ AFKSystem Enabled")
-            end
+            pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         end
-    end
-end
 
--- ==================================================
--- WAIT FOR DAY
--- ==================================================
-local function WaitForDay()
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-        if Phase == "Day" then return true end
-        task.wait(DAY_CHECK_INTERVAL)
-    end
-    return false
-end
+        task.wait(0.5)
 
--- ==================================================
--- NIGHT LOOP (FAST)
--- ==================================================
-local function NightLoop()
-    print("[FarmingManager] NightLoop (0.03s)")
+        FlyToSafeZone(function()
+            DebugPrint("⏳ Wait 3s at Safe Zone...")
+            task.wait(SAFE_ZONE_WAIT)
 
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-
-        if Phase == "Day" then return end
-
-        local BestEgg = FindBestEgg()
-
-        if BestEgg then
-            print("[FarmingManager] ✅ Night + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-            PendingEggUid = BestEgg.Uid
-
-            StopAll()
-            task.wait(0.3)
-
-            local ReachedSafe = FlyToSafeZoneAndWait()
-            if ReachedSafe then
-                task.wait(SAFE_WAIT_AFTER_REACH)
-                local IsDay = WaitForDay()
-                if IsDay and PendingEggUid then
-                    StartTeleportSystem(PendingEggUid)
-                    PendingEggUid = nil
-                    while WaitingForTeleport and FarmingEnabled do
-                        task.wait(0.2)
-                    end
+            FlyToPortal(function()
+                if _G.YOKUDO_AutoEventNew then
+                    _G.YOKUDO_AutoEventNew.Enable()
+                    DebugPrint("✅ AutoEventNew Enabled")
                 end
-            end
-            return
-        else
-            if not AFKStarted then
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
+            end)
+        end)
+        return
+    end
+
+    -- ✅ Step 3: Jump Out Treadmill (ដូច FarmingManager)
+    DebugPrint("🦘 Jump Out Treadmill...")
+
+    _G.YOKUDO_AFKSystem.JumpOutTreadmill(TreadmillPos, function()
+        DebugPrint("✅ Jumped out!")
+
+        -- ✅ Step 4: Stop AFKSystem
+        if _G.YOKUDO_AFKSystem then
+            pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
+            DebugPrint("✅ AFKSystem Disabled")
+        end
+
+        task.wait(AFK_JUMP_WAIT)
+
+        -- ✅ Step 5: Fly Safe Zone → Wait 3s → Fly Portal → Enable AutoEventNew
+        FlyToSafeZone(function()
+            DebugPrint("⏳ Wait 3s at Safe Zone...")
+            task.wait(SAFE_ZONE_WAIT)
+
+            FlyToPortal(function()
+                if _G.YOKUDO_AutoEventNew then
+                    _G.YOKUDO_AutoEventNew.Enable()
+                    DebugPrint("✅ AutoEventNew Enabled")
                 end
-            end
-        end
-
-        task.wait(NIGHT_CHECK_INTERVAL)
-    end
+            end)
+        end)
+    end)
 end
 
 -- ==================================================
--- DAY LOOP (FAST)
--- ==================================================
-local function DayLoop()
-    print("[FarmingManager] DayLoop (0.05s)")
-
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-
-        if Phase == "Night" then return end
-
-        local BestEgg = FindBestEgg()
-
-        if BestEgg then
-            print("[FarmingManager] ✅ Day + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-
-            StopAll()
-            task.wait(0.3)
-
-            FlyToSafeZoneAndWait()
-            task.wait(0.5)
-
-            StartTeleportSystem(BestEgg.Uid)
-
-            while WaitingForTeleport and FarmingEnabled do
-                task.wait(0.2)
-            end
-        else
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-            end
-        end
-
-        task.wait(DAY_CHECK_INTERVAL)
-    end
-end
-
--- ==================================================
--- MAIN LOOP
+-- MAIN LOOP (Portal Signal)
 -- ==================================================
 local function MainLoop()
-    print("[FarmingManager] MainLoop Started")
+    DebugPrint("MainLoop Started (Portal Signal)")
 
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
+    -- ✅ ពេល Start → Check Portal ភ្លាម
+    local InitialPortal = IsPortalSpawned()
+    if not InitialPortal then
+        DebugPrint("Initial: No Portal → Enable AFK")
+        task.wait(0.5)
+        EnableAFKSystem()
+        LastPortalState = false
+    else
+        DebugPrint("Initial: Portal Spawned → Switch")
+        task.wait(0.5)
+        SwitchAFKToAttack()
+        LastPortalState = true
+    end
 
-        if Phase == "Day" then
-            DayLoop()
-        else
-            NightLoop()
+    while ManagerEnabled do
+        if IsFarmingManagerActive() then
+            if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
+                DebugPrint("⚠️ FarmingManager active → Stop AutoEventNew")
+                _G.YOKUDO_AutoEventNew.Disable()
+            end
+            LastPortalState = false
+            task.wait(PORTAL_CHECK_INTERVAL)
+            continue
         end
 
-        task.wait(0.05)
+        local CurrentPortalState = IsPortalSpawned()
+
+        -- ✅ Portal ឃើញ (Spawn)
+        if CurrentPortalState and not LastPortalState then
+            DebugPrint("=========================================")
+            DebugPrint("🚪 PORTAL SPAWNED → SPAWN SIGNAL")
+            DebugPrint("=========================================")
+
+            SwitchAFKToAttack()
+
+            LastPortalState = true
+        end
+
+        -- ✅ Portal បាត់ (Done)
+        if not CurrentPortalState and LastPortalState then
+            DebugPrint("=========================================")
+            DebugPrint("✅ PORTAL GONE → DONE SIGNAL")
+            DebugPrint("=========================================")
+
+            CallManagerAfterDone()
+
+            LastPortalState = false
+        end
+
+        task.wait(PORTAL_CHECK_INTERVAL)
     end
-    print("[FarmingManager] MainLoop Stopped")
+
+    ForceStopAll()
+    DebugPrint("MainLoop Stopped")
 end
 
 -- ==================================================
 -- ENABLE / DISABLE
 -- ==================================================
-local function Enable()
-    if FarmingEnabled then return end
-    FarmingEnabled = true
-    CurrentState = "CHECK_TIME"
-    AFKStarted = false
-    PendingEggUid = nil
-    WaitingForTeleport = false
+local function EnableManager()
+    if ManagerEnabled then return end
+    ManagerEnabled = true
+    LastPortalState = false
 
-    if FarmingThread then
-        pcall(function() task.cancel(FarmingThread) end)
-        FarmingThread = nil
-    end
-    FarmingThread = task.spawn(function() MainLoop() end)
-
-    print("[YOKUDO] FarmingManager: ON (TeleportSystem)")
-end
-
-local function Disable()
-    if not FarmingEnabled then return end
-    FarmingEnabled = false
-
-    if FarmingThread then
-        pcall(function() task.cancel(FarmingThread) end)
-        FarmingThread = nil
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
     end
 
-    StopAll()
+    ManagerThread = task.spawn(function() MainLoop() end)
 
-    AFKStarted = false
-    PendingEggUid = nil
-    WaitingForTeleport = false
-    CurrentState = "IDLE"
-    CurrentPhase = "UNKNOWN"
-    print("[YOKUDO] FarmingManager: OFF")
+    DebugPrint("Manager Drone: ON")
 end
 
-local function Toggle()
-    if FarmingEnabled then Disable() else Enable() end
+local function DisableManager()
+    if not ManagerEnabled then
+        FullReset()
+        return
+    end
+    ManagerEnabled = false
+
+    if ManagerThread then
+        pcall(function() task.cancel(ManagerThread) end)
+        ManagerThread = nil
+    end
+
+    FullReset()
+
+    DebugPrint("Manager Drone: OFF")
 end
+
+local function ToggleManager()
+    if ManagerEnabled then
+        DisableManager()
+    else
+        EnableManager()
+    end
+end
+
+-- ==================================================
+-- CHARACTER ADDED (Resume)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not ManagerEnabled then return end
+
+    DebugPrint("🔄 Character Added → Wait for Respawn...")
+    task.wait(2)
+
+    DebugPrint("✅ Resumed after Respawn")
+
+    task.spawn(function()
+        task.wait(0.5)
+        if not IsPortalSpawned() then
+            DebugPrint("No Portal → Enable AFK")
+            EnableAFKSystem()
+        else
+            DebugPrint("Portal Spawned → Switch")
+            SwitchAFKToAttack()
+        end
+    end)
+end)
 
 -- ==================================================
 -- EXPORT
 -- ==================================================
-_G.YOKUDO_FarmingManager = {
-    Enable = Enable,
-    Disable = Disable,
-    Toggle = Toggle,
-    IsEnabled = function() return FarmingEnabled end,
-    SetRarities = SetRarities,
-    GetState = function() return CurrentState end,
-    GetPhase = function() return CurrentPhase end,
-    FindBestEgg = FindBestEgg,
-
-    GetEggData = function(Uid)
-        if not Uid then return nil end
-        local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-        local Slot = (Container and Container:FindFirstChild(Uid)) or workspace:FindFirstChild(Uid)
-        if not Slot then return nil end
-        local Category = FindAssetCategory(Slot)
-        if not Category then return nil end
-        return GetPetData(Category)
-    end,
-
-    GetUidLocation = function(Uid)
-        if not Uid then return "none" end
-        local Container = workspace:FindFirstChild("AreaEggSlotsClient")
-        local InContainer = Container and Container:FindFirstChild(Uid) ~= nil
-        if InContainer then return "spawn" end
-        local InWorkspace = workspace:FindFirstChild(Uid) ~= nil
-        if InWorkspace then return "workspace" end
-        return "none"
-    end,
-
-    NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
-    DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
-    WALK_TIMEOUT = WALK_TIMEOUT,
-    OnVIPTPComplete = OnTeleportComplete,  -- ✅ Callback Name ដូចដើម
-    OnTeleportComplete = OnTeleportComplete,  -- ✅ Alias ថ្មី
-    WalkTP = WalkTP,
+_G.YOKUDO_ManagerDrone = {
+    Enable = EnableManager,
+    Disable = DisableManager,
+    Toggle = ToggleManager,
+    IsEnabled = function() return ManagerEnabled end,
+    IsPortalSpawned = IsPortalSpawned,
+    ForceStopAll = ForceStopAll,
+    SwitchAFKToAttack = SwitchAFKToAttack,
+    IsAutoEventNewActive = IsAutoEventNewActive,
+    CallManagerAfterDone = CallManagerAfterDone,
+    FullReset = FullReset,
+    EnableAFKSystem = EnableAFKSystem,
+    IsFarmingManagerActive = IsFarmingManagerActive,
+    FlyToSafeZone = FlyToSafeZone,
+    FlyToPortal = FlyToPortal,
 }
 
--- ==================================================
--- BUILD CACHE ON LOAD
--- ==================================================
-task.spawn(function()
-    task.wait(1)
-    BuildMeshIdMap()
-    print("[FarmingManager] Cache Ready")
-end)
-
--- ==================================================
--- PERIODIC CACHE CLEANUP (រាល់ 30s)
--- ==================================================
-task.spawn(function()
-    while task.wait(30) do
-        Cache.UidCategory = {}
-        print("[FarmingManager] Uid Cache Cleared")
-    end
-end)
-
-print("✅ FarmingManager Loaded (TeleportSystem Only — No VIPTP)")
+print("✅ ManagerDrone Feature Loaded (v12 FINAL — Jump Out like FarmingManager)")
