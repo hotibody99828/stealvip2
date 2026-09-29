@@ -1,10 +1,6 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v9 FINAL)
--- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
--- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
--- ✅ ឃើញ Portal → AFKSystem.Disable() → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
--- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
--- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
+-- YOKUDO HUB | FEATURE | Manager Drone (v10 DEBUG)
+-- ✅ Debug Print ច្បាស់ — ដើម្បីមើលបញ្ហា AFK
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -33,10 +29,18 @@ local BodyVelocity = nil
 local BodyGyro = nil
 
 -- ==================================================
+-- DEBUG
+-- ==================================================
+local function DebugPrint(...)
+    print("[ManagerDrone-DEBUG]", ...)
+end
+
+-- ==================================================
 -- CHECK FARMING MANAGER
 -- ==================================================
 local function IsFarmingManagerActive()
     if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.IsEnabled() then
+        DebugPrint("⚠️ FarmingManager Active")
         return true
     end
     return false
@@ -103,13 +107,15 @@ local function CleanupFly()
 end
 
 -- ==================================================
--- FLY TP (BodyV + BodyG)
+-- FLY TP
 -- ==================================================
 local function FlyTP(Destination, Callback)
+    DebugPrint("🚀 FlyTP Started | Dest:", tostring(Destination))
     CleanupFly()
 
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
+        DebugPrint("❌ FlyTP Failed: No Humanoid/Health=0")
         if Callback then Callback() end
         return
     end
@@ -145,6 +151,7 @@ local function FlyTP(Destination, Callback)
         local TotalDist = Dir.Magnitude
 
         if TotalDist <= ARRIVE_DISTANCE then
+            DebugPrint("✅ FlyTP Arrived | Dist:", math.floor(TotalDist))
             CleanupFly()
             Root2.CFrame = CFrame.new(Destination)
             if Callback then Callback() end
@@ -152,6 +159,7 @@ local function FlyTP(Destination, Callback)
         end
 
         if tick() - StartTime > FLY_TIMEOUT then
+            DebugPrint("⏰ FlyTP Timeout | Dist Left:", math.floor(TotalDist))
             CleanupFly()
             if Callback then Callback() end
             return
@@ -166,10 +174,10 @@ end
 -- FLY TO SAFE ZONE
 -- ==================================================
 local function FlyToSafeZone(Callback)
-    print("[ManagerDrone] 🚀 Fly TP → Safe Zone")
+    DebugPrint("🚀 FlyToSafeZone Called")
 
     FlyTP(SAFE_ZONE, function()
-        print("[ManagerDrone] ✅ Arrived Safe Zone")
+        DebugPrint("✅ Arrived Safe Zone")
         if Callback then Callback() end
     end)
 end
@@ -178,9 +186,11 @@ end
 -- FLY TO PORTAL
 -- ==================================================
 local function FlyToPortal(Callback)
+    DebugPrint("🚀 FlyToPortal Called")
+
     local Portal = workspace:FindFirstChild(PORTAL_NAME)
     if not Portal then
-        print("[ManagerDrone] ⚠️ Portal not found")
+        DebugPrint("⚠️ Portal not found in FlyToPortal")
         if Callback then Callback() end
         return
     end
@@ -188,17 +198,16 @@ local function FlyToPortal(Callback)
     local PortalPart = Portal:IsA("Model") and (Portal.PrimaryPart or Portal:FindFirstChildWhichIsA("BasePart")) or Portal
     local PortalPos = PortalPart and PortalPart.Position or nil
     if not PortalPos then
-        print("[ManagerDrone] ⚠️ Portal position not found")
+        DebugPrint("⚠️ Portal position not found")
         if Callback then Callback() end
         return
     end
 
     local TargetPos = Vector3.new(PortalPos.X, 75, PortalPos.Z)
-
-    print("[ManagerDrone] 🚀 Fly TP → Portal | Pos:", tostring(TargetPos))
+    DebugPrint("🚀 Fly TP → Portal | Pos:", tostring(TargetPos))
 
     FlyTP(TargetPos, function()
-        print("[ManagerDrone] ✅ Arrived Portal")
+        DebugPrint("✅ Arrived Portal")
         if Callback then Callback() end
     end)
 end
@@ -207,7 +216,7 @@ end
 -- FORCE STOP ALL
 -- ==================================================
 local function ForceStopAll()
-    print("[ManagerDrone] Force Stop All Features")
+    DebugPrint("Force Stop All Features")
 
     if _G.YOKUDO_AutoEventNew then
         pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
@@ -223,30 +232,66 @@ end
 -- ENABLE AFK SYSTEM (Walk TP)
 -- ==================================================
 local function EnableAFKSystem()
+    DebugPrint("========== EnableAFKSystem Called ==========")
+
+    -- ✅ Check 1: FarmingManager
     if IsFarmingManagerActive() then
-        print("[ManagerDrone] Skip AFK (FarmingManager active)")
+        DebugPrint("❌ Skip AFK: FarmingManager active")
         return
     end
 
+    -- ✅ Check 2: AFKSystem loaded
     if not _G.YOKUDO_AFKSystem then
-        print("[ManagerDrone] ❌ AFKSystem not loaded!")
+        DebugPrint("❌ AFKSystem NOT loaded!")
         return
     end
+    DebugPrint("✅ AFKSystem loaded")
 
-    if _G.YOKUDO_AFKSystem.IsEnabled() then
+    -- ✅ Check 3: AFKSystem methods
+    if not _G.YOKUDO_AFKSystem.Enable then
+        DebugPrint("❌ AFKSystem.Enable not found!")
+        return
+    end
+    DebugPrint("✅ AFKSystem.Enable method found")
+
+    -- ✅ Check 4: AFKSystem.IsEnabled
+    local IsEnabled = false
+    pcall(function()
+        IsEnabled = _G.YOKUDO_AFKSystem.IsEnabled()
+    end)
+    DebugPrint("AFKSystem IsEnabled:", tostring(IsEnabled))
+
+    -- ✅ Disable មុនបើ Enabled
+    if IsEnabled then
+        DebugPrint("🔄 AFKSystem already enabled → Disable first")
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         task.wait(0.3)
     end
 
-    pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
-    print("[ManagerDrone] ✅ AFKSystem Enabled (Walk TP)")
+    -- ✅ Enable AFKSystem
+    DebugPrint("🚀 Calling AFKSystem.Enable()...")
+    local OK, Err = pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+
+    if OK then
+        DebugPrint("✅ AFKSystem.Enable() OK")
+
+        -- ✅ Check ថា IsEnabled ពិតជា true
+        task.wait(0.5)
+        local FinalState = false
+        pcall(function()
+            FinalState = _G.YOKUDO_AFKSystem.IsEnabled()
+        end)
+        DebugPrint("✅ AFKSystem Final State:", tostring(FinalState))
+    else
+        DebugPrint("❌ AFKSystem.Enable() FAILED:", tostring(Err))
+    end
 end
 
 -- ==================================================
 -- FULL RESET
 -- ==================================================
 local function FullReset()
-    print("[ManagerDrone] 🔄 Full Reset...")
+    DebugPrint("🔄 Full Reset...")
 
     CleanupFly()
 
@@ -259,20 +304,20 @@ local function FullReset()
 
     LastPortalState = false
 
-    print("[ManagerDrone] ✅ Full Reset Complete")
+    DebugPrint("✅ Full Reset Complete")
 end
 
 -- ==================================================
--- CALL MANAGER AFTER DONE (Portal បាត់)
+-- CALL MANAGER AFTER DONE
 -- ==================================================
 local function CallManagerAfterDone()
-    print("[ManagerDrone] ================================")
-    print("[ManagerDrone] 🎉 Portal Gone → Stop Attack + Call AFK")
-    print("[ManagerDrone] ================================")
+    DebugPrint("=========================================")
+    DebugPrint("🎉 Portal Gone → Call AFK")
+    DebugPrint("=========================================")
 
     if _G.YOKUDO_AutoEventNew then
         pcall(function() _G.YOKUDO_AutoEventNew.Disable() end)
-        print("[ManagerDrone] ✅ AutoEventNew Stopped")
+        DebugPrint("✅ AutoEventNew Disabled")
     end
 
     task.wait(0.5)
@@ -280,61 +325,62 @@ local function CallManagerAfterDone()
     if not IsFarmingManagerActive() then
         EnableAFKSystem()
     else
-        print("[ManagerDrone] FarmingManager Active → Skip AFK")
+        DebugPrint("⚠️ FarmingManager Active → Skip AFK")
     end
 
     LastPortalState = false
-    print("[ManagerDrone] ✅ Call Manager Complete")
+    DebugPrint("✅ Call Manager Complete")
 end
 
 -- ==================================================
--- SWITCH FROM AFK TO AUTO EVENT (Portal ឃើញ)
+-- SWITCH AFK TO ATTACK
 -- ==================================================
 local function SwitchAFKToAttack()
-    print("[ManagerDrone] ================================")
-    print("[ManagerDrone] 🚪 Portal Spawned → Switch to AutoEventNew")
-    print("[ManagerDrone] ================================")
+    DebugPrint("=========================================")
+    DebugPrint("🚪 Portal Spawned → Switch to AutoEventNew")
+    DebugPrint("=========================================")
 
     if IsFarmingManagerActive() then
-        print("[ManagerDrone] Skip Switch (FarmingManager active)")
+        DebugPrint("⚠️ Skip Switch (FarmingManager active)")
         return
     end
 
     if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
-        print("[ManagerDrone] ✅ AFKSystem Disabled")
+        DebugPrint("✅ AFKSystem Disabled")
     end
 
     task.wait(0.5)
 
     FlyToSafeZone(function()
-        print("[ManagerDrone] ⏳ Wait 3s at Safe Zone...")
+        DebugPrint("⏳ Wait 3s at Safe Zone...")
         task.wait(SAFE_ZONE_WAIT)
 
         FlyToPortal(function()
             if _G.YOKUDO_AutoEventNew then
                 _G.YOKUDO_AutoEventNew.Enable()
-                print("[ManagerDrone] ✅ AutoEventNew Enabled")
+                DebugPrint("✅ AutoEventNew Enabled")
             end
         end)
     end)
 end
 
 -- ==================================================
--- MAIN LOOP (Portal Signal)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
-    print("[ManagerDrone] MainLoop Started (Portal Signal)")
+    DebugPrint("========== MainLoop Started ==========")
 
-    -- ✅ ពេល Start → Check Portal ភ្លាម
     local InitialPortal = IsPortalSpawned()
+    DebugPrint("Initial Portal State:", tostring(InitialPortal))
+
     if not InitialPortal then
-        print("[ManagerDrone] Initial: No Portal → Enable AFK")
+        DebugPrint("Initial: No Portal → Enable AFK")
         task.wait(0.5)
         EnableAFKSystem()
         LastPortalState = false
     else
-        print("[ManagerDrone] Initial: Portal Spawned → Switch")
+        DebugPrint("Initial: Portal Spawned → Switch")
         task.wait(0.5)
         SwitchAFKToAttack()
         LastPortalState = true
@@ -343,7 +389,7 @@ local function MainLoop()
     while ManagerEnabled do
         if IsFarmingManagerActive() then
             if _G.YOKUDO_AutoEventNew and _G.YOKUDO_AutoEventNew.IsEnabled() then
-                print("[ManagerDrone] FarmingManager active → Stop AutoEventNew")
+                DebugPrint("⚠️ FarmingManager active → Stop AutoEventNew")
                 _G.YOKUDO_AutoEventNew.Disable()
             end
             LastPortalState = false
@@ -355,9 +401,9 @@ local function MainLoop()
 
         -- ✅ Portal ឃើញ (Spawn)
         if CurrentPortalState and not LastPortalState then
-            print("[ManagerDrone] ================================")
-            print("[ManagerDrone] 🚪 PORTAL SPAWNED → SPAWN SIGNAL")
-            print("[ManagerDrone] ================================")
+            DebugPrint("=========================================")
+            DebugPrint("🚪 PORTAL SPAWNED → SPAWN SIGNAL")
+            DebugPrint("=========================================")
 
             SwitchAFKToAttack()
 
@@ -366,9 +412,9 @@ local function MainLoop()
 
         -- ✅ Portal បាត់ (Done)
         if not CurrentPortalState and LastPortalState then
-            print("[ManagerDrone] ================================")
-            print("[ManagerDrone] ✅ PORTAL GONE → DONE SIGNAL")
-            print("[ManagerDrone] ================================")
+            DebugPrint("=========================================")
+            DebugPrint("✅ PORTAL GONE → DONE SIGNAL")
+            DebugPrint("=========================================")
 
             CallManagerAfterDone()
 
@@ -379,7 +425,7 @@ local function MainLoop()
     end
 
     ForceStopAll()
-    print("[ManagerDrone] MainLoop Stopped")
+    DebugPrint("MainLoop Stopped")
 end
 
 -- ==================================================
@@ -397,7 +443,7 @@ local function EnableManager()
 
     ManagerThread = task.spawn(function() MainLoop() end)
 
-    print("[ManagerDrone] Manager Drone: ON")
+    DebugPrint("Manager Drone: ON")
 end
 
 local function DisableManager()
@@ -414,7 +460,7 @@ local function DisableManager()
 
     FullReset()
 
-    print("[ManagerDrone] Manager Drone: OFF")
+    DebugPrint("Manager Drone: OFF")
 end
 
 local function ToggleManager()
@@ -445,4 +491,4 @@ _G.YOKUDO_ManagerDrone = {
     FlyToPortal = FlyToPortal,
 }
 
-print("✅ ManagerDrone Feature Loaded (v9 FINAL — Initial Portal Check)")
+print("✅ ManagerDrone Feature Loaded (v10 DEBUG)")
