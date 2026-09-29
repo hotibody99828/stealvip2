@@ -31,7 +31,7 @@ local Config = {
     Position1 = Vector3.new(598, 70, -330),
     Position2 = Vector3.new(544, 70, -301),
 
-    WalkTimeout = 30,
+    WalkTimeout = 1000,
     CollectInterval = 0.02,
 }
 
