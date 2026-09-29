@@ -1,13 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (WALK TP ONLY)
--- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម (Server បិទ Fly)
--- ✅ Safe Speed Mode (265 / ដើម)
--- ✅ ជិតដល់ 30m → Pause Safe Speed
--- ✅ DropHeldEgg = true (Signal) → Lock Camera → Walk TP → Position 1
--- ✅ Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
--- ✅ Walk TP → Collect វិញ → Position 2 → Stop
--- ✅ Callback → FarmingManager ពេល AutoStop
--- ✅ Forward Declarations (ការពារ Nil Error Line 200)
+-- YOKUDO HUB | TELEPORT SYSTEM (WALK TP + SHOT TP P1)
+-- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
+-- ✅ Shot TP → Position 1 (1.2s) ពេល DropHeldEgg = true
+-- ✅ Safe Speed Mode (250 / ដើម)
+-- ✅ Lock Camera ពេល DropHeldEgg = true → Unlock ពេល Drop
+-- ✅ Forward Declarations (ការពារ Nil Error)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -22,6 +19,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- ==================================================
 local Config = {
     SafeSpeed = 250,
+    ShotTPTime = 1.2,
     ArriveDistance = 2,
     LockWait = 0.1,
     NearDistance = 25,
@@ -62,6 +60,7 @@ local State = {
     TargetUid = nil,
 
     WalkConnection = nil,
+    ShotConnection = nil,
     LockConnection = nil,
 
     DropHeldEgg = nil,
@@ -80,9 +79,9 @@ local State = {
 }
 
 -- ==================================================
--- ✅ FORWARD DECLARATIONS (ការពារ Nil Error Line 200)
+-- ✅ FORWARD DECLARATIONS (ការពារ Nil Error)
 -- ==================================================
-local Step3_WalkToPosition1
+local Step3_ShotToPosition1
 local Step4_LockAndDrop
 local Step5_WalkToCollectAgain
 local Step7_WalkToPosition2
@@ -112,7 +111,7 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- ✅ GET WALK SPEED (Safe Mode / ដើម)
+-- ✅ GET WALK SPEED
 -- ==================================================
 local function GetWalkSpeed()
     if State.SafeSpeedMode and not State.SafeSpeedPaused then
@@ -155,7 +154,7 @@ local function PauseSafeSpeed()
         Hum.WalkSpeed = State.SavedWalkSpeed or 16
     end
 
-    print("[TeleportSystem] ⏸️ Safe Speed Mode PAUSED | Speed:", Hum and Hum.WalkSpeed or "nil")
+    print("[TeleportSystem] ⏸️ Safe Speed Mode PAUSED")
 end
 
 local function ResumeSafeSpeed()
@@ -169,7 +168,7 @@ local function ResumeSafeSpeed()
         Hum.WalkSpeed = Config.SafeSpeed
     end
 
-    print("[TeleportSystem] ▶️ Safe Speed Mode RESUMED | Speed:", Config.SafeSpeed)
+    print("[TeleportSystem] ▶️ Safe Speed Mode RESUMED")
 end
 
 -- ==================================================
@@ -196,7 +195,7 @@ local function LockCamera()
         end
     end)
 
-    print("[TeleportSystem] 🔒 Camera Locked:", State.LockedCameraCFrame.Position)
+    print("[TeleportSystem] 🔒 Camera Locked")
 end
 
 local function UnlockCamera()
@@ -225,6 +224,7 @@ end
 -- ==================================================
 local function CleanupMovers()
     if State.WalkConnection then State.WalkConnection:Disconnect() State.WalkConnection = nil end
+    if State.ShotConnection then State.ShotConnection:Disconnect() State.ShotConnection = nil end
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
 
     local Hum, Root = GetHumanoid()
@@ -275,9 +275,55 @@ local function StopLock()
 end
 
 -- ==================================================
--- ✅ WALK TP (Humanoid:MoveTo + Speed ដើម)
--- ✅ ជិតដល់ 30m → Pause Safe Speed
--- ✅ ជិតដល់ 25m → Stop Walk + Lock
+-- ✅ SHOT TP (1.2s) — សម្រាប់ Position 1
+-- ==================================================
+local function ShotTP(Destination, Callback)
+    CleanupMovers()
+
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    local TargetCFrame = CFrame.new(Destination)
+    local StartPos = Root.Position
+    local StartTime = tick()
+
+    Hum.PlatformStand = true
+
+    print(string.format("[TeleportSystem] Shot TP → %s | Time: %.2fs", tostring(Destination), Config.ShotTPTime))
+
+    State.ShotConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then CleanupMovers() return end
+
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+
+        local Elapsed = tick() - StartTime
+        local Alpha = math.clamp(Elapsed / Config.ShotTPTime, 0, 1)
+
+        local NewPos = StartPos:Lerp(Destination, Alpha)
+
+        Root2.CFrame = CFrame.new(NewPos)
+        Root2.AssemblyLinearVelocity = Vector3.zero
+        Root2.AssemblyAngularVelocity = Vector3.zero
+
+        local Dist = (Root2.Position - Destination).Magnitude
+        if Dist <= Config.ArriveDistance or Alpha >= 1 then
+            CleanupMovers()
+            Root2.CFrame = TargetCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+
+            print(string.format("[TeleportSystem] ✅ Shot TP Arrived | Dist: %.1f", Dist))
+            if Callback then Callback() end
+        end
+    end)
+end
+
+-- ==================================================
+-- ✅ WALK TP (Humanoid:MoveTo)
 -- ==================================================
 local function WalkTP(Destination, LockAfterArrive, Callback)
     CleanupMovers()
@@ -298,7 +344,7 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
     local LockDone = false
     local SlowDone = false
 
-    print(string.format("[TeleportSystem] Walk TP → %s | Speed: %d", tostring(Destination), GetWalkSpeed()))
+    print(string.format("[TeleportSystem] Walk TP → %s", tostring(Destination)))
 
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
@@ -403,18 +449,20 @@ local function SetupDropHeldEgg()
         local IsEnabled = State.DropHeldEgg.Enabled == true
         print("[TeleportSystem] ⚡ DropHeldEgg.Enabled Changed →", IsEnabled)
 
+        -- ✅ Step 2 (Collect Target) → Shot TP Position 1 ភ្លាម
         if IsEnabled and State.Running and State.Step == "2_collect_target" then
-            print("[TeleportSystem] ✅ DETECTED TRUE → Walk TP Position 1")
+            print("[TeleportSystem] ✅ DETECTED TRUE → Shot TP Position 1 (1.2s)")
 
             State.TargetCollected = true
             StopLock()
 
             task.spawn(function()
                 task.wait(0.02)
-                Step3_WalkToPosition1()
+                Step3_ShotToPosition1()
             end)
         end
 
+        -- ✅ Step 6 (Collect Again) → Walk Position 2 ភ្លាម
         if IsEnabled and State.Running and State.Step == "6_collect_again" then
             print("[TeleportSystem] ✅ Step 6 DETECTED TRUE → Walk Position 2")
 
@@ -451,7 +499,7 @@ local function GetTargetPosition()
 end
 
 -- ==================================================
--- ✅ AUTO STOP (Reset WalkSpeed + Unlock Camera + Resume + Callback)
+-- ✅ AUTO STOP
 -- ==================================================
 local function AutoStop()
     StopLock()
@@ -464,7 +512,6 @@ local function AutoStop()
         local Hum = Char:FindFirstChildOfClass("Humanoid")
         if Hum then
             Hum.WalkSpeed = GetWalkSpeed()
-            print("[TeleportSystem] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
         end
     end
 
@@ -481,12 +528,9 @@ local function AutoStop()
         task.wait(0.3)
         if _G.YOKUDO_FarmingManager then
             if type(_G.YOKUDO_FarmingManager.OnTeleportComplete) == "function" then
-                local Success, Err = pcall(function()
+                pcall(function()
                     _G.YOKUDO_FarmingManager.OnTeleportComplete()
                 end)
-                if not Success then
-                    warn("[TeleportSystem] OnTeleportComplete Error:", Err)
-                end
             elseif type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
                 pcall(function()
                     _G.YOKUDO_FarmingManager.OnVIPTPComplete()
@@ -529,9 +573,9 @@ local function Step1_WalkToTarget()
 end
 
 -- ==================================================
--- ✅ STEP 3: Lock Camera → Walk TP → Position 1
+-- ✅ STEP 3: Lock Camera → Shot TP → Position 1 (1.2s)
 -- ==================================================
-Step3_WalkToPosition1 = function()
+Step3_ShotToPosition1 = function()
     if not State.Running then return end
 
     State.Step = "3_to_position1"
@@ -544,16 +588,16 @@ Step3_WalkToPosition1 = function()
         Hum.WalkSpeed = GetWalkSpeed()
     end
 
-    print("[TeleportSystem] Step 3: Lock Camera → Walk TP → Position 1")
+    print("[TeleportSystem] Step 3: Lock Camera → Shot TP → Position 1")
 
-    WalkTP(Config.Position1, true, function()
+    ShotTP(Config.Position1, function()
         print("[TeleportSystem] Step 3 Done: At Position 1 → Lock + Drop")
         Step4_LockAndDrop()
     end)
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Resume
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera
 -- ==================================================
 Step4_LockAndDrop = function()
     if not State.Running then return end
@@ -656,10 +700,8 @@ local function StartProcess()
     SetupDropHeldEgg()
     SaveStats()
 
-    print("[TeleportSystem] ========== START (Walk TP Only) ==========")
+    print("[TeleportSystem] ========== START ==========")
     print("[TeleportSystem] Target UID:", State.TargetUid)
-    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode)
-    print("[TeleportSystem] Current Speed:", GetWalkSpeed())
 
     task.spawn(function()
         task.wait(0.3)
@@ -751,4 +793,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk TP Only + Forward Declarations)")
+print("✅ TeleportSystem Loaded (Walk TP + Shot TP P1 + Forward Declarations)")
