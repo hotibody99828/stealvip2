@@ -1,14 +1,15 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | VIPTP (WALK TP + SHOT TP + LOCK + DROP)
+-- YOKUDO HUB | FEATURE | VIPTP (TAB FARMING ONLY)
+-- ✅ សម្រាប់ Tab Farming (FarmingManager) តែមួយ
 -- ✅ Walk TP: Humanoid:MoveTo() + Safe Speed Mode
+-- ✅ User ធិក Safe Speed → 265 | អត់ធិក → Speed ដើម
 -- ✅ ជិតដល់ 30m → Pause Safe Speed Mode
 -- ✅ ជិតដល់ 20m → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true (Signal) → Lock Camera → Shot TP → Position 1 ក្នុង 1.2s
+-- ✅ DropHeldEgg = true → Lock Camera → Shot TP → Position 1 (1.2s)
 -- ✅ Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
--- ✅ Walk TP → Collect វិញ (Repeat)
--- ✅ ពេល Collect បាន → Callback FarmingManager
--- ✅ សម្រាប់ Tab Farming (FarmingManager)
--- ❌ គ្មាន Tween | ❌ គ្មាន BodyV/BodyG | ❌ គ្មាន Position 2 | ❌ គ្មាន First Egg
+-- ✅ Walk TP → Collect វិញ → DropHeldEgg = true → Walk TP → Position 2
+-- ✅ Position 2 → AutoStop → Callback FarmingManager
+-- ✅ មិនជាន់គ្នាជាមួយ TeleportSystem (Tab Auto Farming)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -23,14 +24,15 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- ==================================================
 local Config = {
     SafeSpeed = 265,
-    ShotTPTime = 1.2,           -- ✅ Shot TP ក្នុង 1.2s
+    ShotTPTime = 1.2,
     ArriveDistance = 2,
     LockWait = 0.1,
     NearDistance = 20,
     SlowDistance = 30,
     LockDistance = 1,
 
-    Position1 = Vector3.new(598, 70, -330),   -- ✅ Position 1 តែមួយ
+    Position1 = Vector3.new(598, 70, -330),
+    Position2 = Vector3.new(544, 70, -301),
 
     WalkTimeout = 30,
     CollectInterval = 0.02,
@@ -53,7 +55,7 @@ if not DropEvent then
     return
 end
 
-print("[VIPTP] CollectEvent + DropEvent OK")
+print("[VIPTP] CollectEvent + DropEvent OK | Tab Farming Only")
 
 -- ==================================================
 -- STATE
@@ -108,33 +110,41 @@ local function GetPosition(Object)
 end
 
 -- ==================================================
--- ✅ GET WALK SPEED (Safe Mode / ដើម)
+-- ✅ SAVE STATS (Save WalkSpeed ដើម ភ្លាម)
 -- ==================================================
-local function GetWalkSpeed()
-    if State.SafeSpeedMode and not State.SafeSpeedPaused then
-        return Config.SafeSpeed
-    end
-
-    if State.SavedWalkSpeed ~= nil then
-        return State.SavedWalkSpeed
-    end
-
-    local Hum = GetHumanoid()
-    if Hum then
-        State.SavedWalkSpeed = Hum.WalkSpeed
-        return Hum.WalkSpeed
-    end
-
-    return Config.SafeSpeed
-end
-
 local function SaveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
     if State.SavedWalkSpeed == nil then
         State.SavedWalkSpeed = Hum.WalkSpeed
-        print("[VIPTP] Saved WalkSpeed ដើម:", State.SavedWalkSpeed)
+        print("[VIPTP] ✅ Saved WalkSpeed ដើម:", State.SavedWalkSpeed)
     end
+end
+
+-- ==================================================
+-- ✅ GET WALK SPEED (Safe Mode / ដើម ត្រឹមត្រូវ)
+-- ==================================================
+local function GetWalkSpeed()
+    -- ✅ បើ Safe Mode ON និង មិន Paused → 265
+    if State.SafeSpeedMode and not State.SafeSpeedPaused then
+        return Config.SafeSpeed
+    end
+
+    -- ✅ បើ Safe Mode OFF ឬ Paused → Speed ដើម
+    if State.SavedWalkSpeed ~= nil then
+        return State.SavedWalkSpeed
+    end
+
+    -- ✅ Fallback: Save ភ្លាម
+    local Hum = GetHumanoid()
+    if Hum then
+        State.SavedWalkSpeed = Hum.WalkSpeed
+        print("[VIPTP] ✅ Auto-Save WalkSpeed ដើម:", State.SavedWalkSpeed)
+        return Hum.WalkSpeed
+    end
+
+    -- ✅ Fallback ចុងក្រោយ: 16 (ដើម Roblox)
+    return 16
 end
 
 -- ==================================================
@@ -346,7 +356,7 @@ local function ShotTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ WALK TP (Stop Safe Speed ជិត 30m → CFrame Instant ជិត 20m)
+-- ✅ WALK TP
 -- ==================================================
 local function WalkTP(Destination, LockAfterArrive, Callback)
     CleanupMovers()
@@ -451,7 +461,7 @@ local function RemoteDrop()
 end
 
 -- ==================================================
--- ✅ DROPHELDEGG (Signal Listener លឿន 100%)
+-- ✅ DROPHELDEGG (Signal Listener)
 -- ==================================================
 local function SetupDropHeldEgg()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
@@ -469,9 +479,9 @@ local function SetupDropHeldEgg()
         local IsEnabled = State.DropHeldEgg.Enabled == true
         print("[VIPTP] ⚡ DropHeldEgg.Enabled →", IsEnabled)
 
-        -- ✅ Step 2 (Collect Target) → Shot TP Position 1 ភ្លាម
+        -- ✅ Step 2 → Shot TP Position 1
         if IsEnabled and State.Running and State.Step == "2_collect_target" then
-            print("[VIPTP] ✅ DETECTED TRUE → Shot TP Position 1 (1.2s)")
+            print("[VIPTP] ✅ DETECTED TRUE → Shot TP Position 1")
 
             State.TargetCollected = true
             StopLock()
@@ -482,16 +492,16 @@ local function SetupDropHeldEgg()
             end)
         end
 
-        -- ✅ Step 6 (Collect Again) → Callback ភ្លាម
+        -- ✅ Step 6 → Walk TP Position 2
         if IsEnabled and State.Running and State.Step == "6_collect_again" then
-            print("[VIPTP] ✅ Step 6 DETECTED TRUE → Callback FarmingManager")
+            print("[VIPTP] ✅ Step 6 DETECTED TRUE → Walk TP Position 2")
 
             State.CollectedAgain = true
             StopLock()
 
             task.spawn(function()
                 task.wait(0.2)
-                AutoStop()
+                Step7_WalkToPosition2()
             end)
         end
     end)
@@ -532,11 +542,18 @@ local function AutoStop()
     UnlockCamera()
     ResumeSafeSpeed()
 
+    -- ✅ Restore WalkSpeed ដើម
     local Char = Player.Character
     if Char then
         local Hum = Char:FindFirstChildOfClass("Humanoid")
         if Hum then
-            Hum.WalkSpeed = State.SavedWalkSpeed or Config.SafeSpeed
+            if State.SavedWalkSpeed ~= nil then
+                Hum.WalkSpeed = State.SavedWalkSpeed
+            elseif not State.SafeSpeedMode then
+                Hum.WalkSpeed = 16
+            else
+                Hum.WalkSpeed = Config.SafeSpeed
+            end
             print("[VIPTP] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
         end
     end
@@ -560,13 +577,17 @@ local function AutoStop()
                 if not Success then
                     warn("[VIPTP] OnVIPTPComplete Error:", Err)
                 end
+            else
+                warn("[VIPTP] OnVIPTPComplete is nil!")
             end
+        else
+            warn("[VIPTP] FarmingManager not loaded!")
         end
     end)
 end
 
 -- ==================================================
--- ✅ STEP 1: Walk → Target → CFrame Instant → Lock → Collect
+-- ✅ STEP 1: Walk → Target → Collect
 -- ==================================================
 local function Step1_WalkToTarget()
     State.Step = "1_to_target"
@@ -589,7 +610,6 @@ local function Step1_WalkToTarget()
         State.Step = "2_collect_target"
         State.TargetCollected = false
 
-        -- ✅ Remote Collect Loop (រង់ចាំ Signal)
         task.spawn(function()
             while State.Running and State.Step == "2_collect_target" do
                 task.wait(Config.CollectInterval)
@@ -629,7 +649,7 @@ function Step3_ShotToPosition1()
 end
 
 -- ==================================================
--- ✅ STEP 4: Lock Position 1 → Drop → Unlock Camera → Walk → Collect វិញ
+-- ✅ STEP 4: Lock Position 1 → Drop → Unlock → Walk Collect វិញ
 -- ==================================================
 function Step4_LockAndDrop()
     if not State.Running then return end
@@ -672,8 +692,8 @@ function Step5_WalkToCollectAgain()
 
     local TargetPos = GetTargetPosition()
     if not TargetPos then
-        print("[VIPTP] Target Gone → Callback FarmingManager")
-        AutoStop()
+        print("[VIPTP] Target Gone → Position 2")
+        Step7_WalkToPosition2()
         return
     end
 
@@ -690,7 +710,6 @@ function Step5_WalkToCollectAgain()
         State.Step = "6_collect_again"
         State.CollectedAgain = false
 
-        -- ✅ Remote Collect Loop (រង់ចាំ Signal)
         task.spawn(function()
             while State.Running and State.Step == "6_collect_again" do
                 task.wait(Config.CollectInterval)
@@ -701,9 +720,31 @@ function Step5_WalkToCollectAgain()
 end
 
 -- ==================================================
+-- ✅ STEP 7: Walk → Position 2 → Stop → Callback
+-- ==================================================
+function Step7_WalkToPosition2()
+    if not State.Running then return end
+
+    State.Step = "7_to_position2"
+
+    print("[VIPTP] Step 7: Walk → Position 2")
+
+    WalkTP(Config.Position2, false, function()
+        print("[VIPTP] Step 7 Done: At Position 2 → Stop")
+
+        State.Step = "8_done"
+
+        task.wait(0.2)
+        AutoStop()
+    end)
+end
+
+-- ==================================================
 -- ✅ MAIN PROCESS
 -- ==================================================
 local function StartProcess()
+    SaveStats()
+
     State.Running = true
     State.Step = "idle"
     State.TargetCollected = false
@@ -712,11 +753,11 @@ local function StartProcess()
     State.CollectAttempts = 0
 
     SetupDropHeldEgg()
-    SaveStats()
 
     print("[VIPTP] ========== START ==========")
     print("[VIPTP] Target UID:", State.TargetUid)
     print("[VIPTP] Safe Speed Mode:", State.SafeSpeedMode)
+    print("[VIPTP] Saved WalkSpeed:", State.SavedWalkSpeed)
     print("[VIPTP] Current Speed:", GetWalkSpeed())
 
     task.spawn(function()
@@ -763,24 +804,21 @@ local VIPTP = {}
 
 function VIPTP.Enable()
     if State.Running then return end
-    if not CollectEvent then warn("[VIPTP] CollectEvent not found") return end
-    if not DropEvent then warn("[VIPTP] DropEvent not found") return end
-    if not State.TargetUid then warn("[VIPTP] No Target ID") return end
+    if not CollectEvent then return end
+    if not DropEvent then return end
+    if not State.TargetUid then return end
 
+    SaveStats()
     FullReset()
     StartProcess()
-
-    print("[VIPTP] ON | Target: " .. tostring(State.TargetUid))
 end
 
 function VIPTP.Disable()
     FullReset()
-    print("[VIPTP] OFF")
 end
 
 function VIPTP.SetTargetId(Id)
     State.TargetUid = Id
-    print("[VIPTP] Target ID: " .. tostring(Id))
 end
 
 function VIPTP.SetSafeSpeedMode(Enabled)
@@ -796,8 +834,6 @@ function VIPTP.SetSafeSpeedMode(Enabled)
     if Hum then
         Hum.WalkSpeed = GetWalkSpeed()
     end
-
-    print("[VIPTP] Safe Speed Mode:", State.SafeSpeedMode, "| Speed:", GetWalkSpeed())
 end
 
 function VIPTP.GetSafeSpeedMode()
@@ -811,7 +847,7 @@ end
 function VIPTP.IsEnabled() return State.Running end
 function VIPTP.GetTargetId() return State.TargetUid end
 
--- Export
+-- ✅ Export
 _G.YOKUDO_VIPTP = VIPTP
 
-print("✅ VIPTP Loaded (Walk TP + Shot TP 1.2s + Lock Camera + Drop + Callback)")
+print("✅ VIPTP Loaded (Tab Farming Only — Walk + Shot 1.2s + Lock + Drop + Position 2)")
