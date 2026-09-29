@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | AFK System (WALK TP ONLY)
 -- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
--- ✅ Server បិទ Fly → ប្រើ Walk TP ទាំងអស់
+-- ✅ គ្មាន Fly | គ្មាន Shot TP
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -12,7 +12,6 @@ local Player = Players.LocalPlayer
 -- ==================================================
 -- SETTINGS
 -- ==================================================
-local WALK_SPEED = nil              -- ✅ Save Speed ដើម
 local ARRIVE_TIMEOUT = 60
 local JUMP_DISTANCE_THRESHOLD = 5
 local JUMP_MAX_ATTEMPTS = 50
@@ -44,22 +43,6 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- SAVE / RESTORE WALK SPEED
--- ==================================================
-local function SaveWalkSpeed()
-    local Hum = GetHumanoid()
-    if not Hum then return end
-    if WALK_SPEED == nil then
-        WALK_SPEED = Hum.WalkSpeed
-        print("[AFK] Saved WalkSpeed ដើម:", WALK_SPEED)
-    end
-end
-
-local function GetWalkSpeed()
-    return WALK_SPEED or 16
-end
-
--- ==================================================
 -- CLEANUP
 -- ==================================================
 local function CleanupMovers()
@@ -69,10 +52,9 @@ local function CleanupMovers()
     end
 
     local Hum, Root = GetHumanoid()
-    if Hum then
+    if Hum and Root then
         pcall(function()
-            Hum:MoveTo(Root and Root.Position or Hum.Parent.HumanoidRootPart.Position)
-            Hum.WalkSpeed = GetWalkSpeed()
+            Hum:MoveTo(Root.Position)
         end)
     end
     if Root then
@@ -95,10 +77,7 @@ local function WalkTP(Destination, Callback)
         return
     end
 
-    SaveWalkSpeed()
-    Hum.WalkSpeed = GetWalkSpeed()
-
-    print(string.format("[AFK] Walk TP → %s | Speed: %d", tostring(Destination), GetWalkSpeed()))
+    print(string.format("[AFK] Walk TP → %s | Speed: %d", tostring(Destination), Hum.WalkSpeed))
 
     local StartTime = tick()
     local LastCheck = 0
@@ -115,7 +94,6 @@ local function WalkTP(Destination, Callback)
             return
         end
 
-        Hum2.WalkSpeed = GetWalkSpeed()
         Hum2:MoveTo(Destination)
 
         if tick() - LastCheck > 0.05 then
@@ -241,8 +219,6 @@ local function EnableAFK()
     if AFKEnabled then return end
     AFKEnabled = true
 
-    SaveWalkSpeed()
-
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
@@ -301,8 +277,7 @@ _G.YOKUDO_AFKSystem = {
     GetMyTreadmill = function() return MyTreadmill end,
     GetMyPlot = function() return MyPlot end,
     IsFlying = function() return WalkConnection ~= nil end,
-    GetWalkSpeed = GetWalkSpeed,
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Loaded (WALK TP ONLY | Speed ដើម)")
+print("✅ AFKSystem Loaded (WALK TP ONLY | No Fly | No Shot)")
