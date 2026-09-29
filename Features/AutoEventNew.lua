@@ -1,9 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v13 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v15 FINAL)
 -- ✅ Boss1: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Fly Position → Stop → Face Boss (Always) + Attack (Range 100)
--- ✅ Boss3: Lock Front 2 + Above 5 + Face + Attack (Range 100)
--- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
+-- ✅ Boss2 & 3: Fly Position (ជិត Boss) → Lock Front 1 + Face + Attack (Range 100)
+-- ✅ ឃើញ Portal បាត់ → Stop + Reset + Call Manager (AFK)
 -- ✅ Full Reset ពេល User ដកធិក
 -- ❌ គ្មាន ConfigSystem
 -- ❌ គ្មាន Register CharacterSystem
@@ -26,23 +25,24 @@ local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
 -- ✅ Positions (កំណត់ដោយខ្លួនឯង — 4 Positions)
 local POSITIONS = {
-    Vector3.new(-15298, -468, 5105),  -- Position 1 (Coil1)
-    Vector3.new(-14777, -468, 5108),  -- Position 2 (Coil2)
-    Vector3.new(-15292, -468, 4593),  -- Position 3 (Coil3)
-    Vector3.new(-14763, -468, 4594),  -- Position 4 (Coil4)
+    Vector3.new(-15292, -468, 5111),  -- Position 1
+    Vector3.new(-15292, -468, 4600),  -- Position 2
+    Vector3.new(-14783, -468, 4599),  -- Position 3
+    Vector3.new(-14780, -468, 5109),  -- Position 4
 }
 
--- ✅ Position Settings (Boss 2)
+-- ✅ Position Settings
 local POSITION_CHECK_INTERVAL = 1   -- ✅ Check Position រាល់ 1s
 
--- ✅ Lock Settings (Boss 1 & 3)
+-- ✅ Lock Settings
 local LOCK_BEHIND_NORMAL = 3         -- Boss 1: Behind 3
-local LOCK_FRONT_BOSS3 = 2           -- Boss 3: Front 2
+local LOCK_FRONT_DISTANCE = 1        -- ✅ Boss 2 & 3: Front 1 studs
 local LOCK_ABOVE_HEIGHT = 5
 
 -- ✅ Attack Range
-local ATTACK_RANGE_NORMAL = 100      -- Boss 1 & 3
-local ATTACK_RANGE_BALL = 100        -- ✅ Boss 2 = 100m
+local ATTACK_RANGE_NORMAL = 100
+local ATTACK_RANGE_BALL = 100
+local ATTACK_RANGE_BOSS3 = 100
 local ATTACK_INTERVAL = 0.05
 
 local TELEPORT_SPEED = 800
@@ -144,7 +144,7 @@ local function GetLookVector(Object)
     return Vector3.new(0, 0, -1)
 end
 
--- ✅ Get Lock Position (Boss 1: Behind 3 | Boss 3: Front 2)
+-- ✅ Get Lock Position
 local function GetLockPosition(Target, BossName)
     if not Target then return nil, nil end
     local CenterPos = nil
@@ -158,14 +158,12 @@ local function GetLockPosition(Target, BossName)
     local LookVector = GetLookVector(Target)
     local LockPos
 
-    if BossName == "ScrambleHuman" then
-        -- ✅ Boss 3: Lock ពីមុខ 2 studs
-        LockPos = CenterPos + (LookVector * LOCK_FRONT_BOSS3)
-        DebugPrint("🔒 Boss 3 → Front 2 studs")
-    else
-        -- ✅ Boss 1: Lock ក្រោយ 3 studs
+    if BossName == "Mech" then
         LockPos = CenterPos - (LookVector * LOCK_BEHIND_NORMAL)
-        DebugPrint("🔒 Boss 1 → Behind 3 studs")
+        DebugPrint("🔒 Boss 1 → Behind 3")
+    else
+        LockPos = CenterPos + (LookVector * LOCK_FRONT_DISTANCE)
+        DebugPrint("🔒 Boss", BossName, "→ Front 1")
     end
 
     LockPos = Vector3.new(LockPos.X, CenterPos.Y + LOCK_ABOVE_HEIGHT, LockPos.Z)
@@ -279,8 +277,8 @@ local function FindClosestPositionToBoss(Boss)
     end
 
     if Closest then
-        DebugPrint(string.format("🎯 Closest Position: %.1f, %.1f, %.1f | Dist: %.1f",
-            Closest.X, Closest.Y, Closest.Z, ClosestDist))
+        DebugPrint(string.format("🎯 Closest Position: %.1f, %.1f, %.1f",
+            Closest.X, Closest.Y, Closest.Z))
     end
     return Closest, ClosestDist
 end
@@ -375,7 +373,7 @@ local function FlyToPosition(Position)
 
     if Arrived then
         CleanupMovers()
-        DebugPrint("✅ At Position → Stop Fly (No Lock)")
+        DebugPrint("✅ At Position → Stop Fly")
     end
     return Arrived
 end
@@ -405,7 +403,7 @@ local function StopFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() FaceConnection = nil end
 end
 
--- ✅ Lock Boss (Boss 1 & 3)
+-- ✅ Lock Boss
 local function StartLockBoss()
     if LockConnection then LockConnection:Disconnect() end
     LockConnection = RunService.Heartbeat:Connect(function()
@@ -524,9 +522,9 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Position → Face (Always)
-    if BossName == "Ball" then
-        DebugPrint("🚀 Boss 2 (Ball) → Find Closest Position")
+    -- ✅ Boss 2 & 3 → Fly Position → Lock Front 1
+    if BossName == "Ball" or BossName == "ScrambleHuman" then
+        DebugPrint("🚀 Boss", BossName, "→ Find Closest Position")
 
         CurrentPosition = FindClosestPositionToBoss(CurrentTarget)
         if not CurrentPosition then
@@ -535,13 +533,13 @@ local function SetupTargetForBoss(Boss, BossName)
         end
 
         FlyToPosition(CurrentPosition)
-        StartFaceBoss()  -- ✅ Face Boss ជាប់
-        DebugPrint("✅ At Position → Face Boss + Wait")
+        DebugPrint("🔒 Lock", BossName, "→ Front 1")
+        StartLockBoss()
         return true
     end
 
-    -- ✅ Boss 1 & 3 → Lock Task
-    DebugPrint("🚀 Boss", BossName, "→ Fly TP to Lock")
+    -- ✅ Boss 1 (Mech) → Lock Behind 3
+    DebugPrint("🚀 Boss 1 (Mech) → Lock Behind 3")
     local LockPos = GetLockPosition(CurrentTarget, BossName)
     if not LockPos then return false end
 
@@ -577,7 +575,14 @@ end
 -- ✅ Call Manager Done
 local function CallManagerDone()
     DebugPrint("🎉 Event Done → Call ManagerDrone")
+
+    -- ✅ Stop Lock + Face
+    if LockConnection then LockConnection:Disconnect() LockConnection = nil end
+    StopFaceBoss()
+    CleanupMovers()
+
     AutoEventEnabled = false
+
     if _G.YOKUDO_ManagerDrone and _G.YOKUDO_ManagerDrone.CallManagerAfterDone then
         pcall(function() _G.YOKUDO_ManagerDrone.CallManagerAfterDone() end)
         DebugPrint("✅ Called ManagerDrone.CallManagerAfterDone()")
@@ -588,6 +593,8 @@ local function CallManagerDone()
             DebugPrint("✅ Fallback AFK Enabled")
         end
     end
+
+    FullReset()
 end
 
 -- ✅ Full Reset
@@ -680,6 +687,14 @@ local function MainLoop()
 
     local LastPositionCheck = 0
     while AutoEventEnabled do
+        -- ✅ Check Portal Gone → Stop + Reset + Call Manager
+        local Portal = workspace:FindFirstChild(PORTAL_NAME)
+        if not Portal then
+            DebugPrint("🚪 Portal Gone → Call Manager")
+            CallManagerDone()
+            return
+        end
+
         local Hum = GetHumanoid()
         if not Hum or Hum.Health <= 0 then
             if not IsDead then IsDead = true end
@@ -714,8 +729,8 @@ local function MainLoop()
 
         local now = tick()
 
-        if CurrentBossName == "Ball" then
-            -- ✅ Check Position ថ្មីជិត Boss ជាង រាល់ 1s
+        -- ✅ Boss 2 & 3 → Check Position ថ្មីជិត Boss ជាង រាល់ 1s
+        if CurrentBossName == "Ball" or CurrentBossName == "ScrambleHuman" then
             if now - LastPositionCheck >= POSITION_CHECK_INTERVAL then
                 LastPositionCheck = now
                 local NewPos = FindClosestPositionToBoss(CurrentTarget)
@@ -727,25 +742,25 @@ local function MainLoop()
                         if NewDist < OldDist - 3 then
                             DebugPrint("🔄 Switch Position")
                             CurrentPosition = NewPos
-                            FlyToPosition(CurrentPosition)  -- ✅ Fly ទៅ Position ថ្មី → Stop
-                            StartFaceBoss()  -- ✅ Face បន្ត
+                            FlyToPosition(CurrentPosition)
+                            StartLockBoss()  -- ✅ Lock Front 1
                         end
                     end
                 end
             end
-
-            -- ✅ Attack (Range 100)
-            if now - LastFire >= ATTACK_INTERVAL then
-                LastFire = now
-                FireAtBoss(CurrentTarget, ATTACK_RANGE_BALL)
-            end
-        else
-            -- ✅ Boss 1 & 3 — Attack Range 100
-            if now - LastFire >= ATTACK_INTERVAL then
-                LastFire = now
-                FireAtBoss(CurrentTarget, ATTACK_RANGE_NORMAL)
-            end
         end
+
+        -- ✅ Attack Range 100
+        local Range = ATTACK_RANGE_NORMAL
+        if CurrentBossName == "Ball" then Range = ATTACK_RANGE_BALL
+        elseif CurrentBossName == "ScrambleHuman" then Range = ATTACK_RANGE_BOSS3
+        end
+
+        if now - LastFire >= ATTACK_INTERVAL then
+            LastFire = now
+            FireAtBoss(CurrentTarget, Range)
+        end
+
         task.wait(0.01)
     end
 
@@ -764,7 +779,6 @@ local function MainLoop()
     end
 
     FullReset()
-    if AutoEventEnabled then CallManagerDone() end
 end
 
 -- ==================================================
@@ -814,10 +828,11 @@ _G.YOKUDO_AutoEventNew = {
     FindClosestPositionToBoss = FindClosestPositionToBoss,
     FlyToPosition = FlyToPosition,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
-    LOCK_FRONT_BOSS3 = LOCK_FRONT_BOSS3,
+    LOCK_FRONT_DISTANCE = LOCK_FRONT_DISTANCE,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
+    ATTACK_RANGE_BOSS3 = ATTACK_RANGE_BOSS3,
     POSITIONS = POSITIONS,
 }
 
-print("✅ AutoEventNew Feature Loaded (v13 FINAL — Boss2 Face + Range 100 | Boss3 Front 2)")
+print("✅ AutoEventNew Feature Loaded (v15 FINAL — Portal Gone Check + No Register)")
