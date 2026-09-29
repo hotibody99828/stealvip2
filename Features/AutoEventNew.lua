@@ -1,7 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v10 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v11 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Fly TP → Coil Position (ជិត Boss បំផុត) → Lock Coil → Face + Attack (Range 50)
+-- ✅ Boss2 (Ball): Fly TP → Coil Position (ជិត Boss បំផុត) → Stop → Face + Attack (Range 50)
 -- ✅ Boss2: No Lock Boss + Auto Switch Coil
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
 -- ✅ Full Reset ពេល User ដកធិក
@@ -279,7 +279,8 @@ local function FindClosestCoilToBoss(Boss)
         local CoilPos = GetPosition(Coil)
         if CoilPos then
             local Dist = (CoilPos - BossPos).Magnitude
-            DebugPrint(string.format("🔍 Coil: %s | Dist: %.1f", Coil.Name, Dist))
+            DebugPrint(string.format("🔍 Coil: %s | Dist: %.1f | Pos: %.1f, %.1f, %.1f",
+                Coil.Name, Dist, CoilPos.X, CoilPos.Y, CoilPos.Z))
             if Dist < ClosestDist then
                 ClosestDist = Dist
                 Closest = Coil
@@ -372,7 +373,7 @@ local function FlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ FLY TO COIL (Position ត្រង់ — គ្មាន Offset)
+-- ✅ FLY TO COIL (Position ត្រង់ — គ្មាន Lock)
 -- ==================================================
 local function FlyToCoil(Coil)
     if not Coil then return false end
@@ -395,45 +396,15 @@ local function FlyToCoil(Coil)
     end
 
     if Arrived then
+        -- ✅ Stop Fly ភ្លាម (គ្មាន Lock)
         CleanupMovers()
-        DebugPrint("✅ At Coil → Stop Fly")
+        DebugPrint("✅ At Coil → Stop Fly (No Lock)")
     end
     return Arrived
 end
 
 -- ==================================================
--- ✅ LOCK COIL (Lock Position ជាប់នៅ Coil)
--- ==================================================
-local function StartLockCoil(Coil)
-    if not Coil then return end
-
-    local CoilPos = GetPosition(Coil)
-    if not CoilPos then return end
-
-    -- ✅ Lock Pos = Coil Position ត្រង់ (គ្មាន +Y)
-    local LockedPos = Vector3.new(CoilPos.X, CoilPos.Y, CoilPos.Z)
-
-    if LockConnection then LockConnection:Disconnect() end
-    LockConnection = RunService.Heartbeat:Connect(function()
-        if not AutoEventEnabled then
-            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
-            return
-        end
-
-        local Hum, Root = GetHumanoid()
-        if not Hum or not Root or Hum.Health <= 0 then return end
-
-        -- ✅ Lock Position ជាប់ (មិនរើ)
-        Root.CFrame = CFrame.new(LockedPos)
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end)
-
-    DebugPrint("🔒 Lock Coil:", Coil.Name, "| Pos:", tostring(LockedPos))
-end
-
--- ==================================================
--- ✅ FACE BOSS (គ្មាន Lock Boss)
+-- ✅ FACE BOSS (មិន Lock Boss)
 -- ==================================================
 local function StartFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() end
@@ -590,7 +561,7 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Coil → Lock Coil
+    -- ✅ Boss 2 (Ball) → Fly Coil Position → Stop → Wait
     if BossName == "Ball" then
         DebugPrint("🚀 Boss 2 (Ball) → Find Closest Coil")
 
@@ -607,9 +578,8 @@ local function SetupTargetForBoss(Boss, BossName)
             return true
         end
 
-        FlyToCoil(CurrentCoil)      -- ✅ Fly ទៅ Coil Position
-        StartLockCoil(CurrentCoil)  -- ✅ Lock Coil (ជាប់)
-        DebugPrint("✅ At Coil → Locked → Wait for Boss")
+        FlyToCoil(CurrentCoil)      -- ✅ Fly ទៅ Coil Position → Stop
+        DebugPrint("✅ At Coil → Wait for Boss")
         return true
     end
 
@@ -810,8 +780,7 @@ local function MainLoop()
                         if NewDist < OldDist - 3 then
                             DebugPrint("🔄 Switch Coil:", NewCoil.Name)
                             CurrentCoil = NewCoil
-                            FlyToCoil(CurrentCoil)       -- ✅ Fly ទៅ Coil ថ្មី
-                            StartLockCoil(CurrentCoil)   -- ✅ Lock Coil ថ្មី
+                            FlyToCoil(CurrentCoil)   -- ✅ Fly ទៅ Coil ថ្មី → Stop
                         end
                     end
                 end
@@ -909,10 +878,9 @@ _G.YOKUDO_AutoEventNew = {
     FindAllCoils = FindAllCoils,
     FindClosestCoilToBoss = FindClosestCoilToBoss,
     FlyToCoil = FlyToCoil,
-    StartLockCoil = StartLockCoil,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
 }
 
-print("✅ AutoEventNew Feature Loaded (v10 FINAL — Fly Coil Position + Lock)")
+print("✅ AutoEventNew Feature Loaded (v11 FINAL — Fly Coil Position + No Lock)")
