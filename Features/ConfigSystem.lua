@@ -1,8 +1,6 @@
 --==================================================
--- YOKUDO HUB - CONFIG SYSTEM
--- ✅ ដក AttackDroneEnabled + SafeSpeedMode ចេញ
--- Folder: YOKUDO-SAE
--- File: yokudo.json
+-- YOKUDO HUB - CONFIG SYSTEM (EMPTY)
+-- ✅ ដក AttackDroneEnabled + SafeSpeedMode ចេញទាំងស្រុង
 --==================================================
 
 local HttpService = game:GetService("HttpService")
@@ -13,9 +11,7 @@ local CONFIG_FILE = CONFIG_FOLDER .. "/yokudo.json"
 --==================================================
 -- DEFAULT CONFIG (ទទេ)
 --==================================================
-local DefaultConfig = {
-    -- ✅ ទទេ — គ្មាន Save
-}
+local DefaultConfig = {}
 
 --==================================================
 -- FILE HELPERS
@@ -37,52 +33,21 @@ local function FileExists(Path)
 end
 
 --==================================================
--- LOAD CONFIG
+-- LOAD CONFIG (ទទេ)
 --==================================================
 local function LoadConfig()
     EnsureFolder()
-
-    local Config = table.clone(DefaultConfig)
-
-    if not FileExists(CONFIG_FILE) then
-        print("[YOKUDO] Config not found. Using default.")
-        return Config
-    end
-
-    local Success, RawData = pcall(function()
-        return readfile(CONFIG_FILE)
-    end)
-
-    if not Success or not RawData or RawData == "" then
-        print("[YOKUDO] Failed to read config. Using default.")
-        return Config
-    end
-
-    local DecodeSuccess, DecodedData = pcall(function()
-        return HttpService:JSONDecode(RawData)
-    end)
-
-    if not DecodeSuccess or type(DecodedData) ~= "table" then
-        print("[YOKUDO] Failed to decode config. Using default.")
-        return Config
-    end
-
-    -- ✅ គ្មាន Load អ្វីទេ
-
     print("[YOKUDO] Config Loaded (Empty)")
-
-    return Config
+    return {}
 end
 
 --==================================================
--- SAVE CONFIG
+-- SAVE CONFIG (ទទេ)
 --==================================================
 local function SaveConfig(Config)
     EnsureFolder()
 
-    local DataToSave = {
-        -- ✅ ទទេ — គ្មាន Save
-    }
+    local DataToSave = {}
 
     local EncodeSuccess, EncodedData = pcall(function()
         return HttpService:JSONEncode(DataToSave)
@@ -107,10 +72,10 @@ local function SaveConfig(Config)
 end
 
 --==================================================
--- APPLY CONFIG (TO _G)
+-- APPLY CONFIG (ទទេ)
 --==================================================
 local function ApplyConfig(Config)
-    -- ✅ គ្មាន Apply អ្វីទេ
+    -- គ្មាន Apply អ្វីទេ
 end
 
 --==================================================
@@ -136,12 +101,12 @@ _G.YOKUDO_ConfigSystem = {
 
             -- ✅ Update Event Tab UI
             if _G.YOKUDO_RefreshEventUI then
-                _G.YOKUDO_RefreshEventUI()
+                pcall(function() _G.YOKUDO_RefreshEventUI() end)
             end
 
             -- ✅ Update Setting Tab UI
             if _G.YOKUDO_RefreshSettingUI then
-                _G.YOKUDO_RefreshSettingUI()
+                pcall(function() _G.YOKUDO_RefreshSettingUI() end)
             end
         end)
 
@@ -149,8 +114,7 @@ _G.YOKUDO_ConfigSystem = {
     end,
 
     Save = function()
-        local Config = {}
-        return SaveConfig(Config)
+        return SaveConfig({})
     end,
 
     Get = function()
@@ -163,4 +127,4 @@ _G.YOKUDO_ConfigSystem = {
     end
 }
 
-print("✅ ConfigSystem Loaded (Empty — No AttackDrone/SafeSpeedMode)")
+print("✅ ConfigSystem Loaded (Empty)")
