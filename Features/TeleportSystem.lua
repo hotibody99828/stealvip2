@@ -2,7 +2,7 @@
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + CFrame Instant + SHOT TP + LOCK + DROP)
 -- ✅ Walk TP: Humanoid:MoveTo() + GetWalkSpeed() (Safe Mode)
 -- ✅ ជិតដល់ 20 studs → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true → Lock Camera → Shot TP → Position 1 (1.15s)
+-- ✅ DropHeldEgg = true (Signal ភ្លាម) → Lock Camera → Shot TP → Position 1 (1.15s)
 -- ✅ Lock Position 1 → Drop → Unlock Camera
 -- ✅ Walk TP → Collect វិញ → Position 2 → Stop
 -- ✅ Reset WalkSpeed ពេល Stop
@@ -20,7 +20,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    SafeSpeed = 265,           -- ✅ Safe Speed Mode
+    SafeSpeed = 265,
     ShotTPTime = 1.15,
     ArriveDistance = 2,
     LockWait = 0.1,
@@ -32,7 +32,6 @@ local Config = {
 
     WalkTimeout = 30,
     CollectInterval = 0.02,
-    TargetCollectTimeout = 10,
 }
 
 -- ==================================================
@@ -73,7 +72,7 @@ local State = {
     DropDone = false,
 
     SavedWalkSpeed = nil,
-    SafeSpeedMode = false,     -- ✅ Safe Speed Mode
+    SafeSpeedMode = false,
 
     CameraLockConnection = nil,
     LockedCameraCFrame = nil,
@@ -108,9 +107,9 @@ end
 -- ==================================================
 local function GetWalkSpeed()
     if State.SafeSpeedMode then
-        return Config.SafeSpeed  -- ✅ 265
+        return Config.SafeSpeed
     else
-        return State.SavedWalkSpeed or Config.SafeSpeed  -- ✅ Speed ដើម
+        return State.SavedWalkSpeed or Config.SafeSpeed
     end
 end
 
@@ -407,7 +406,7 @@ local function RemoteDrop()
 end
 
 -- ==================================================
--- DROPHELDEGG
+-- ✅ DROPHELDEGG (Signal Listener លឿន 100%)
 -- ==================================================
 local function SetupDropHeldEgg()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
@@ -416,22 +415,48 @@ local function SetupDropHeldEgg()
     State.DropHeldEgg = PG:FindFirstChild("DropHeldEgg")
     if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
 
-    if State.DropHeldEggConnection then State.DropHeldEggConnection:Disconnect() end
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
+    end
+
+    -- ✅ Signal Listener (លឿនភ្លាមៗ ពេល Enabled ផ្លាស់)
     State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
-        print("[TeleportSystem] DropHeldEgg.Enabled:", State.DropHeldEgg.Enabled)
+        local IsEnabled = State.DropHeldEgg.Enabled == true
+        print("[TeleportSystem] ⚡ DropHeldEgg.Enabled Changed →", IsEnabled)
+
+        -- ✅ Step 2 (Collect Target) → Shot TP Position 1 ភ្លាម
+        if IsEnabled and State.Running and State.Step == "2_collect_target" then
+            print("[TeleportSystem] ✅ DETECTED TRUE → Shot TP Position 1 (1.15s)")
+
+            State.TargetCollected = true
+            StopLock()
+
+            task.spawn(function()
+                task.wait(0.02)
+                Step3_ShotToPosition1()
+            end)
+        end
+
+        -- ✅ Step 6 (Collect Again) → Walk Position 2 ភ្លាម
+        if IsEnabled and State.Running and State.Step == "6_collect_again" then
+            print("[TeleportSystem] ✅ Step 6 DETECTED TRUE → Walk Position 2")
+
+            State.CollectedAgain = true
+            StopLock()
+
+            task.spawn(function()
+                task.wait(0.2)
+                Step7_WalkToPosition2()
+            end)
+        end
     end)
+
+    print("[TeleportSystem] ✅ DropHeldEgg Signal Listener Setup")
 end
 
 local function IsTargetCollected()
     if State.DropHeldEgg then return State.DropHeldEgg.Enabled == true end
-    local PG = Player:FindFirstChild("PlayerGui")
-    if PG then
-        local Egg = PG:FindFirstChild("DropHeldEgg")
-        if Egg then
-            State.DropHeldEgg = Egg
-            return Egg.Enabled == true
-        end
-    end
     return false
 end
 
@@ -482,6 +507,7 @@ end
 
 -- ==================================================
 -- ✅ STEP 1: Walk → Target → CFrame Instant → Lock → Collect
+-- ✅ ប្រើ Signal Listener (គ្មាន Loop) — លឿន 100%
 -- ==================================================
 local function Step1_WalkToTarget()
     State.Step = "1_to_target"
@@ -503,22 +529,11 @@ local function Step1_WalkToTarget()
         State.Step = "2_collect_target"
         State.TargetCollected = false
 
+        -- ✅ Remote Collect Loop (រង់ចាំ Signal)
         task.spawn(function()
             while State.Running and State.Step == "2_collect_target" do
                 task.wait(Config.CollectInterval)
-
                 RemoteCollectTarget()
-
-                if IsTargetCollected() then
-                    State.TargetCollected = true
-                    print("[TeleportSystem] Step 2 Done: Target Collected → Lock Camera + Shot TP Position 1")
-
-                    task.spawn(function()
-                        task.wait(0.1)
-                        Step3_ShotToPosition1()
-                    end)
-                    return
-                end
             end
         end)
     end)
@@ -583,7 +598,7 @@ function Step4_LockAndDrop()
 end
 
 -- ==================================================
--- ✅ STEP 5: Walk → Collect វិញ
+-- ✅ STEP 5: Walk → Collect វិញ (Signal Listener)
 -- ==================================================
 function Step5_WalkToCollectAgain()
     if not State.Running then return end
@@ -611,24 +626,11 @@ function Step5_WalkToCollectAgain()
         State.Step = "6_collect_again"
         State.CollectedAgain = false
 
+        -- ✅ Remote Collect Loop (រង់ចាំ Signal)
         task.spawn(function()
             while State.Running and State.Step == "6_collect_again" do
                 task.wait(Config.CollectInterval)
-
                 RemoteCollectTarget()
-
-                if IsTargetCollected() then
-                    State.CollectedAgain = true
-                    print("[TeleportSystem] Step 6 Done: Collected Again")
-
-                    StopLock()
-
-                    task.spawn(function()
-                        task.wait(0.3)
-                        Step7_WalkToPosition2()
-                    end)
-                    return
-                end
             end
         end)
     end)
@@ -729,19 +731,15 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
--- ==================================================
--- ✅ SAFE SPEED MODE (ជំនួស SetMethod/SetSpeed)
--- ==================================================
+-- ✅ Safe Speed Mode
 function TeleportSystem.SetSafeSpeedMode(Enabled)
     State.SafeSpeedMode = Enabled == true
 
-    -- Save WalkSpeed ដើម
     local Hum = GetHumanoid()
     if Hum and State.SavedWalkSpeed == nil then
         State.SavedWalkSpeed = Hum.WalkSpeed
     end
 
-    -- ប្តូរ WalkSpeed ភ្លាម
     if Hum then
         Hum.WalkSpeed = GetWalkSpeed()
     end
@@ -760,9 +758,7 @@ end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
--- ==================================================
--- ✅ EXPORT
--- ==================================================
+-- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk + CFrame Instant + Shot TP 1.15s + Lock Camera + Drop + Safe Speed Mode)")
+print("✅ TeleportSystem Loaded (Signal Listener + Safe Speed Mode)")
