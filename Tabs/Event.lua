@@ -1,7 +1,7 @@
 --==================================================
 -- YOKUDO HUB | TAB | Event
 -- Feature: Auto Event New
--- ✅ User ដកធិក → Stop All (AutoEventNew + ManagerDrone + AFKSystem)
+-- ✅ User ដកធិក → Stop All + Full Reset
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -93,18 +93,22 @@ end
 --==================================================
 local function StopAll()
     print("[YOKUDO] ================================")
-    print("[YOKUDO] 🔄 Stop All Features...")
+    print("[YOKUDO] 🔄 Stop All Features + Full Reset...")
     print("[YOKUDO] ================================")
 
-    -- ✅ 1. Stop AutoEventNew
+    -- ✅ 1. Stop AutoEventNew + Full Reset
     if _G.YOKUDO_AutoEventNew then
         pcall(function()
-            _G.YOKUDO_AutoEventNew.Disable()
+            if _G.YOKUDO_AutoEventNew.FullReset then
+                _G.YOKUDO_AutoEventNew.FullReset()
+            else
+                _G.YOKUDO_AutoEventNew.Disable()
+            end
         end)
-        print("[YOKUDO] ✅ AutoEventNew Stopped")
+        print("[YOKUDO] ✅ AutoEventNew Stopped + Reset")
     end
 
-    -- ✅ 2. Stop ManagerDrone
+    -- ✅ 2. Stop ManagerDrone + Full Reset
     if _G.YOKUDO_ManagerDrone then
         pcall(function()
             _G.YOKUDO_ManagerDrone.Disable()
@@ -127,6 +131,9 @@ local function StopAll()
         end)
         print("[YOKUDO] ✅ AttackDrone Stopped")
     end
+
+    -- ✅ 5. Reset UI
+    UpdateEventUI(false)
 
     print("[YOKUDO] ================================")
     print("[YOKUDO] ✅ Stop All Complete")
@@ -151,7 +158,7 @@ EventButton.MouseButton1Click:Connect(function()
         _G.YOKUDO_AutoEventNew.Enable()
         print("[YOKUDO] ✅ AutoEventNew Enabled")
     else
-        -- ✅ Disable + Stop All
+        -- ✅ Disable + Stop All + Full Reset
         StopAll()
     end
 end)
@@ -189,4 +196,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Event Tab Loaded (Auto Event New + Stop All)")
+print("✅ Event Tab Loaded (Auto Event New + Stop All + Full Reset)")
