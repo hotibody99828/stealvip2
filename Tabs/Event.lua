@@ -1,6 +1,6 @@
 --==================================================
 -- YOKUDO HUB | TAB | Event
--- Feature: Auto Attack Drone
+-- Feature: Auto Event New
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -14,141 +14,125 @@ local EventTab, EventPage = TabsManager:RegisterTab("Event", 5, "EVENT")
 CreateSectionTitle(EventPage, "Event", 1)
 
 --==================================================
--- FEATURE: AUTO ATTACK DRONE (Checkbox)
+-- FEATURE: AUTO EVENT NEW
 --==================================================
-local ManagerHolder = Instance.new("Frame")
-ManagerHolder.Size = UDim2.new(1, 0, 0, 52)
-ManagerHolder.BackgroundTransparency = 1
-ManagerHolder.LayoutOrder = 2
-ManagerHolder.Parent = EventPage
+local EventHolder = Instance.new("Frame")
+EventHolder.Size = UDim2.new(1, 0, 0, 52)
+EventHolder.BackgroundTransparency = 1
+EventHolder.LayoutOrder = 2
+EventHolder.Parent = EventPage
 
-local ManagerLabel = Instance.new("TextLabel")
-ManagerLabel.Size = UDim2.new(1, -50, 0, 20)
-ManagerLabel.Position = UDim2.new(0, 0, 0, 2)
-ManagerLabel.BackgroundTransparency = 1
-ManagerLabel.Text = "Auto Attack Drone"
-ManagerLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
-ManagerLabel.TextSize = 13
-ManagerLabel.TextXAlignment = Enum.TextXAlignment.Left
-ManagerLabel.TextYAlignment = Enum.TextYAlignment.Center
-ManagerLabel.Font = Enum.Font.GothamBold
-ManagerLabel.Parent = ManagerHolder
+local EventLabel = Instance.new("TextLabel")
+EventLabel.Size = UDim2.new(1, -50, 0, 20)
+EventLabel.Position = UDim2.new(0, 0, 0, 2)
+EventLabel.BackgroundTransparency = 1
+EventLabel.Text = "Auto Event New"
+EventLabel.TextColor3 = Color3.fromRGB(220, 220, 235)
+EventLabel.TextSize = 13
+EventLabel.TextXAlignment = Enum.TextXAlignment.Left
+EventLabel.TextYAlignment = Enum.TextYAlignment.Center
+EventLabel.Font = Enum.Font.GothamBold
+EventLabel.Parent = EventHolder
 
-local ManagerSub = Instance.new("TextLabel")
-ManagerSub.Size = UDim2.new(1, -50, 0, 18)
-ManagerSub.Position = UDim2.new(0, 0, 0, 24)
-ManagerSub.BackgroundTransparency = 1
-ManagerSub.Text = "AFK Farm Drone"
-ManagerSub.TextColor3 = Color3.fromRGB(150, 150, 170)
-ManagerSub.TextSize = 10
-ManagerSub.TextXAlignment = Enum.TextXAlignment.Left
-ManagerSub.Font = Enum.Font.Gotham
-ManagerSub.Parent = ManagerHolder
+local EventSub = Instance.new("TextLabel")
+EventSub.Size = UDim2.new(1, -50, 0, 18)
+EventSub.Position = UDim2.new(0, 0, 0, 24)
+EventSub.BackgroundTransparency = 1
+EventSub.Text = "Auto Farm Boss (Mech/Ball/Human)"
+EventSub.TextColor3 = Color3.fromRGB(150, 150, 170)
+EventSub.TextSize = 10
+EventSub.TextXAlignment = Enum.TextXAlignment.Left
+EventSub.Font = Enum.Font.Gotham
+EventSub.Parent = EventHolder
 
-local ManagerButton = Instance.new("TextButton")
-ManagerButton.Size = UDim2.new(0, 26, 0, 26)
-ManagerButton.Position = UDim2.new(1, -26, 0.5, -13)
-ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-ManagerButton.BorderSizePixel = 0
-ManagerButton.Text = ""
-ManagerButton.AutoButtonColor = false
-ManagerButton.Parent = ManagerHolder
+local EventButton = Instance.new("TextButton")
+EventButton.Size = UDim2.new(0, 26, 0, 26)
+EventButton.Position = UDim2.new(1, -26, 0.5, -13)
+EventButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+EventButton.BorderSizePixel = 0
+EventButton.Text = ""
+EventButton.AutoButtonColor = false
+EventButton.Parent = EventHolder
 
-local ManagerCorner = Instance.new("UICorner")
-ManagerCorner.CornerRadius = UDim.new(0, 6)
-ManagerCorner.Parent = ManagerButton
+local EventCorner = Instance.new("UICorner")
+EventCorner.CornerRadius = UDim.new(0, 6)
+EventCorner.Parent = EventButton
 
-local ManagerStroke = Instance.new("UIStroke")
-ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
-ManagerStroke.Thickness = 1.5
-ManagerStroke.Parent = ManagerButton
+local EventStroke = Instance.new("UIStroke")
+EventStroke.Color = Color3.fromRGB(200, 200, 220)
+EventStroke.Thickness = 1.5
+EventStroke.Parent = EventButton
 
-local ManagerCheck = Instance.new("TextLabel")
-ManagerCheck.Size = UDim2.new(1, 0, 1, 0)
-ManagerCheck.BackgroundTransparency = 1
-ManagerCheck.Text = "✓"
-ManagerCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-ManagerCheck.TextSize = 18
-ManagerCheck.Font = Enum.Font.GothamBold
-ManagerCheck.Visible = false
-ManagerCheck.Parent = ManagerButton
+local EventCheck = Instance.new("TextLabel")
+EventCheck.Size = UDim2.new(1, 0, 1, 0)
+EventCheck.BackgroundTransparency = 1
+EventCheck.Text = "✓"
+EventCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
+EventCheck.TextSize = 18
+EventCheck.Font = Enum.Font.GothamBold
+EventCheck.Visible = false
+EventCheck.Parent = EventButton
 
 --==================================================
--- ✅ UPDATE UI FUNCTION
+-- UPDATE UI
 --==================================================
-local function UpdateManagerUI(State)
-    ManagerCheck.Visible = State
+local function UpdateEventUI(State)
+    EventCheck.Visible = State
     if State then
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        ManagerStroke.Color = Color3.fromRGB(135, 120, 225)
+        EventButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        EventStroke.Color = Color3.fromRGB(135, 120, 225)
     else
-        ManagerButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        ManagerStroke.Color = Color3.fromRGB(200, 200, 220)
+        EventButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+        EventStroke.Color = Color3.fromRGB(200, 200, 220)
     end
 end
 
-ManagerButton.MouseButton1Click:Connect(function()
-    if not _G.YOKUDO_ManagerDrone then
-        warn("[YOKUDO] ManagerDrone not loaded!")
+EventButton.MouseButton1Click:Connect(function()
+    if not _G.YOKUDO_AutoEventNew then
+        warn("[YOKUDO] AutoEventNew not loaded!")
         return
     end
-
-    local NewState = not _G.YOKUDO_ManagerDrone.IsEnabled()
-    UpdateManagerUI(NewState)
-
-    -- ✅ Save State to _G
-    _G.YOKUDO_AttackDroneEnabled = NewState
-
-    -- ✅ Call Enable/Disable
+    local NewState = not _G.YOKUDO_AutoEventNew.IsEnabled()
+    UpdateEventUI(NewState)
+    _G.YOKUDO_AutoEventNewEnabled = NewState
     if NewState then
-        _G.YOKUDO_ManagerDrone.Enable()
+        _G.YOKUDO_AutoEventNew.Enable()
     else
-        _G.YOKUDO_ManagerDrone.Disable()
-    end
-
-    -- ✅ Save Config
-    if _G.YOKUDO_ConfigSystem then
-        _G.YOKUDO_ConfigSystem.Save()
+        _G.YOKUDO_AutoEventNew.Disable()
     end
 end)
 
 --==================================================
--- ✅ SYNC STATE ON LOAD
+-- SYNC ON LOAD
 --==================================================
 task.spawn(function()
     task.wait(1)
-    if _G.YOKUDO_ManagerDrone then
-        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
-        UpdateManagerUI(State)
+    if _G.YOKUDO_AutoEventNew then
+        UpdateEventUI(_G.YOKUDO_AutoEventNew.IsEnabled())
     end
 end)
 
 --==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
+-- REFRESH FUNCTION
 --==================================================
 _G.YOKUDO_RefreshEventUI = function()
-    if _G.YOKUDO_ManagerDrone then
-        local State = _G.YOKUDO_ManagerDrone.IsEnabled()
-        UpdateManagerUI(State)
-        print("[YOKUDO] Event Tab UI Refreshed | State: " .. tostring(State))
+    if _G.YOKUDO_AutoEventNew then
+        UpdateEventUI(_G.YOKUDO_AutoEventNew.IsEnabled())
     end
 end
 
 --==================================================
--- ✅ PERIODIC SYNC (រាល់ 1 វិនាទី)
+-- PERIODIC SYNC
 --==================================================
 task.spawn(function()
     while task.wait(1) do
-        if _G.YOKUDO_ManagerDrone then
-            local CurrentState = _G.YOKUDO_ManagerDrone.IsEnabled()
-            local UIState = ManagerCheck.Visible
-
-            if CurrentState ~= UIState then
-                UpdateManagerUI(CurrentState)
-                print("[YOKUDO] Event UI Sync | State: " .. tostring(CurrentState))
+        if _G.YOKUDO_AutoEventNew then
+            local CurrentState = _G.YOKUDO_AutoEventNew.IsEnabled()
+            if CurrentState ~= EventCheck.Visible then
+                UpdateEventUI(CurrentState)
             end
         end
     end
 end)
 
-print("✅ Event Tab Loaded")
+print("✅ Event Tab Loaded (Auto Event New)")
