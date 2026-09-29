@@ -1,8 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v2)
--- ✅ ពេល PortalLeave បាត់ → DONE → Call Manager
+-- YOKUDO HUB | FEATURE | Auto Event New (v3 FINAL)
 -- ✅ Boss ទាំង ៣: Lock Behind (3/5) + Above + Face + Attack
 -- ✅ Range: Boss 1 & 3 = 100 | Boss 2 = 50
+-- ✅ Check Portal ជិតជាង Boss → Fly Portal មុន
+-- ✅ Push Up Y ពេលធ្លាក់ក្រោម -472
+-- ✅ Done → Call ManagerDrone
+-- ✅ Full Reset ពេល User ដកធិក
 -- ✅ Register ជាមួយ CharacterSystem
 -- ==================================================
 
@@ -54,10 +57,6 @@ local EQUIP_CHECK_INTERVAL = 0.1
 local NEXT_BOSS_WAIT_TIMEOUT = 60
 local PORTAL_LEAVE_NEAR_THRESHOLD = 50
 
--- ✅ Check LeaveTeleport Gone
-local LEAVE_CHECK_INTERVAL = 0.5
-local LEAVE_GONE_TIMEOUT = 60   -- ✅ បើ LeaveTeleport បាត់ រង់ចាំ Timeout 60s
-
 -- ==================================================
 -- STATE
 -- ==================================================
@@ -76,12 +75,15 @@ local FlySequence = 0
 local IsDead = false
 
 -- ==================================================
--- HELPERS
+-- DEBUG
 -- ==================================================
 local function DebugPrint(...)
     if _G.YOKUDO_EnablePrint then print("[AutoEventNew]", ...) end
 end
 
+-- ==================================================
+-- HELPERS
+-- ==================================================
 local function GetHumanoid()
     local Char = Player.Character
     if not Char then return nil, nil end
@@ -183,11 +185,6 @@ local function FindPortalLeave()
     local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
     if not Arena then return nil end
     return Arena:FindFirstChild(PORTAL_LEAVE_NAME)
-end
-
--- ✅ Check LeaveTeleport Gone
-local function IsLeaveTeleportGone()
-    return FindPortalLeave() == nil
 end
 
 local function IsPlayerAtPortalLeave()
@@ -439,31 +436,75 @@ local function StopPushUpY()
 end
 
 -- ==================================================
--- ✅ CALL MANAGER (ពេល Done)
+-- ✅ CALL MANAGER (Done)
 -- ==================================================
-local function CallManagerOnDone()
-    DebugPrint("🎉 Event Complete → Call Manager")
+local function CallManagerDone()
+    DebugPrint("🎉 Event Done → Call ManagerDrone")
 
-    -- ✅ Call ManagerDrone
-    if _G.YOKUDO_ManagerDrone then
+    if _G.YOKUDO_ManagerDrone and _G.YOKUDO_ManagerDrone.CallManagerAfterDone then
         pcall(function()
-            _G.YOKUDO_ManagerDrone.Enable()
+            _G.YOKUDO_ManagerDrone.CallManagerAfterDone()
         end)
-        DebugPrint("✅ ManagerDrone Called")
+    else
+        DebugPrint("⚠️ ManagerDrone not available → Fallback AFK")
+        if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+            pcall(function() _G.YOKUDO_AFKSystem.Enable() end)
+        end
+    end
+end
+
+-- ==================================================
+-- ✅ FULL RESET (ពេល User ដកធិក)
+-- ==================================================
+local function FullReset()
+    DebugPrint("🔄 Full Reset...")
+
+    -- 1. Cancel Main Thread
+    if MainThread then
+        pcall(function() task.cancel(MainThread) end)
+        MainThread = nil
     end
 
-    -- ✅ Enable AFK (បើ ManagerDrone មិន Enable)
-    if _G.YOKUDO_AFKSystem then
+    -- 2. Cleanup Movers
+    CleanupMovers()
+
+    -- 3. Stop Auto Equip
+    StopAutoEquip()
+
+    -- 4. Stop Push Up Y
+    StopPushUpY()
+
+    -- 5. Reset State
+    CurrentTarget = nil
+    CurrentBossName = nil
+    LastFire = 0
+    TraceSequence = 0
+    FlySequence = 0
+    IsDead = false
+
+    -- 6. Reset Player
+    local Hum, Root = GetHumanoid()
+    if Hum then
         pcall(function()
-            _G.YOKUDO_AFKSystem.Enable()
+            Hum.PlatformStand = false
+            Hum.Sit = false
         end)
     end
+    if Root then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+
+    DebugPrint("✅ Full Reset Complete")
 end
 
 -- ==================================================
 -- MAIN LOOP
 -- ==================================================
 local function MainLoop()
+    DebugPrint("MainLoop Started")
     StartPushUpY()
 
     local Boss, BossName = FindAnyBoss()
@@ -475,6 +516,7 @@ local function MainLoop()
         local BossDist = BossPos and (BossPos - Root.Position).Magnitude or math.huge
 
         if Portal and PortalDist and PortalDist < BossDist and not IsPlayerAtPortalLeave() then
+            DebugPrint("📍 Portal ជិតជាង Boss → Fly Portal មុន")
             FlyToClosestPortal()
             task.wait(SAFE_WAIT_TIME)
             Boss, BossName = FindAnyBoss()
@@ -482,6 +524,7 @@ local function MainLoop()
     end
 
     if not Boss then
+        DebugPrint("⏳ No Boss → Find Portal...")
         while AutoEventEnabled do
             Boss, BossName = FindAnyBoss()
             if Boss then break end
@@ -495,6 +538,7 @@ local function MainLoop()
             FlyToClosestPortal()
             task.wait(SAFE_WAIT_TIME)
         end
+        DebugPrint("⏳ Wait Boss...")
         local WaitTime = 0
         while AutoEventEnabled and WaitTime < BOSS_SPAWN_TIMEOUT do
             Boss, BossName = FindAnyBoss()
@@ -509,8 +553,9 @@ local function MainLoop()
     if Boss and BossName then
         SetupTargetForBoss(Boss, BossName)
     else
+        DebugPrint("❌ No Boss Found → Done")
+        CallManagerDone()
         AutoEventEnabled = false
-        CallManagerOnDone()
         return
     end
 
@@ -524,17 +569,24 @@ local function MainLoop()
         if IsDead then IsDead = false end
 
         if not CurrentTarget or not CurrentTarget.Parent then
+            DebugPrint("✅", CurrentBossName, "Dead / Gone")
             local WaitTime = 0
             local NewBoss, NewName = nil, nil
             while AutoEventEnabled and WaitTime < NEXT_BOSS_WAIT_TIMEOUT do
                 NewBoss, NewName = FindAnyBoss()
-                if NewBoss then break end
+                if NewBoss then
+                    DebugPrint("✅ New Boss:", NewName)
+                    break
+                end
                 task.wait(BOSS_CHECK_INTERVAL)
                 WaitTime = WaitTime + BOSS_CHECK_INTERVAL
             end
+
             if NewBoss and NewName then
                 SetupTargetForBoss(NewBoss, NewName)
             else
+                DebugPrint("❌ No Boss → Done → Call Manager")
+                CallManagerDone()
                 break
             end
             continue
@@ -549,39 +601,22 @@ local function MainLoop()
         task.wait(0.01)
     end
 
-    -- ✅ Wait LeaveTeleport Gone
-    DebugPrint("⏳ Waiting for LeaveTeleport Gone...")
+    DebugPrint("⏳ Wait Path Gone...")
     local Elapsed = 0
-    while AutoEventEnabled and Elapsed < LEAVE_GONE_TIMEOUT do
-        if IsLeaveTeleportGone() and not AnyBossAlive() then
-            DebugPrint("✅ LeaveTeleport Gone + No Boss → DONE")
+    while AutoEventEnabled and Elapsed < 60 do
+        local LeaveTP = FindPortalLeave()
+        local BossAlive = AnyBossAlive()
+        if not LeaveTP and not BossAlive then
+            DebugPrint("✅ Path Gone → Done")
+            CallManagerDone()
             break
         end
-        task.wait(LEAVE_CHECK_INTERVAL)
-        Elapsed = Elapsed + LEAVE_CHECK_INTERVAL
+        task.wait(0.5)
+        Elapsed = Elapsed + 0.5
     end
-
-    -- ✅ DONE → Auto Stop + Call Manager
-    DebugPrint("🎉 DONE → Call Manager")
 
     AutoEventEnabled = false
-    CleanupMovers()
-    StopAutoEquip()
-    StopPushUpY()
-    CurrentTarget = nil
-    CurrentBossName = nil
-    IsDead = false
-
-    if MainThread then
-        pcall(function() task.cancel(MainThread) end)
-        MainThread = nil
-    end
-
-    -- ✅ Call Manager
-    task.spawn(function()
-        task.wait(0.5)
-        CallManagerOnDone()
-    end)
+    FullReset()
 end
 
 -- ==================================================
@@ -599,21 +634,17 @@ local function Enable()
     StartAutoEquip()
     if MainThread then pcall(function() task.cancel(MainThread) end) end
     MainThread = task.spawn(MainLoop)
+    DebugPrint("✅ AutoEventNew: ON")
 end
 
 local function Disable()
-    if not AutoEventEnabled then return end
-    AutoEventEnabled = false
-    if MainThread then
-        pcall(function() task.cancel(MainThread) end)
-        MainThread = nil
+    if not AutoEventEnabled then
+        FullReset()
+        return
     end
-    CleanupMovers()
-    StopAutoEquip()
-    StopPushUpY()
-    CurrentTarget = nil
-    CurrentBossName = nil
-    IsDead = false
+    AutoEventEnabled = false
+    FullReset()
+    DebugPrint("❌ AutoEventNew: OFF")
 end
 
 local function Toggle()
@@ -628,16 +659,19 @@ _G.YOKUDO_AutoEventNew = {
     Disable = Disable,
     Toggle = Toggle,
     IsEnabled = function() return AutoEventEnabled end,
+    FullReset = FullReset,
     FindAnyBoss = FindAnyBoss,
     SetupTargetForBoss = SetupTargetForBoss,
-    IsLeaveTeleportGone = IsLeaveTeleportGone,
-    CallManagerOnDone = CallManagerOnDone,
+    CallManagerDone = CallManagerDone,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     LOCK_BEHIND_BALL = LOCK_BEHIND_BALL,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
 }
 
+-- ==================================================
+-- REGISTER WITH CHARACTER SYSTEM
+-- ==================================================
 if _G.YOKUDO_CharacterSystem then
     _G.YOKUDO_CharacterSystem:RegisterFeature({
         Name = "AutoEventNew",
@@ -658,4 +692,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoEventNew Feature Loaded (Call Manager on Done)")
+print("✅ AutoEventNew Feature Loaded (v3 FINAL + Full Reset)")
