@@ -1,13 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (v6 FINAL)
--- ✅ AutoEventNew Feature (Portal Signal)
--- ✅ ManagerDrone (Full Control + Safe Zone + Portal)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v6)
+-- ✅ TeleportSystem Only (Tab Auto Farming + Tab Farming)
 -- ✅ SafeSpeedMode Feature
+-- ✅ AutoEventNew + ManagerDrone
 -- ✅ CollectEggNew + ESP Tabs
--- ✅ TeleportSystem (Lock Camera + Drop + AntiGuard)
--- ✅ FarmingManager (Walk TP)
--- ✅ AFKSystem (Walk TP Only — No Fly/Shot)
--- ❌ គ្មាន VIPTP (ជំនួសដោយ AutoEventNew)
+-- ✅ FarmingManager (TeleportSystem) + AFKSystem (Walk TP)
+-- ❌ គ្មាន VIPTP (ប្រើ TeleportSystem ជំនួស)
 -- ❌ គ្មាន AntiGuard (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន AntiRagdoll
@@ -208,7 +206,7 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
--- ✅ AFKSystem (Walk TP Only)
+-- ✅ AFKSystem (Walk TP Only — No Fly/Shot)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
@@ -216,27 +214,27 @@ loadstring(GetScript("Features/AFKSystem.lua"))()
 Loading.Update(50)
 loadstring(GetScript("Features/SafeSpeedMode.lua"))()
 
--- ✅ FarmingManager (Walk TP)
+-- ✅ FarmingManager (ប្រើ TeleportSystem)
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
--- ✅ AutoEventNew (Feature)
-Loading.Update(58)
+-- ❌ ដក VIPTP ចេញទាំងស្រុង
+
+-- ✅ AutoEventNew
+Loading.Update(56)
 loadstring(GetScript("Features/AutoEventNew.lua"))()
 
--- ✅ ManagerDrone (Full Control — គ្រប់គ្រង AutoEventNew + AFKSystem)
-Loading.Update(59)
+Loading.Update(58)
 loadstring(GetScript("Features/ManagerDrone.lua"))()
 
-Loading.Update(61)
+Loading.Update(60)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
 -- ❌ ដក DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ ដក AntiGuard (បញ្ចូលក្នុង TeleportSystem)
--- ❌ ដក VIPTP (ជំនួសដោយ AutoEventNew)
 
 -- ✅ ConfigSystem
-Loading.Update(63)
+Loading.Update(62)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
 -- ==================================================
