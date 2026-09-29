@@ -1,6 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (WALK TP ONLY) (v2 DEBUG)
--- ✅ Debug Print ច្បាស់
+-- YOKUDO HUB | FEATURE | AFK System (WALK TP ONLY) (v3 FINAL)
+-- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
+-- ✅ គ្មាន Fly | គ្មាន Shot TP
+-- ✅ Character Respawn → Resume
+-- ❌ គ្មាន Debug Print
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -29,13 +32,6 @@ local MyTreadmill = nil
 local MyTreadmillPos = nil
 local WalkConnection = nil
 local DistCheckThread = nil
-
--- ==================================================
--- DEBUG
--- ==================================================
-local function DebugPrint(...)
-    print("[AFK-DEBUG]", ...)
-end
 
 -- ==================================================
 -- GET HUMANOID
@@ -75,17 +71,13 @@ end
 -- WALK TP
 -- ==================================================
 local function WalkTP(Destination, Callback)
-    DebugPrint("🚶 WalkTP Started | Dest:", tostring(Destination))
     CleanupMovers()
 
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
-        DebugPrint("❌ WalkTP Failed: No Humanoid/Health=0")
         if Callback then Callback() end
         return
     end
-
-    DebugPrint("WalkSpeed:", Hum.WalkSpeed)
 
     local StartTime = tick()
     local LastCheck = 0
@@ -109,14 +101,12 @@ local function WalkTP(Destination, Callback)
 
             local Dist = (Root2.Position - Destination).Magnitude
             if Dist <= 3 then
-                DebugPrint("✅ WalkTP Arrived | Dist:", math.floor(Dist))
                 CleanupMovers()
                 if Callback then Callback() end
                 return
             end
 
             if tick() - StartTime > ARRIVE_TIMEOUT then
-                DebugPrint("⏰ WalkTP Timeout | Dist Left:", math.floor(Dist))
                 CleanupMovers()
                 if Callback then Callback() end
                 return
@@ -129,14 +119,8 @@ end
 -- FIND MY PLOT AND TREADMILL
 -- ==================================================
 local function FindMyPlotAndTreadmill()
-    DebugPrint("🔍 FindMyPlotAndTreadmill Called")
-
     local Plots = workspace:FindFirstChild("Plots")
-    if not Plots then
-        DebugPrint("❌ No Plots folder")
-        return nil, nil
-    end
-    DebugPrint("✅ Plots folder found | Children:", #Plots:GetChildren())
+    if not Plots then return nil, nil end
 
     for _, plot in ipairs(Plots:GetChildren()) do
         if plot:IsA("Model") then
@@ -148,13 +132,9 @@ local function FindMyPlotAndTreadmill()
                     if Frame then
                         local PlayerName = Frame:FindFirstChild("PlayerName")
                         if PlayerName and PlayerName:IsA("TextLabel") then
-                            DebugPrint("Plot:", plot.Name, "| PlayerName:", PlayerName.Text)
-
                             if PlayerName.Text == Player.Name
                             or PlayerName.Text == Player.DisplayName then
                                 local Treadmill = plot:FindFirstChild("TreadmillBottom")
-                                DebugPrint("✅ Found My Plot:", plot.Name)
-                                DebugPrint("Treadmill:", Treadmill and Treadmill.Name or "nil")
                                 return plot, Treadmill
                             end
                         end
@@ -163,8 +143,6 @@ local function FindMyPlotAndTreadmill()
             end
         end
     end
-
-    DebugPrint("❌ No Plot found for:", Player.Name)
     return nil, nil
 end
 
@@ -178,8 +156,6 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
         return
     end
 
-    DebugPrint("🦘 JumpOutTreadmill Started")
-
     task.spawn(function()
         local Attempts = 0
         while AFKEnabled and Attempts < JUMP_MAX_ATTEMPTS do
@@ -190,7 +166,6 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             local DistToTreadmill = math.floor((Root2.Position - TreadmillPos).Magnitude)
 
             if DistToTreadmill > JUMP_DISTANCE_THRESHOLD then
-                DebugPrint("✅ Jumped out! Distance:", DistToTreadmill)
                 if Callback then Callback() end
                 return
             end
@@ -200,7 +175,6 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             task.wait(JUMP_ATTEMPT_WAIT)
         end
 
-        DebugPrint("⏰ JumpOut timeout")
         if Callback then Callback() end
     end)
 end
@@ -215,7 +189,6 @@ local function StartDistanceCheck()
     end
 
     DistCheckThread = task.spawn(function()
-        DebugPrint("🔄 DistanceCheck Started")
         while AFKEnabled do
             task.wait(DIST_CHECK_INTERVAL)
             if not AFKEnabled then break end
@@ -226,11 +199,9 @@ local function StartDistanceCheck()
             local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
 
             if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
-                DebugPrint("⚠️ Player jumped out! Dist:", DistToTreadmill, "→ Walk back")
                 WalkTP(MyTreadmillPos)
             end
         end
-        DebugPrint("🔄 DistanceCheck Stopped")
     end)
 end
 
@@ -238,48 +209,33 @@ end
 -- ENABLE
 -- ==================================================
 local function EnableAFK()
-    DebugPrint("========== EnableAFK Called ==========")
-
-    if AFKEnabled then
-        DebugPrint("⚠️ AFKAlready Enabled")
-        return
-    end
+    if AFKEnabled then return end
     AFKEnabled = true
 
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
-        DebugPrint("✅ Treadmill found:", MyTreadmill:GetFullName())
-        DebugPrint("TreadmillPos:", tostring(MyTreadmillPos))
     else
-        DebugPrint("❌ Treadmill not found!")
+        warn("[AFK] Treadmill not found!")
         AFKEnabled = false
         return
     end
 
-    DebugPrint("🚀 Walk to Safe Zone first")
     WalkTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
-        DebugPrint("🚀 Safe Zone Reached → Walk to Treadmill")
         WalkTP(MyTreadmillPos, function()
-            DebugPrint("✅ Arrived at Treadmill → Start Distance Check")
             StartDistanceCheck()
         end)
     end)
 
-    DebugPrint("✅ AFK System: ON (Walk TP Only)")
+    print("[AFK] AFK System: ON (Walk TP Only)")
 end
 
 -- ==================================================
 -- DISABLE
 -- ==================================================
 local function DisableAFK()
-    DebugPrint("========== DisableAFK Called ==========")
-
-    if not AFKEnabled then
-        DebugPrint("⚠️ AFKAlready Disabled")
-        return
-    end
+    if not AFKEnabled then return end
     AFKEnabled = false
 
     if DistCheckThread then
@@ -292,8 +248,37 @@ local function DisableAFK()
     MyTreadmill = nil
     MyTreadmillPos = nil
 
-    DebugPrint("❌ AFK System: OFF")
+    print("[AFK] AFK System: OFF")
 end
+
+-- ==================================================
+-- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not AFKEnabled then return end
+
+    task.wait(2)  -- ✅ រង់ចាំ Character Load
+
+    -- ✅ Cleanup ចាស់
+    CleanupMovers()
+
+    -- ✅ Re-Find Treadmill
+    MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
+    if MyTreadmill then
+        MyTreadmillPos = MyTreadmill.Position
+    else
+        warn("[AFK] Treadmill not found after Respawn!")
+        AFKEnabled = false
+        return
+    end
+
+    -- ✅ Walk to Treadmill again
+    WalkTP(MyTreadmillPos, function()
+        StartDistanceCheck()
+    end)
+
+    print("[AFK] AFK System: Resumed after Respawn")
+end)
 
 -- ==================================================
 -- EXPORT
@@ -313,4 +298,4 @@ _G.YOKUDO_AFKSystem = {
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Loaded (v2 DEBUG | Walk TP Only)")
+print("✅ AFKSystem Loaded (v3 FINAL — No Debug + Resume)")
