@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v13 FINAL)
+-- YOKUDO HUB | FEATURE | Manager Drone (v14 FINAL)
 -- ✅ Manager ជាអ្នកគ្រប់គ្រងទាំងអស់
 -- ✅ គ្មាន Portal → AFKSystem.Enable() (Walk TP)
--- ✅ ឃើញ Portal → Stop AFK → Manager Jump Out → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
+-- ✅ ឃើញ Portal → Manager Jump Out → Stop AFK → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
 -- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
 -- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
 -- ✅ CharacterAdded Resume
@@ -298,11 +298,11 @@ local function CallManagerAfterDone()
 end
 
 -- ==================================================
--- ✅ MANAGER JUMP OUT TREADMILL (ខ្លួនឯង)
+-- ✅ MANAGER JUMP OUT TREADMILL
 -- ==================================================
 local function ManagerJumpOut(TreadmillPos)
     if not TreadmillPos then
-        DebugPrint("⚠️ No Treadmill Pos → Skip Jump")
+        DebugPrint("⚠️ No TreadmillPos → Skip Jump")
         return
     end
 
@@ -336,7 +336,7 @@ local function ManagerJumpOut(TreadmillPos)
 end
 
 -- ==================================================
--- ✅ SWITCH FROM AFK TO AUTO EVENT (Manager Jump Out)
+-- ✅ SWITCH FROM AFK TO AUTO EVENT (Check AFK First)
 -- ==================================================
 local function SwitchAFKToAttack()
     DebugPrint("=========================================")
@@ -348,25 +348,43 @@ local function SwitchAFKToAttack()
         return
     end
 
-    -- ✅ Step 1: យក Treadmill Pos (មុន Stop AFK)
-    local TreadmillPos = nil
+    -- ✅ Step 1: Check AFK Enabled
+    local IsAFKEnabled = false
     if _G.YOKUDO_AFKSystem then
-        TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+        pcall(function()
+            IsAFKEnabled = _G.YOKUDO_AFKSystem.IsEnabled()
+        end)
     end
 
-    -- ✅ Step 2: Stop AFKSystem ភ្លាម
+    DebugPrint("AFKEnabled:", tostring(IsAFKEnabled))
+
+    -- ✅ Step 2: បើនៅ AFK → Jump Out ជាមុន
+    if IsAFKEnabled and _G.YOKUDO_AFKSystem then
+        local TreadmillPos = _G.YOKUDO_AFKSystem.GetMyTreadmillPos()
+
+        if not TreadmillPos and _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill then
+            local _, Treadmill = _G.YOKUDO_AFKSystem.FindMyPlotAndTreadmill()
+            if Treadmill then
+                TreadmillPos = Treadmill.Position
+            end
+        end
+
+        DebugPrint("TreadmillPos:", tostring(TreadmillPos))
+
+        -- ✅ Manager Jump Out ខ្លួនឯង
+        ManagerJumpOut(TreadmillPos)
+        task.wait(0.5)
+    else
+        DebugPrint("⚠️ Not on AFK → Skip Jump")
+    end
+
+    -- ✅ Step 3: Stop AFKSystem
     if _G.YOKUDO_AFKSystem then
         pcall(function() _G.YOKUDO_AFKSystem.Disable() end)
         DebugPrint("✅ AFKSystem Disabled")
     end
 
-    task.wait(0.3)
-
-    -- ✅ Step 3: Manager Jump Out ខ្លួនឯង
-    if TreadmillPos then
-        ManagerJumpOut(TreadmillPos)
-        task.wait(0.5)  -- ✅ រង់ចាំ Jump ចេញ
-    end
+    task.wait(0.5)
 
     -- ✅ Step 4: Fly Safe Zone → Wait 3s → Fly Portal → Enable AutoEventNew
     FlyToSafeZone(function()
@@ -531,4 +549,4 @@ _G.YOKUDO_ManagerDrone = {
     ManagerJumpOut = ManagerJumpOut,
 }
 
-print("✅ ManagerDrone Feature Loaded (v13 FINAL — Manager Jump Out)")
+print("✅ ManagerDrone Feature Loaded (v14 FINAL — Manager Jump Out Check AFK)")
