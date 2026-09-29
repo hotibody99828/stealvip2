@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (WALK + CFrame Instant + SHOT TP + LOCK + DROP)
--- ✅ Walk TP: Humanoid:MoveTo() + WalkSpeed 265
+-- ✅ Walk TP: Humanoid:MoveTo() + GetWalkSpeed() (Safe Mode)
 -- ✅ ជិតដល់ 20 studs → CFrame Instant + Lock + Collect
 -- ✅ DropHeldEgg = true → Lock Camera → Shot TP → Position 1 (1.15s)
 -- ✅ Lock Position 1 → Drop → Unlock Camera
@@ -20,7 +20,7 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    WalkSpeed = 265,
+    SafeSpeed = 265,           -- ✅ Safe Speed Mode
     ShotTPTime = 1.15,
     ArriveDistance = 2,
     LockWait = 0.1,
@@ -59,7 +59,6 @@ print("[TeleportSystem] CollectEvent + DropEvent OK")
 local State = {
     Running = false,
     Step = "idle",
-    Method = "TeleportFly",
     TargetUid = nil,
 
     WalkConnection = nil,
@@ -74,8 +73,8 @@ local State = {
     DropDone = false,
 
     SavedWalkSpeed = nil,
+    SafeSpeedMode = false,     -- ✅ Safe Speed Mode
 
-    -- ✅ Camera Lock State
     CameraLockConnection = nil,
     LockedCameraCFrame = nil,
 }
@@ -104,11 +103,23 @@ local function GetPosition(Object)
     return nil
 end
 
+-- ==================================================
+-- ✅ GET WALK SPEED (Safe Mode / ដើម)
+-- ==================================================
+local function GetWalkSpeed()
+    if State.SafeSpeedMode then
+        return Config.SafeSpeed  -- ✅ 265
+    else
+        return State.SavedWalkSpeed or Config.SafeSpeed  -- ✅ Speed ដើម
+    end
+end
+
 local function SaveStats()
     local Hum = GetHumanoid()
     if not Hum then return end
     if State.SavedWalkSpeed == nil then
         State.SavedWalkSpeed = Hum.WalkSpeed
+        print("[TeleportSystem] Saved WalkSpeed ដើម:", State.SavedWalkSpeed)
     end
 end
 
@@ -129,10 +140,8 @@ local function LockCamera()
     local Camera = workspace.CurrentCamera
     if not Camera then return end
 
-    -- ✅ Save Camera CFrame នៅ Position បច្ចុប្រន្ន
     State.LockedCameraCFrame = Camera.CFrame
 
-    -- ✅ Lock Camera រាល់ RenderStepped
     if State.CameraLockConnection then
         State.CameraLockConnection:Disconnect()
         State.CameraLockConnection = nil
@@ -143,7 +152,6 @@ local function LockCamera()
 
         local Cam = workspace.CurrentCamera
         if Cam then
-            -- ✅ Lock CFrame តែមួយ (មិន Focus)
             Cam.CFrame = State.LockedCameraCFrame
             Cam.Focus = State.LockedCameraCFrame
         end
@@ -159,7 +167,6 @@ local function UnlockCamera()
     end
     State.LockedCameraCFrame = nil
 
-    -- ✅ Reset CameraSubject ឲ្យតាម Character វិញ
     local Camera = workspace.CurrentCamera
     if Camera then
         local Char = Player.Character
@@ -257,7 +264,7 @@ local function CFrameInstant(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ SHOT TP (1.15s — សម្រាប់ Position 1)
+-- ✅ SHOT TP (1.15s)
 -- ==================================================
 local function ShotTP(Destination, Callback)
     CleanupMovers()
@@ -305,7 +312,7 @@ local function ShotTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ WALK TP (ជិតដល់ 20 studs → CFrame Instant + Lock — មិន Reset WalkSpeed)
+-- ✅ WALK TP (ប្រើ GetWalkSpeed — Safe Mode)
 -- ==================================================
 local function WalkTP(Destination, LockAfterArrive, Callback)
     CleanupMovers()
@@ -316,7 +323,9 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
         return
     end
 
-    Hum.WalkSpeed = Config.WalkSpeed
+    SaveStats()
+
+    Hum.WalkSpeed = GetWalkSpeed()
 
     local StartTime = tick()
     local LastCheck = 0
@@ -328,11 +337,10 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
 
-        Hum2.WalkSpeed = Config.WalkSpeed
+        Hum2.WalkSpeed = GetWalkSpeed()
 
         local Dist = (Root2.Position - Destination).Magnitude
 
-        -- ✅ ជិតដល់ 20 studs → CFrame Instant ភ្លាម
         if not ShotDone and Dist <= Config.NearDistance then
             ShotDone = true
 
@@ -452,14 +460,13 @@ end
 local function AutoStop()
     StopLock()
     CleanupMovers()
-    UnlockCamera()  -- ✅ Unlock Camera
+    UnlockCamera()
 
-    -- ✅ Reset WalkSpeed ភ្លាម
     local Char = Player.Character
     if Char then
         local Hum = Char:FindFirstChildOfClass("Humanoid")
         if Hum then
-            Hum.WalkSpeed = State.SavedWalkSpeed or Config.WalkSpeed
+            Hum.WalkSpeed = State.SavedWalkSpeed or Config.SafeSpeed
             print("[TeleportSystem] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
         end
     end
@@ -526,12 +533,12 @@ function Step3_ShotToPosition1()
     State.Step = "3_to_position1"
     StopLock()
 
-    -- ✅ Lock Camera នៅ Position បច្ចុប្បន្ន (ដូច AntiGuard 100%)
+    -- ✅ Lock Camera នៅ Position បច្ចុប្បន្ន
     LockCamera()
 
     local Hum = GetHumanoid()
     if Hum then
-        Hum.WalkSpeed = Config.WalkSpeed
+        Hum.WalkSpeed = GetWalkSpeed()
     end
 
     print("[TeleportSystem] Step 3: Lock Camera → Shot TP → Position 1 (1.15s)")
@@ -662,6 +669,8 @@ local function StartProcess()
 
     print("[TeleportSystem] ========== START ==========")
     print("[TeleportSystem] Target UID:", State.TargetUid)
+    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode)
+    print("[TeleportSystem] Current Speed:", GetWalkSpeed())
 
     task.spawn(function()
         task.wait(0.3)
@@ -675,7 +684,7 @@ end
 local function FullReset()
     StopLock()
     CleanupMovers()
-    UnlockCamera()  -- ✅ Unlock Camera
+    UnlockCamera()
     RestoreStats()
 
     if State.DropHeldEggConnection then
@@ -720,23 +729,40 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
-function TeleportSystem.SetSpeed(Value)
-    Value = math.clamp(Value, 50, 1100)
-    Config.WalkSpeed = Value
-    print("[TeleportSystem] Walk Speed: " .. tostring(Value))
+-- ==================================================
+-- ✅ SAFE SPEED MODE (ជំនួស SetMethod/SetSpeed)
+-- ==================================================
+function TeleportSystem.SetSafeSpeedMode(Enabled)
+    State.SafeSpeedMode = Enabled == true
+
+    -- Save WalkSpeed ដើម
+    local Hum = GetHumanoid()
+    if Hum and State.SavedWalkSpeed == nil then
+        State.SavedWalkSpeed = Hum.WalkSpeed
+    end
+
+    -- ប្តូរ WalkSpeed ភ្លាម
+    if Hum then
+        Hum.WalkSpeed = GetWalkSpeed()
+    end
+
+    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode, "| Speed:", GetWalkSpeed())
 end
 
-function TeleportSystem.SetMethod(Method)
-    State.Method = (Method == "InstantTeleport") and "InstantTeleport" or "TeleportFly"
-    print("[TeleportSystem] Method: " .. State.Method)
+function TeleportSystem.GetSafeSpeedMode()
+    return State.SafeSpeedMode
 end
 
-function TeleportSystem.GetMethod() return State.Method end
-function TeleportSystem.GetSpeed() return Config.WalkSpeed end
+function TeleportSystem.GetCurrentSpeed()
+    return GetWalkSpeed()
+end
+
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
--- Export
+-- ==================================================
+-- ✅ EXPORT
+-- ==================================================
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk 265 + CFrame Instant + Shot TP 1.15s + Lock Camera + Drop)")
+print("✅ TeleportSystem Loaded (Walk + CFrame Instant + Shot TP 1.15s + Lock Camera + Drop + Safe Speed Mode)")
