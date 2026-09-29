@@ -1,12 +1,13 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v5)
+-- YOKUDO HUB | STEAL AN EGG | Loader (v6 FINAL)
 -- ✅ AutoEventNew Feature (Portal Signal)
--- ✅ ManagerDrone (Full Reset + Portal Check)
+-- ✅ ManagerDrone (Full Control + Safe Zone + Portal)
 -- ✅ SafeSpeedMode Feature
 -- ✅ CollectEggNew + ESP Tabs
 -- ✅ TeleportSystem (Lock Camera + Drop + AntiGuard)
--- ✅ FarmingManager (Walk TP) + VIPTP (Walk TP + Safe Speed Mode)
+-- ✅ FarmingManager (Walk TP)
 -- ✅ AFKSystem (Walk TP Only — No Fly/Shot)
+-- ❌ គ្មាន VIPTP (ជំនួសដោយ AutoEventNew)
 -- ❌ គ្មាន AntiGuard (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន AntiRagdoll
@@ -215,18 +216,15 @@ loadstring(GetScript("Features/AFKSystem.lua"))()
 Loading.Update(50)
 loadstring(GetScript("Features/SafeSpeedMode.lua"))()
 
--- ✅ FarmingManager (Walk TP) មុន VIPTP
+-- ✅ FarmingManager (Walk TP)
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
--- ✅ VIPTP (Walk TP + Safe Speed Mode)
-Loading.Update(54)
---loadstring(GetScript("Features/VIPTP.lua"))()
-
--- ✅ AutoEventNew
+-- ✅ AutoEventNew (Feature)
 Loading.Update(58)
 loadstring(GetScript("Features/AutoEventNew.lua"))()
 
+-- ✅ ManagerDrone (Full Control — គ្រប់គ្រង AutoEventNew + AFKSystem)
 Loading.Update(59)
 loadstring(GetScript("Features/ManagerDrone.lua"))()
 
@@ -235,6 +233,7 @@ loadstring(GetScript("Features/ManualFastClick.lua"))()
 
 -- ❌ ដក DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ ដក AntiGuard (បញ្ចូលក្នុង TeleportSystem)
+-- ❌ ដក VIPTP (ជំនួសដោយ AutoEventNew)
 
 -- ✅ ConfigSystem
 Loading.Update(63)
