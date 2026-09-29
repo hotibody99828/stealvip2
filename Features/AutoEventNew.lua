@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v11 FINAL)
+-- YOKUDO HUB | FEATURE | Auto Event New (v12 FINAL)
 -- ✅ Boss1 & 3: Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Fly TP → Coil Position (ជិត Boss បំផុត) → Stop → Face + Attack (Range 50)
--- ✅ Boss2: No Lock Boss + Auto Switch Coil
+-- ✅ Boss2 (Ball): Find Closest Position (ត្រង់ Boss) → Fly TP → Stop → Face + Attack (Range 50)
+-- ✅ Boss2: No Lock + Auto Switch Position រាល់ 1s
 -- ✅ Done (Portal Gone) → Call ManagerDrone → AFK
 -- ✅ Full Reset ពេល User ដកធិក
 -- ❌ គ្មាន ConfigSystem
@@ -21,17 +21,20 @@ local Player = Players.LocalPlayer
 local PORTAL_NAME = "ScrambleArenaPortal"
 local PORTAL_LEAVE_NAME = "LeaveTeleport"
 local BOSS_CONTAINER = "ScrambleArena"
-local COILS_CONTAINER = "Coils"
 
 local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
--- ✅ Coil Names (4 Coils)
-local COIL_NAMES = { "Coil1", "Coil2", "Coil3", "Coil4" }
+-- ✅ Positions (កំណត់ដោយខ្លួនឯង — 4 Positions)
+local POSITIONS = {
+    Vector3.new(-15298, -468, 5105),  -- Position 1 (Coil1)
+    Vector3.new(-14777, -468, 5108),  -- Position 2 (Coil2)
+    Vector3.new(-15292, -468, 4593),  -- Position 3 (Coil3)
+    Vector3.new(-14763, -468, 4594),  -- Position 4 (Coil4)
+}
 
--- ✅ Coil Settings
-local COIL_CHECK_INTERVAL = 1        -- ✅ Check Coil រាល់ 1s
-local COIL_BOSS_TRIGGER = 20         -- ✅ Boss មកជិត 20 studs → Face + Attack
-local COIL_WAIT_TIMEOUT = 120
+-- ✅ Position Settings
+local POSITION_CHECK_INTERVAL = 1   -- ✅ Check Position រាល់ 1s
+local POSITION_BOSS_TRIGGER = 20    -- ✅ Boss មកជិត 20 studs → Face + Attack
 
 -- ✅ Lock Settings (Boss 1 & 3)
 local LOCK_BEHIND_NORMAL = 3
@@ -48,7 +51,6 @@ local ARRIVE_TIMEOUT = 20
 
 local GROUND_Y = 70
 local PORTAL_FLY_OFFSET = 5
-local BOSS_ARENA_Y = -468
 
 local PUSH_UP_Y_THRESHOLD = -472
 local PUSH_UP_Y_TARGET = -460
@@ -80,7 +82,7 @@ local BodyVelocity = nil
 local BodyGyro = nil
 local CurrentTarget = nil
 local CurrentBossName = nil
-local CurrentCoil = nil
+local CurrentPosition = nil
 local LastFire = 0
 local TraceSequence = 0
 local FlySequence = 0
@@ -248,63 +250,30 @@ local function AnyBossAlive()
     return false
 end
 
--- ✅ Find All Coils (4)
-local function FindAllCoils()
-    local Arena = workspace:FindFirstChild(BOSS_CONTAINER)
-    if not Arena then return {} end
-    local CoilsFolder = Arena:FindFirstChild(COILS_CONTAINER)
-    if not CoilsFolder then return {} end
-
-    local Coils = {}
-    for _, CoilName in ipairs(COIL_NAMES) do
-        local Coil = CoilsFolder:FindFirstChild(CoilName)
-        if Coil then
-            table.insert(Coils, Coil)
-        end
-    end
-    return Coils
-end
-
--- ✅ Find Closest Coil to Boss
-local function FindClosestCoilToBoss(Boss)
+-- ==================================================
+-- ✅ FIND CLOSEST POSITION TO BOSS (Position ទាំង 4)
+-- ==================================================
+local function FindClosestPositionToBoss(Boss)
     if not Boss then return nil, nil end
     local BossPos = GetPosition(Boss)
     if not BossPos then return nil, nil end
 
-    local Coils = FindAllCoils()
-    if #Coils == 0 then return nil, nil end
-
     local Closest, ClosestDist = nil, math.huge
-    for _, Coil in ipairs(Coils) do
-        local CoilPos = GetPosition(Coil)
-        if CoilPos then
-            local Dist = (CoilPos - BossPos).Magnitude
-            DebugPrint(string.format("🔍 Coil: %s | Dist: %.1f | Pos: %.1f, %.1f, %.1f",
-                Coil.Name, Dist, CoilPos.X, CoilPos.Y, CoilPos.Z))
-            if Dist < ClosestDist then
-                ClosestDist = Dist
-                Closest = Coil
-            end
+    for i, Pos in ipairs(POSITIONS) do
+        local Dist = (Pos - BossPos).Magnitude
+        DebugPrint(string.format("🔍 Position %d | Dist: %.1f | Pos: %.1f, %.1f, %.1f",
+            i, Dist, Pos.X, Pos.Y, Pos.Z))
+        if Dist < ClosestDist then
+            ClosestDist = Dist
+            Closest = Pos
         end
     end
 
     if Closest then
-        DebugPrint(string.format("🎯 Closest Coil: %s | Dist: %.1f", Closest.Name, ClosestDist))
+        DebugPrint(string.format("🎯 Closest Position: %.1f, %.1f, %.1f | Dist: %.1f",
+            Closest.X, Closest.Y, Closest.Z, ClosestDist))
     end
     return Closest, ClosestDist
-end
-
--- ✅ Wait For Coil
-local function WaitForCoil()
-    DebugPrint("⏳ Wait for Coil...")
-    local Elapsed = 0
-    while AutoEventEnabled and Elapsed < COIL_WAIT_TIMEOUT do
-        local Coils = FindAllCoils()
-        if #Coils > 0 then return Coils end
-        task.wait(COIL_CHECK_INTERVAL)
-        Elapsed = Elapsed + COIL_CHECK_INTERVAL
-    end
-    return {}
 end
 
 -- ==================================================
@@ -373,18 +342,21 @@ local function FlyTP(Destination, Callback)
 end
 
 -- ==================================================
--- ✅ FLY TO COIL (Position ត្រង់ — គ្មាន Lock)
+-- ✅ FLY TO POSITION (Fly TP → Stop — គ្មាន Lock)
 -- ==================================================
-local function FlyToCoil(Coil)
-    if not Coil then return false end
-    local CoilPos = GetPosition(Coil)
-    if not CoilPos then return false end
+local function FlyToPosition(Position)
+    if not Position then return false end
 
-    -- ✅ Fly TP ត្រង់ Position របស់ Coil
-    local TargetPos = Vector3.new(CoilPos.X, CoilPos.Y, CoilPos.Z)
+    -- ✅ Disconnect Lock ចាស់
+    if LockConnection then
+        LockConnection:Disconnect()
+        LockConnection = nil
+    end
 
-    DebugPrint(string.format("🚀 Fly TP → Coil: %s | Pos: %.1f, %.1f, %.1f",
-        Coil.Name, TargetPos.X, TargetPos.Y, TargetPos.Z))
+    local TargetPos = Vector3.new(Position.X, Position.Y, Position.Z)
+
+    DebugPrint(string.format("🚀 Fly TP → Position: %.1f, %.1f, %.1f",
+        TargetPos.X, TargetPos.Y, TargetPos.Z))
 
     local Arrived = false
     FlyTP(TargetPos, function() Arrived = true end)
@@ -396,15 +368,14 @@ local function FlyToCoil(Coil)
     end
 
     if Arrived then
-        -- ✅ Stop Fly ភ្លាម (គ្មាន Lock)
         CleanupMovers()
-        DebugPrint("✅ At Coil → Stop Fly (No Lock)")
+        DebugPrint("✅ At Position → Stop Fly (No Lock)")
     end
     return Arrived
 end
 
 -- ==================================================
--- ✅ FACE BOSS (មិន Lock Boss)
+-- ✅ FACE BOSS
 -- ==================================================
 local function StartFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() end
@@ -561,25 +532,18 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Coil Position → Stop → Wait
+    -- ✅ Boss 2 (Ball) → Fly Position ជិត Boss
     if BossName == "Ball" then
-        DebugPrint("🚀 Boss 2 (Ball) → Find Closest Coil")
+        DebugPrint("🚀 Boss 2 (Ball) → Find Closest Position")
 
-        local Coils = WaitForCoil()
-        if #Coils == 0 then
-            DebugPrint("❌ No Coils → Skip Boss 2")
-            return true
-        end
-        if not AutoEventEnabled then return false end
-
-        CurrentCoil = FindClosestCoilToBoss(CurrentTarget)
-        if not CurrentCoil then
-            DebugPrint("❌ No Coil → Skip")
+        CurrentPosition = FindClosestPositionToBoss(CurrentTarget)
+        if not CurrentPosition then
+            DebugPrint("❌ No Position → Skip")
             return true
         end
 
-        FlyToCoil(CurrentCoil)      -- ✅ Fly ទៅ Coil Position → Stop
-        DebugPrint("✅ At Coil → Wait for Boss")
+        FlyToPosition(CurrentPosition)  -- ✅ Fly TP → Stop
+        DebugPrint("✅ At Position → Wait for Boss")
         return true
     end
 
@@ -652,7 +616,7 @@ local function FullReset()
     StopFaceBoss()
     CurrentTarget = nil
     CurrentBossName = nil
-    CurrentCoil = nil
+    CurrentPosition = nil
     LastFire = 0
     TraceSequence = 0
     FlySequence = 0
@@ -729,7 +693,7 @@ local function MainLoop()
         return
     end
 
-    local LastCoilCheck = 0
+    local LastPositionCheck = 0
     while AutoEventEnabled do
         local Hum = GetHumanoid()
         if not Hum or Hum.Health <= 0 then
@@ -766,36 +730,28 @@ local function MainLoop()
         local now = tick()
 
         if CurrentBossName == "Ball" then
-            -- ✅ Check Coil ថ្មីជិត Boss ជាង រាល់ 1s
-            if now - LastCoilCheck >= COIL_CHECK_INTERVAL then
-                LastCoilCheck = now
-                local NewCoil = FindClosestCoilToBoss(CurrentTarget)
-                if NewCoil and NewCoil ~= CurrentCoil then
-                    local OldCoilPos = CurrentCoil and GetPosition(CurrentCoil)
-                    local NewCoilPos = GetPosition(NewCoil)
-                    local BossPos = GetPosition(CurrentTarget)
-                    if OldCoilPos and NewCoilPos and BossPos then
-                        local OldDist = (OldCoilPos - BossPos).Magnitude
-                        local NewDist = (NewCoilPos - BossPos).Magnitude
-                        if NewDist < OldDist - 3 then
-                            DebugPrint("🔄 Switch Coil:", NewCoil.Name)
-                            CurrentCoil = NewCoil
-                            FlyToCoil(CurrentCoil)   -- ✅ Fly ទៅ Coil ថ្មី → Stop
-                        end
+            -- ✅ Check Position ថ្មីជិត Boss ជាង រាល់ 1s
+            if now - LastPositionCheck >= POSITION_CHECK_INTERVAL then
+                LastPositionCheck = now
+                local NewPos, NewDist = FindClosestPositionToBoss(CurrentTarget)
+                if NewPos and CurrentPosition then
+                    local OldDist = (CurrentPosition - GetPosition(CurrentTarget)).Magnitude
+                    local NewDistVal = (NewPos - GetPosition(CurrentTarget)).Magnitude
+                    if NewDistVal < OldDist - 3 then
+                        DebugPrint("🔄 Switch Position → New Pos:", tostring(NewPos))
+                        CurrentPosition = NewPos
+                        FlyToPosition(CurrentPosition)  -- ✅ Fly ទៅ Position ថ្មី → Stop
                     end
                 end
             end
 
-            -- ✅ Check Boss ↔ Coil Distance
+            -- ✅ Check Boss ↔ Position Distance
             local BossPos = GetPosition(CurrentTarget)
-            local CoilPos = CurrentCoil and GetPosition(CurrentCoil) or nil
-            local InRange = false
-            if BossPos and CoilPos then
-                local D = (BossPos - CoilPos).Magnitude
-                if D <= COIL_BOSS_TRIGGER then InRange = true end
-            end
+            local PosDist = BossPos and CurrentPosition and (BossPos - CurrentPosition).Magnitude or math.huge
+            local InRange = PosDist <= POSITION_BOSS_TRIGGER
+
             if InRange then
-                StartFaceBoss()  -- ✅ Face Boss (មិន Lock Boss)
+                StartFaceBoss()  -- ✅ Face Boss
                 if now - LastFire >= ATTACK_INTERVAL then
                     LastFire = now
                     FireAtBoss(CurrentTarget, ATTACK_RANGE_BALL)
@@ -839,7 +795,7 @@ local function Enable()
     AutoEventEnabled = true
     CurrentTarget = nil
     CurrentBossName = nil
-    CurrentCoil = nil
+    CurrentPosition = nil
     LastFire = 0
     TraceSequence = 0
     FlySequence = 0
@@ -875,12 +831,12 @@ _G.YOKUDO_AutoEventNew = {
     FullReset = FullReset,
     CallManagerDone = CallManagerDone,
     FindAnyBoss = FindAnyBoss,
-    FindAllCoils = FindAllCoils,
-    FindClosestCoilToBoss = FindClosestCoilToBoss,
-    FlyToCoil = FlyToCoil,
+    FindClosestPositionToBoss = FindClosestPositionToBoss,
+    FlyToPosition = FlyToPosition,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
+    POSITIONS = POSITIONS,
 }
 
-print("✅ AutoEventNew Feature Loaded (v11 FINAL — Fly Coil Position + No Lock)")
+print("✅ AutoEventNew Feature Loaded (v12 FINAL — Position Only + No Lock)")
