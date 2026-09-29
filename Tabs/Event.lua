@@ -1,6 +1,7 @@
 --==================================================
 -- YOKUDO HUB | TAB | Event
 -- Feature: Auto Event New
+-- ✅ User ដកធិក → Stop All (AutoEventNew + ManagerDrone + AFKSystem)
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -87,18 +88,71 @@ local function UpdateEventUI(State)
     end
 end
 
+--==================================================
+-- ✅ STOP ALL (ពេល User ដកធិក)
+--==================================================
+local function StopAll()
+    print("[YOKUDO] ================================")
+    print("[YOKUDO] 🔄 Stop All Features...")
+    print("[YOKUDO] ================================")
+
+    -- ✅ 1. Stop AutoEventNew
+    if _G.YOKUDO_AutoEventNew then
+        pcall(function()
+            _G.YOKUDO_AutoEventNew.Disable()
+        end)
+        print("[YOKUDO] ✅ AutoEventNew Stopped")
+    end
+
+    -- ✅ 2. Stop ManagerDrone
+    if _G.YOKUDO_ManagerDrone then
+        pcall(function()
+            _G.YOKUDO_ManagerDrone.Disable()
+        end)
+        print("[YOKUDO] ✅ ManagerDrone Stopped")
+    end
+
+    -- ✅ 3. Stop AFKSystem
+    if _G.YOKUDO_AFKSystem then
+        pcall(function()
+            _G.YOKUDO_AFKSystem.Disable()
+        end)
+        print("[YOKUDO] ✅ AFKSystem Stopped")
+    end
+
+    -- ✅ 4. Stop AttackDrone (បើមាន)
+    if _G.YOKUDO_AttackDrone then
+        pcall(function()
+            _G.YOKUDO_AttackDrone.Stop()
+        end)
+        print("[YOKUDO] ✅ AttackDrone Stopped")
+    end
+
+    print("[YOKUDO] ================================")
+    print("[YOKUDO] ✅ Stop All Complete")
+    print("[YOKUDO] ================================")
+end
+
+--==================================================
+-- TOGGLE — User ដកធិក → Stop All
+--==================================================
 EventButton.MouseButton1Click:Connect(function()
     if not _G.YOKUDO_AutoEventNew then
         warn("[YOKUDO] AutoEventNew not loaded!")
         return
     end
+
     local NewState = not _G.YOKUDO_AutoEventNew.IsEnabled()
     UpdateEventUI(NewState)
     _G.YOKUDO_AutoEventNewEnabled = NewState
+
     if NewState then
+        -- ✅ Enable
         _G.YOKUDO_AutoEventNew.Enable()
+        print("[YOKUDO] ✅ AutoEventNew Enabled")
     else
-        _G.YOKUDO_AutoEventNew.Disable()
+        -- ✅ Disable + Stop All
+        StopAll()
     end
 end)
 
@@ -135,4 +189,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Event Tab Loaded (Auto Event New)")
+print("✅ Event Tab Loaded (Auto Event New + Stop All)")
