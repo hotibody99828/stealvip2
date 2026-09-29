@@ -1,6 +1,9 @@
 --==================================================
 -- YOKUDO HUB - CONFIG SYSTEM (EMPTY)
 -- ✅ ដក AttackDroneEnabled + SafeSpeedMode ចេញទាំងស្រុង
+-- ✅ គ្មាន Save/Load អ្វីទេ
+-- Folder: YOKUDO-SAE
+-- File: yokudo.json
 --==================================================
 
 local HttpService = game:GetService("HttpService")
@@ -100,14 +103,18 @@ _G.YOKUDO_ConfigSystem = {
             task.wait(0.5)
 
             -- ✅ Update Event Tab UI
-            if _G.YOKUDO_RefreshEventUI then
-                pcall(function() _G.YOKUDO_RefreshEventUI() end)
-            end
+            pcall(function()
+                if _G.YOKUDO_RefreshEventUI then
+                    _G.YOKUDO_RefreshEventUI()
+                end
+            end)
 
             -- ✅ Update Setting Tab UI
-            if _G.YOKUDO_RefreshSettingUI then
-                pcall(function() _G.YOKUDO_RefreshSettingUI() end)
-            end
+            pcall(function()
+                if _G.YOKUDO_RefreshSettingUI then
+                    _G.YOKUDO_RefreshSettingUI()
+                end
+            end)
         end)
 
         return Config
@@ -127,4 +134,4 @@ _G.YOKUDO_ConfigSystem = {
     end
 }
 
-print("✅ ConfigSystem Loaded (Empty)")
+print("✅ ConfigSystem Loaded (Empty — No AttackDrone/SafeSpeedMode)")
