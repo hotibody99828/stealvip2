@@ -1,13 +1,13 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v6)
--- ✅ TeleportSystem Only (Tab Auto Farming + Tab Farming)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v7)
+-- ✅ TeleportSystem (Tab Auto Farming + Tab Farming)
 -- ✅ SafeSpeedMode Feature
 -- ✅ AutoEventNew + ManagerDrone
 -- ✅ CollectEggNew + ESP Tabs
 -- ✅ FarmingManager (TeleportSystem) + AFKSystem (Walk TP)
+-- ✅ AntiGuard.lua (បន្ថែមវិញ)
+-- ✅ DropEgg.lua (បន្ថែមវិញ)
 -- ❌ គ្មាន VIPTP (ប្រើ TeleportSystem ជំនួស)
--- ❌ គ្មាន AntiGuard (បញ្ចូលក្នុង TeleportSystem)
--- ❌ គ្មាន DropEgg (បញ្ចូលក្នុង TeleportSystem)
 -- ❌ គ្មាន AntiRagdoll
 -- ==================================================
 
@@ -196,7 +196,7 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportSystem (Lock Camera + Drop + AntiGuard)
+-- ✅ TeleportSystem (Lock Camera + Drop)
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -230,11 +230,16 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(60)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ❌ ដក DropEgg (បញ្ចូលក្នុង TeleportSystem)
--- ❌ ដក AntiGuard (បញ្ចូលក្នុង TeleportSystem)
+-- ✅ DropEgg (បន្ថែមវិញ)
+Loading.Update(61)
+loadstring(GetScript("Features/DropEgg.lua"))()
+
+-- ✅ AntiGuard (បន្ថែមវិញ)
+Loading.Update(62)
+loadstring(GetScript("Features/AntiGuard.lua"))()
 
 -- ✅ ConfigSystem
-Loading.Update(62)
+Loading.Update(63)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
 -- ==================================================
