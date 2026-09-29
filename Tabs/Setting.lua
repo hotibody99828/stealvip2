@@ -1,7 +1,7 @@
 --==================================================
 -- YOKUDO HUB | TAB | Setting
+-- ✅ Safe Speed Mode (ប្រើ _G.YOKUDO_TeleportSystem)
 -- ✅ ដក Method Dropdown | Teleport Speed TextBox | AntiRagdoll
--- ✅ បន្ថែម Safe Speed Mode (ប្រើ _G.YOKUDO_SafeSpeedMode)
 -- ✅ ដក Config Save ចេញ
 --==================================================
 
@@ -40,7 +40,7 @@ local SafeSpeedSub = Instance.new("TextLabel")
 SafeSpeedSub.Size = UDim2.new(1, -50, 0, 18)
 SafeSpeedSub.Position = UDim2.new(0, 0, 0, 24)
 SafeSpeedSub.BackgroundTransparency = 1
-SafeSpeedSub.Text = "ON: Speed 265 | OFF: Player Speed"
+SafeSpeedSub.Text = "ON: Speed 250 | OFF: Player Speed"
 SafeSpeedSub.TextColor3 = Color3.fromRGB(180, 180, 180)
 SafeSpeedSub.TextSize = 10
 SafeSpeedSub.TextXAlignment = Enum.TextXAlignment.Left
@@ -77,22 +77,34 @@ SafeSpeedCheck.Parent = SafeSpeedBtn
 
 local SafeSpeedEnabled = false
 
-local function ToggleSafeSpeed()
-    SafeSpeedEnabled = not SafeSpeedEnabled
-    SafeSpeedCheck.Visible = SafeSpeedEnabled
+local function UpdateSafeSpeedUI(State)
+    SafeSpeedEnabled = State
+    SafeSpeedCheck.Visible = State
 
-    if SafeSpeedEnabled then
+    if State then
         SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
     else
         SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
     end
+end
 
-    -- ✅ ប្រើ _G.YOKUDO_SafeSpeedMode Feature
+local function ToggleSafeSpeed()
+    local NewState = not SafeSpeedEnabled
+    UpdateSafeSpeedUI(NewState)
+
+    -- ✅ ហៅ TeleportSystem
+    pcall(function()
+        if _G.YOKUDO_TeleportSystem then
+            _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(NewState)
+        end
+    end)
+
+    -- ✅ ហៅ SafeSpeedMode Feature (បើមាន)
     pcall(function()
         if _G.YOKUDO_SafeSpeedMode then
-            if SafeSpeedEnabled then
+            if NewState then
                 _G.YOKUDO_SafeSpeedMode.Enable()
             else
                 _G.YOKUDO_SafeSpeedMode.Disable()
@@ -100,9 +112,7 @@ local function ToggleSafeSpeed()
         end
     end)
 
-    -- ✅ ដក Config Save ចេញ
-
-    print("[Setting] Safe Speed Mode:", SafeSpeedEnabled)
+    print("[Setting] Safe Speed Mode:", NewState)
 end
 
 SafeSpeedBtn.MouseButton1Click:Connect(function()
@@ -674,13 +684,10 @@ task.spawn(function()
 
     -- ✅ Sync Safe Speed Mode
     pcall(function()
-        if _G.YOKUDO_SafeSpeedMode then
-            local SafeState = _G.YOKUDO_SafeSpeedMode.IsEnabled()
+        if _G.YOKUDO_TeleportSystem then
+            local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
             if SafeState then
-                SafeSpeedEnabled = true
-                SafeSpeedCheck.Visible = true
-                SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-                SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
+                UpdateSafeSpeedUI(true)
             end
         end
     end)
@@ -698,4 +705,33 @@ task.spawn(function()
     end)
 end)
 
-print("✅ Setting Tab Loaded (Safe Speed Mode | No Config Save)")
+--==================================================
+-- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+--==================================================
+_G.YOKUDO_RefreshSettingUI = function()
+    pcall(function()
+        if _G.YOKUDO_TeleportSystem then
+            local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
+            UpdateSafeSpeedUI(SafeState)
+        end
+    end)
+
+    pcall(function()
+        if _G.YOKUDO_AntiAFK then
+            local AFKState = _G.YOKUDO_AntiAFK.IsEnabled()
+            AntiAFKEnabled = AFKState
+            AntiAFKCheck.Visible = AFKState
+            if AFKState then
+                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+            else
+                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+                AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
+            end
+        end
+    end)
+
+    print("[YOKUDO] Setting Tab UI Refreshed")
+end
+
+print("✅ Setting Tab Loaded (Safe Speed Mode via TeleportSystem | No Config Save)")
