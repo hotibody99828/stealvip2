@@ -1,5 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v3)
+-- ✅ AutoEventNew Feature (Portal Signal)
+-- ✅ ManagerDrone (Full Reset + Portal Check)
 -- ✅ SafeSpeedMode Feature
 -- ✅ CollectEggNew + ESP Tabs
 -- ✅ TeleportSystem (បញ្ចូល Lock Camera + Drop)
@@ -221,6 +223,10 @@ loadstring(GetScript("Features/VIPTP.lua"))()
 Loading.Update(57)
 loadstring(GetScript("Features/AttackDrone.lua"))()
 
+-- ✅ AutoEventNew (ថ្មី)
+Loading.Update(58)
+loadstring(GetScript("Features/AutoEventNew.lua"))()
+
 Loading.Update(59)
 loadstring(GetScript("Features/ManagerDrone.lua"))()
 
@@ -249,6 +255,7 @@ loadstring(GetScript("Tabs/Combat.lua"))()
 Loading.Update(73)
 loadstring(GetScript("Tabs/AutoFarming.lua"))()
 
+-- ✅ Event Tab (AutoEventNew + Stop All)
 Loading.Update(76)
 loadstring(GetScript("Tabs/Event.lua"))()
 
