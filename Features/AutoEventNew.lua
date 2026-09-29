@@ -459,22 +459,15 @@ end
 local function FullReset()
     DebugPrint("🔄 Full Reset...")
 
-    -- 1. Cancel Main Thread
     if MainThread then
         pcall(function() task.cancel(MainThread) end)
         MainThread = nil
     end
 
-    -- 2. Cleanup Movers
     CleanupMovers()
-
-    -- 3. Stop Auto Equip
     StopAutoEquip()
-
-    -- 4. Stop Push Up Y
     StopPushUpY()
 
-    -- 5. Reset State
     CurrentTarget = nil
     CurrentBossName = nil
     LastFire = 0
@@ -482,7 +475,6 @@ local function FullReset()
     FlySequence = 0
     IsDead = false
 
-    -- 6. Reset Player
     local Hum, Root = GetHumanoid()
     if Hum then
         pcall(function()
