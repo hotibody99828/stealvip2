@@ -1,7 +1,8 @@
 --==================================================
 -- YOKUDO HUB | TAB | Setting
 -- ✅ ដក Method Dropdown | Teleport Speed TextBox | AntiRagdoll
--- ✅ បន្ថែម Safe Speed Mode
+-- ✅ បន្ថែម Safe Speed Mode (ប្រើ _G.YOKUDO_SafeSpeedMode)
+-- ✅ ដក Config Save ចេញ
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -15,7 +16,7 @@ local SettingTab, SettingPage = TabsManager:RegisterTab("Setting", 7, "SETTING")
 CreateSectionTitle(SettingPage, "Settings", 1)
 
 --==================================================
--- ✅ FEATURE 1: SAFE SPEED MODE (ជំនួស Method + Speed)
+-- ✅ FEATURE 1: SAFE SPEED MODE
 --==================================================
 local SafeSpeedHolder = Instance.new("Frame")
 SafeSpeedHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -88,13 +89,18 @@ local function ToggleSafeSpeed()
         SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
     end
 
-    if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(SafeSpeedEnabled)
-    end
+    -- ✅ ប្រើ _G.YOKUDO_SafeSpeedMode Feature
+    pcall(function()
+        if _G.YOKUDO_SafeSpeedMode then
+            if SafeSpeedEnabled then
+                _G.YOKUDO_SafeSpeedMode.Enable()
+            else
+                _G.YOKUDO_SafeSpeedMode.Disable()
+            end
+        end
+    end)
 
-    if _G.YOKUDO_ConfigSystem then
-        _G.YOKUDO_ConfigSystem.Save()
-    end
+    -- ✅ ដក Config Save ចេញ
 
     print("[Setting] Safe Speed Mode:", SafeSpeedEnabled)
 end
@@ -183,16 +189,20 @@ local function ToggleWalkSpeed()
     if WalkSpeedEnabled then
         WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         WalkSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
-            _G.YOKUDO_WalkSpeed.Enable()
-        end
+        pcall(function()
+            if _G.YOKUDO_WalkSpeed then
+                _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
+                _G.YOKUDO_WalkSpeed.Enable()
+            end
+        end)
     else
         WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         WalkSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.Disable()
-        end
+        pcall(function()
+            if _G.YOKUDO_WalkSpeed then
+                _G.YOKUDO_WalkSpeed.Disable()
+            end
+        end)
     end
 end
 
@@ -205,8 +215,12 @@ WalkSpeedTextBox.FocusLost:Connect(function()
     if val then
         WalkSpeedValue = math.clamp(val, 50, 1000)
         WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
-        if WalkSpeedEnabled and _G.YOKUDO_WalkSpeed then
-            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
+        if WalkSpeedEnabled then
+            pcall(function()
+                if _G.YOKUDO_WalkSpeed then
+                    _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
+                end
+            end)
         end
     else
         WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
@@ -281,15 +295,19 @@ local function ToggleAntiTrap()
     if AntiTrapEnabled then
         AntiTrapCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         AntiTrapStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_AntiTrap then
-            _G.YOKUDO_AntiTrap.Enable()
-        end
+        pcall(function()
+            if _G.YOKUDO_AntiTrap then
+                _G.YOKUDO_AntiTrap.Enable()
+            end
+        end)
     else
         AntiTrapCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         AntiTrapStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_AntiTrap then
-            _G.YOKUDO_AntiTrap.Disable()
-        end
+        pcall(function()
+            if _G.YOKUDO_AntiTrap then
+                _G.YOKUDO_AntiTrap.Disable()
+            end
+        end)
     end
 end
 
@@ -367,63 +385,65 @@ end)
 -- NOTIFICATION FUNCTION
 --==================================================
 local function ShowNotification(Text)
-    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    pcall(function()
+        local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
-    local NotifyGui = Instance.new("ScreenGui")
-    NotifyGui.Name = "YokudoNotify"
-    NotifyGui.ResetOnSpawn = false
-    NotifyGui.DisplayOrder = 999
-    NotifyGui.Parent = PlayerGui
+        local NotifyGui = Instance.new("ScreenGui")
+        NotifyGui.Name = "YokudoNotify"
+        NotifyGui.ResetOnSpawn = false
+        NotifyGui.DisplayOrder = 999
+        NotifyGui.Parent = PlayerGui
 
-    local NotifyFrame = Instance.new("Frame")
-    NotifyFrame.Size = UDim2.new(0, 220, 0, 50)
-    NotifyFrame.Position = UDim2.new(0, -250, 0, 20)
-    NotifyFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    NotifyFrame.BackgroundTransparency = 0.85
-    NotifyFrame.BorderSizePixel = 0
-    NotifyFrame.Parent = NotifyGui
+        local NotifyFrame = Instance.new("Frame")
+        NotifyFrame.Size = UDim2.new(0, 220, 0, 50)
+        NotifyFrame.Position = UDim2.new(0, -250, 0, 20)
+        NotifyFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        NotifyFrame.BackgroundTransparency = 0.85
+        NotifyFrame.BorderSizePixel = 0
+        NotifyFrame.Parent = NotifyGui
 
-    local NotifyCorner = Instance.new("UICorner")
-    NotifyCorner.CornerRadius = UDim.new(0, 10)
-    NotifyCorner.Parent = NotifyFrame
+        local NotifyCorner = Instance.new("UICorner")
+        NotifyCorner.CornerRadius = UDim.new(0, 10)
+        NotifyCorner.Parent = NotifyFrame
 
-    local NotifyStroke = Instance.new("UIStroke")
-    NotifyStroke.Color = Color3.fromRGB(255, 255, 255)
-    NotifyStroke.Thickness = 1
-    NotifyStroke.Transparency = 0.7
-    NotifyStroke.Parent = NotifyFrame
+        local NotifyStroke = Instance.new("UIStroke")
+        NotifyStroke.Color = Color3.fromRGB(255, 255, 255)
+        NotifyStroke.Thickness = 1
+        NotifyStroke.Transparency = 0.7
+        NotifyStroke.Parent = NotifyFrame
 
-    local NotifyText = Instance.new("TextLabel")
-    NotifyText.Size = UDim2.new(1, -20, 1, 0)
-    NotifyText.Position = UDim2.new(0, 10, 0, 0)
-    NotifyText.BackgroundTransparency = 1
-    NotifyText.Text = Text
-    NotifyText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    NotifyText.TextSize = 13
-    NotifyText.TextXAlignment = Enum.TextXAlignment.Left
-    NotifyText.TextYAlignment = Enum.TextYAlignment.Center
-    NotifyText.Font = Enum.Font.GothamBold
-    NotifyText.Parent = NotifyFrame
+        local NotifyText = Instance.new("TextLabel")
+        NotifyText.Size = UDim2.new(1, -20, 1, 0)
+        NotifyText.Position = UDim2.new(0, 10, 0, 0)
+        NotifyText.BackgroundTransparency = 1
+        NotifyText.Text = Text
+        NotifyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        NotifyText.TextSize = 13
+        NotifyText.TextXAlignment = Enum.TextXAlignment.Left
+        NotifyText.TextYAlignment = Enum.TextYAlignment.Center
+        NotifyText.Font = Enum.Font.GothamBold
+        NotifyText.Parent = NotifyFrame
 
-    TweenService:Create(NotifyFrame, TweenInfo.new(0.4), {
-        Position = UDim2.new(0, 20, 0, 20)
-    }):Play()
+        TweenService:Create(NotifyFrame, TweenInfo.new(0.4), {
+            Position = UDim2.new(0, 20, 0, 20)
+        }):Play()
 
-    task.wait(5)
+        task.wait(5)
 
-    TweenService:Create(NotifyFrame, TweenInfo.new(0.3), {
-        Position = UDim2.new(0, -250, 0, 20),
-        BackgroundTransparency = 1
-    }):Play()
-    TweenService:Create(NotifyText, TweenInfo.new(0.3), {
-        TextTransparency = 1
-    }):Play()
-    TweenService:Create(NotifyStroke, TweenInfo.new(0.3), {
-        Transparency = 1
-    }):Play()
+        TweenService:Create(NotifyFrame, TweenInfo.new(0.3), {
+            Position = UDim2.new(0, -250, 0, 20),
+            BackgroundTransparency = 1
+        }):Play()
+        TweenService:Create(NotifyText, TweenInfo.new(0.3), {
+            TextTransparency = 1
+        }):Play()
+        TweenService:Create(NotifyStroke, TweenInfo.new(0.3), {
+            Transparency = 1
+        }):Play()
 
-    task.wait(0.3)
-    NotifyGui:Destroy()
+        task.wait(0.3)
+        NotifyGui:Destroy()
+    end)
 end
 
 GodModeButton.MouseButton1Down:Connect(function()
@@ -441,9 +461,11 @@ GodModeButton.MouseButton1Up:Connect(function()
 end)
 
 GodModeButton.MouseButton1Click:Connect(function()
-    if _G.YOKUDO_GodMode then
-        _G.YOKUDO_GodMode.Enable()
-    end
+    pcall(function()
+        if _G.YOKUDO_GodMode then
+            _G.YOKUDO_GodMode.Enable()
+        end
+    end)
     ShowNotification("God Mode Start")
 end)
 
@@ -545,13 +567,15 @@ end)
 
 task.spawn(function()
     task.wait(0.5)
-    if _G.YOKUDO_ManualFastClick then
-        if _G.YOKUDO_ManualFastClick.IsEnabled() then
-            FastClickButton.Text = "Stop"
-        else
-            FastClickButton.Text = "Click"
+    pcall(function()
+        if _G.YOKUDO_ManualFastClick then
+            if _G.YOKUDO_ManualFastClick.IsEnabled() then
+                FastClickButton.Text = "Stop"
+            else
+                FastClickButton.Text = "Click"
+            end
         end
-    end
+    end)
 end)
 
 --==================================================
@@ -622,15 +646,19 @@ local function ToggleAntiAFK()
     if AntiAFKEnabled then
         AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-        if _G.YOKUDO_AntiAFK then
-            _G.YOKUDO_AntiAFK.Enable()
-        end
+        pcall(function()
+            if _G.YOKUDO_AntiAFK then
+                _G.YOKUDO_AntiAFK.Enable()
+            end
+        end)
     else
         AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
-        if _G.YOKUDO_AntiAFK then
-            _G.YOKUDO_AntiAFK.Disable()
-        end
+        pcall(function()
+            if _G.YOKUDO_AntiAFK then
+                _G.YOKUDO_AntiAFK.Disable()
+            end
+        end)
     end
 end
 
@@ -645,25 +673,29 @@ task.spawn(function()
     task.wait(0.5)
 
     -- ✅ Sync Safe Speed Mode
-    if _G.YOKUDO_TeleportSystem then
-        local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
-        if SafeState then
-            SafeSpeedEnabled = true
-            SafeSpeedCheck.Visible = true
-            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
+    pcall(function()
+        if _G.YOKUDO_SafeSpeedMode then
+            local SafeState = _G.YOKUDO_SafeSpeedMode.IsEnabled()
+            if SafeState then
+                SafeSpeedEnabled = true
+                SafeSpeedCheck.Visible = true
+                SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
+            end
         end
-    end
+    end)
 
     -- ✅ Sync Anti AFK
-    if _G.YOKUDO_AntiAFK then
-        if _G.YOKUDO_AntiAFK.IsEnabled() then
-            AntiAFKEnabled = true
-            AntiAFKCheck.Visible = true
-            AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+    pcall(function()
+        if _G.YOKUDO_AntiAFK then
+            if _G.YOKUDO_AntiAFK.IsEnabled() then
+                AntiAFKEnabled = true
+                AntiAFKCheck.Visible = true
+                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+                AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
+            end
         end
-    end
+    end)
 end)
 
-print("✅ Setting Tab Loaded (Safe Speed Mode | No Method/Speed TextBox/AntiRagdoll)")
+print("✅ Setting Tab Loaded (Safe Speed Mode | No Config Save)")
