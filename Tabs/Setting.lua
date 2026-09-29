@@ -1,8 +1,6 @@
 --==================================================
--- YOKUDO HUB | TAB | Setting
--- ✅ Safe Speed Mode (ប្រើ _G.YOKUDO_TeleportSystem)
--- ✅ ដក Method Dropdown | Teleport Speed TextBox | AntiRagdoll
--- ✅ ដក Config Save ចេញ
+-- YOKUDO HUB | TAB | Setting (UPDATED)
+-- ✅ Safe Speed Mode | ❌ គ្មាន Method/Speed TextBox/AntiRagdoll
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -40,7 +38,7 @@ local SafeSpeedSub = Instance.new("TextLabel")
 SafeSpeedSub.Size = UDim2.new(1, -50, 0, 18)
 SafeSpeedSub.Position = UDim2.new(0, 0, 0, 24)
 SafeSpeedSub.BackgroundTransparency = 1
-SafeSpeedSub.Text = "ON: Speed 250 | OFF: Player Speed"
+SafeSpeedSub.Text = "ON: Speed 265 | OFF: Player Speed"
 SafeSpeedSub.TextColor3 = Color3.fromRGB(180, 180, 180)
 SafeSpeedSub.TextSize = 10
 SafeSpeedSub.TextXAlignment = Enum.TextXAlignment.Left
@@ -77,42 +75,32 @@ SafeSpeedCheck.Parent = SafeSpeedBtn
 
 local SafeSpeedEnabled = false
 
-local function UpdateSafeSpeedUI(State)
-    SafeSpeedEnabled = State
-    SafeSpeedCheck.Visible = State
+local function ToggleSafeSpeed()
+    SafeSpeedEnabled = not SafeSpeedEnabled
+    SafeSpeedCheck.Visible = SafeSpeedEnabled
 
-    if State then
+    if SafeSpeedEnabled then
         SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
     else
         SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
     end
-end
-
-local function ToggleSafeSpeed()
-    local NewState = not SafeSpeedEnabled
-    UpdateSafeSpeedUI(NewState)
 
     -- ✅ ហៅ TeleportSystem
-    pcall(function()
-        if _G.YOKUDO_TeleportSystem then
-            _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(NewState)
-        end
-    end)
+    if _G.YOKUDO_TeleportSystem then
+        _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(SafeSpeedEnabled)
+    end
 
-    -- ✅ ហៅ SafeSpeedMode Feature (បើមាន)
-    pcall(function()
-        if _G.YOKUDO_SafeSpeedMode then
-            if NewState then
-                _G.YOKUDO_SafeSpeedMode.Enable()
-            else
-                _G.YOKUDO_SafeSpeedMode.Disable()
-            end
-        end
-    end)
+    -- ✅ Save _G
+    _G.YOKUDO_SafeSpeedMode = SafeSpeedEnabled
 
-    print("[Setting] Safe Speed Mode:", NewState)
+    -- ✅ Save Config
+    if _G.YOKUDO_ConfigSystem then
+        _G.YOKUDO_ConfigSystem.Save()
+    end
+
+    print("[Setting] Safe Speed Mode:", SafeSpeedEnabled)
 end
 
 SafeSpeedBtn.MouseButton1Click:Connect(function()
@@ -199,20 +187,16 @@ local function ToggleWalkSpeed()
     if WalkSpeedEnabled then
         WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         WalkSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-        pcall(function()
-            if _G.YOKUDO_WalkSpeed then
-                _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
-                _G.YOKUDO_WalkSpeed.Enable()
-            end
-        end)
+        if _G.YOKUDO_WalkSpeed then
+            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
+            _G.YOKUDO_WalkSpeed.Enable()
+        end
     else
         WalkSpeedCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         WalkSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-        pcall(function()
-            if _G.YOKUDO_WalkSpeed then
-                _G.YOKUDO_WalkSpeed.Disable()
-            end
-        end)
+        if _G.YOKUDO_WalkSpeed then
+            _G.YOKUDO_WalkSpeed.Disable()
+        end
     end
 end
 
@@ -225,12 +209,8 @@ WalkSpeedTextBox.FocusLost:Connect(function()
     if val then
         WalkSpeedValue = math.clamp(val, 50, 1000)
         WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
-        if WalkSpeedEnabled then
-            pcall(function()
-                if _G.YOKUDO_WalkSpeed then
-                    _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
-                end
-            end)
+        if WalkSpeedEnabled and _G.YOKUDO_WalkSpeed then
+            _G.YOKUDO_WalkSpeed.SetValue(WalkSpeedValue)
         end
     else
         WalkSpeedTextBox.Text = tostring(WalkSpeedValue)
@@ -305,19 +285,15 @@ local function ToggleAntiTrap()
     if AntiTrapEnabled then
         AntiTrapCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         AntiTrapStroke.Color = Color3.fromRGB(135, 120, 225)
-        pcall(function()
-            if _G.YOKUDO_AntiTrap then
-                _G.YOKUDO_AntiTrap.Enable()
-            end
-        end)
+        if _G.YOKUDO_AntiTrap then
+            _G.YOKUDO_AntiTrap.Enable()
+        end
     else
         AntiTrapCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         AntiTrapStroke.Color = Color3.fromRGB(200, 200, 220)
-        pcall(function()
-            if _G.YOKUDO_AntiTrap then
-                _G.YOKUDO_AntiTrap.Disable()
-            end
-        end)
+        if _G.YOKUDO_AntiTrap then
+            _G.YOKUDO_AntiTrap.Disable()
+        end
     end
 end
 
@@ -395,65 +371,63 @@ end)
 -- NOTIFICATION FUNCTION
 --==================================================
 local function ShowNotification(Text)
-    pcall(function()
-        local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
-        local NotifyGui = Instance.new("ScreenGui")
-        NotifyGui.Name = "YokudoNotify"
-        NotifyGui.ResetOnSpawn = false
-        NotifyGui.DisplayOrder = 999
-        NotifyGui.Parent = PlayerGui
+    local NotifyGui = Instance.new("ScreenGui")
+    NotifyGui.Name = "YokudoNotify"
+    NotifyGui.ResetOnSpawn = false
+    NotifyGui.DisplayOrder = 999
+    NotifyGui.Parent = PlayerGui
 
-        local NotifyFrame = Instance.new("Frame")
-        NotifyFrame.Size = UDim2.new(0, 220, 0, 50)
-        NotifyFrame.Position = UDim2.new(0, -250, 0, 20)
-        NotifyFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        NotifyFrame.BackgroundTransparency = 0.85
-        NotifyFrame.BorderSizePixel = 0
-        NotifyFrame.Parent = NotifyGui
+    local NotifyFrame = Instance.new("Frame")
+    NotifyFrame.Size = UDim2.new(0, 220, 0, 50)
+    NotifyFrame.Position = UDim2.new(0, -250, 0, 20)
+    NotifyFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    NotifyFrame.BackgroundTransparency = 0.85
+    NotifyFrame.BorderSizePixel = 0
+    NotifyFrame.Parent = NotifyGui
 
-        local NotifyCorner = Instance.new("UICorner")
-        NotifyCorner.CornerRadius = UDim.new(0, 10)
-        NotifyCorner.Parent = NotifyFrame
+    local NotifyCorner = Instance.new("UICorner")
+    NotifyCorner.CornerRadius = UDim.new(0, 10)
+    NotifyCorner.Parent = NotifyFrame
 
-        local NotifyStroke = Instance.new("UIStroke")
-        NotifyStroke.Color = Color3.fromRGB(255, 255, 255)
-        NotifyStroke.Thickness = 1
-        NotifyStroke.Transparency = 0.7
-        NotifyStroke.Parent = NotifyFrame
+    local NotifyStroke = Instance.new("UIStroke")
+    NotifyStroke.Color = Color3.fromRGB(255, 255, 255)
+    NotifyStroke.Thickness = 1
+    NotifyStroke.Transparency = 0.7
+    NotifyStroke.Parent = NotifyFrame
 
-        local NotifyText = Instance.new("TextLabel")
-        NotifyText.Size = UDim2.new(1, -20, 1, 0)
-        NotifyText.Position = UDim2.new(0, 10, 0, 0)
-        NotifyText.BackgroundTransparency = 1
-        NotifyText.Text = Text
-        NotifyText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        NotifyText.TextSize = 13
-        NotifyText.TextXAlignment = Enum.TextXAlignment.Left
-        NotifyText.TextYAlignment = Enum.TextYAlignment.Center
-        NotifyText.Font = Enum.Font.GothamBold
-        NotifyText.Parent = NotifyFrame
+    local NotifyText = Instance.new("TextLabel")
+    NotifyText.Size = UDim2.new(1, -20, 1, 0)
+    NotifyText.Position = UDim2.new(0, 10, 0, 0)
+    NotifyText.BackgroundTransparency = 1
+    NotifyText.Text = Text
+    NotifyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    NotifyText.TextSize = 13
+    NotifyText.TextXAlignment = Enum.TextXAlignment.Left
+    NotifyText.TextYAlignment = Enum.TextYAlignment.Center
+    NotifyText.Font = Enum.Font.GothamBold
+    NotifyText.Parent = NotifyFrame
 
-        TweenService:Create(NotifyFrame, TweenInfo.new(0.4), {
-            Position = UDim2.new(0, 20, 0, 20)
-        }):Play()
+    TweenService:Create(NotifyFrame, TweenInfo.new(0.4), {
+        Position = UDim2.new(0, 20, 0, 20)
+    }):Play()
 
-        task.wait(5)
+    task.wait(5)
 
-        TweenService:Create(NotifyFrame, TweenInfo.new(0.3), {
-            Position = UDim2.new(0, -250, 0, 20),
-            BackgroundTransparency = 1
-        }):Play()
-        TweenService:Create(NotifyText, TweenInfo.new(0.3), {
-            TextTransparency = 1
-        }):Play()
-        TweenService:Create(NotifyStroke, TweenInfo.new(0.3), {
-            Transparency = 1
-        }):Play()
+    TweenService:Create(NotifyFrame, TweenInfo.new(0.3), {
+        Position = UDim2.new(0, -250, 0, 20),
+        BackgroundTransparency = 1
+    }):Play()
+    TweenService:Create(NotifyText, TweenInfo.new(0.3), {
+        TextTransparency = 1
+    }):Play()
+    TweenService:Create(NotifyStroke, TweenInfo.new(0.3), {
+        Transparency = 1
+    }):Play()
 
-        task.wait(0.3)
-        NotifyGui:Destroy()
-    end)
+    task.wait(0.3)
+    NotifyGui:Destroy()
 end
 
 GodModeButton.MouseButton1Down:Connect(function()
@@ -471,11 +445,9 @@ GodModeButton.MouseButton1Up:Connect(function()
 end)
 
 GodModeButton.MouseButton1Click:Connect(function()
-    pcall(function()
-        if _G.YOKUDO_GodMode then
-            _G.YOKUDO_GodMode.Enable()
-        end
-    end)
+    if _G.YOKUDO_GodMode then
+        _G.YOKUDO_GodMode.Enable()
+    end
     ShowNotification("God Mode Start")
 end)
 
@@ -577,15 +549,13 @@ end)
 
 task.spawn(function()
     task.wait(0.5)
-    pcall(function()
-        if _G.YOKUDO_ManualFastClick then
-            if _G.YOKUDO_ManualFastClick.IsEnabled() then
-                FastClickButton.Text = "Stop"
-            else
-                FastClickButton.Text = "Click"
-            end
+    if _G.YOKUDO_ManualFastClick then
+        if _G.YOKUDO_ManualFastClick.IsEnabled() then
+            FastClickButton.Text = "Stop"
+        else
+            FastClickButton.Text = "Click"
         end
-    end)
+    end
 end)
 
 --==================================================
@@ -656,19 +626,15 @@ local function ToggleAntiAFK()
     if AntiAFKEnabled then
         AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-        pcall(function()
-            if _G.YOKUDO_AntiAFK then
-                _G.YOKUDO_AntiAFK.Enable()
-            end
-        end)
+        if _G.YOKUDO_AntiAFK then
+            _G.YOKUDO_AntiAFK.Enable()
+        end
     else
         AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
-        pcall(function()
-            if _G.YOKUDO_AntiAFK then
-                _G.YOKUDO_AntiAFK.Disable()
-            end
-        end)
+        if _G.YOKUDO_AntiAFK then
+            _G.YOKUDO_AntiAFK.Disable()
+        end
     end
 end
 
@@ -683,55 +649,46 @@ task.spawn(function()
     task.wait(0.5)
 
     -- ✅ Sync Safe Speed Mode
-    pcall(function()
-        if _G.YOKUDO_TeleportSystem then
-            local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
-            if SafeState then
-                UpdateSafeSpeedUI(true)
-            end
+    if _G.YOKUDO_TeleportSystem then
+        local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
+        if SafeState then
+            SafeSpeedEnabled = true
+            SafeSpeedCheck.Visible = true
+            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
         end
-    end)
+    end
 
     -- ✅ Sync Anti AFK
-    pcall(function()
-        if _G.YOKUDO_AntiAFK then
-            if _G.YOKUDO_AntiAFK.IsEnabled() then
-                AntiAFKEnabled = true
-                AntiAFKCheck.Visible = true
-                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-                AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-            end
+    if _G.YOKUDO_AntiAFK then
+        if _G.YOKUDO_AntiAFK.IsEnabled() then
+            AntiAFKEnabled = true
+            AntiAFKCheck.Visible = true
+            AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
         end
-    end)
+    end
 end)
 
 --==================================================
--- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- ✅ REFRESH FUNCTION (សម្រាប់ ConfigSystem ហៅ)
 --==================================================
 _G.YOKUDO_RefreshSettingUI = function()
-    pcall(function()
-        if _G.YOKUDO_TeleportSystem then
-            local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
-            UpdateSafeSpeedUI(SafeState)
-        end
-    end)
+    if _G.YOKUDO_TeleportSystem then
+        local State = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
+        SafeSpeedEnabled = State or false
+        SafeSpeedCheck.Visible = SafeSpeedEnabled
 
-    pcall(function()
-        if _G.YOKUDO_AntiAFK then
-            local AFKState = _G.YOKUDO_AntiAFK.IsEnabled()
-            AntiAFKEnabled = AFKState
-            AntiAFKCheck.Visible = AFKState
-            if AFKState then
-                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-                AntiAFKStroke.Color = Color3.fromRGB(135, 120, 225)
-            else
-                AntiAFKCheckButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-                AntiAFKStroke.Color = Color3.fromRGB(200, 200, 220)
-            end
+        if SafeSpeedEnabled then
+            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
+        else
+            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
+            SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
         end
-    end)
 
-    print("[YOKUDO] Setting Tab UI Refreshed")
+        print("[YOKUDO] Setting UI Refreshed | SafeSpeed:", SafeSpeedEnabled)
+    end
 end
 
-print("✅ Setting Tab Loaded (Safe Speed Mode via TeleportSystem | No Config Save)")
+print("✅ Setting Tab Loaded (Safe Speed Mode | No Method/Speed TextBox/AntiRagdoll)")
