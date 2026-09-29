@@ -1,6 +1,6 @@
 --==================================================
 -- YOKUDO HUB - CONFIG SYSTEM
--- Save/Load: SelectedMethod + TeleportSpeed + AttackDroneEnabled
+-- ✅ ដក AttackDroneEnabled + SafeSpeedMode ចេញ
 -- Folder: YOKUDO-SAE
 -- File: yokudo.json
 --==================================================
@@ -11,19 +11,15 @@ local CONFIG_FOLDER = "YOKUDO-SAE"
 local CONFIG_FILE = CONFIG_FOLDER .. "/yokudo.json"
 
 --==================================================
--- DEFAULT CONFIG
+-- DEFAULT CONFIG (ទទេ)
 --==================================================
-
 local DefaultConfig = {
-    SelectedMethod = "TeleportFly",
-    TeleportSpeed = 300,
-    AttackDroneEnabled = false
+    -- ✅ ទទេ — គ្មាន Save
 }
 
 --==================================================
 -- FILE HELPERS
 --==================================================
-
 local function EnsureFolder()
     pcall(function()
         if not isfolder(CONFIG_FOLDER) then
@@ -43,7 +39,6 @@ end
 --==================================================
 -- LOAD CONFIG
 --==================================================
-
 local function LoadConfig()
     EnsureFolder()
 
@@ -72,21 +67,9 @@ local function LoadConfig()
         return Config
     end
 
-    if type(DecodedData.SelectedMethod) == "string" then
-        if DecodedData.SelectedMethod == "TeleportFly" or DecodedData.SelectedMethod == "InstantTeleport" then
-            Config.SelectedMethod = DecodedData.SelectedMethod
-        end
-    end
+    -- ✅ គ្មាន Load អ្វីទេ
 
-    if type(DecodedData.TeleportSpeed) == "number" then
-        Config.TeleportSpeed = math.clamp(DecodedData.TeleportSpeed, 50, 1100)
-    end
-
-    if type(DecodedData.AttackDroneEnabled) == "boolean" then
-        Config.AttackDroneEnabled = DecodedData.AttackDroneEnabled
-    end
-
-    print("[YOKUDO] Config Loaded | Method: " .. Config.SelectedMethod .. " | Speed: " .. tostring(Config.TeleportSpeed) .. " | Drone: " .. tostring(Config.AttackDroneEnabled))
+    print("[YOKUDO] Config Loaded (Empty)")
 
     return Config
 end
@@ -94,14 +77,11 @@ end
 --==================================================
 -- SAVE CONFIG
 --==================================================
-
 local function SaveConfig(Config)
     EnsureFolder()
 
     local DataToSave = {
-        SelectedMethod = Config.SelectedMethod or DefaultConfig.SelectedMethod,
-        TeleportSpeed = Config.TeleportSpeed or DefaultConfig.TeleportSpeed,
-        AttackDroneEnabled = Config.AttackDroneEnabled or DefaultConfig.AttackDroneEnabled
+        -- ✅ ទទេ — គ្មាន Save
     }
 
     local EncodeSuccess, EncodedData = pcall(function()
@@ -118,7 +98,7 @@ local function SaveConfig(Config)
     end)
 
     if WriteSuccess then
-        print("[YOKUDO] Config Saved | Method: " .. DataToSave.SelectedMethod .. " | Speed: " .. tostring(DataToSave.TeleportSpeed) .. " | Drone: " .. tostring(DataToSave.AttackDroneEnabled))
+        print("[YOKUDO] Config Saved (Empty)")
         return true
     else
         warn("[YOKUDO] Failed to write config")
@@ -129,24 +109,19 @@ end
 --==================================================
 -- APPLY CONFIG (TO _G)
 --==================================================
-
 local function ApplyConfig(Config)
-    _G.YOKUDO_SelectedMethod = Config.SelectedMethod
-    _G.YOKUDO_TeleportSpeed = Config.TeleportSpeed
-    _G.YOKUDO_AttackDroneEnabled = Config.AttackDroneEnabled
+    -- ✅ គ្មាន Apply អ្វីទេ
 end
 
 --==================================================
 -- INITIAL LOAD
 --==================================================
-
 local LoadedConfig = LoadConfig()
 ApplyConfig(LoadedConfig)
 
 --==================================================
 -- EXPORT
 --==================================================
-
 _G.YOKUDO_ConfigSystem = {
     Folder = CONFIG_FOLDER,
     File = CONFIG_FILE,
@@ -157,18 +132,6 @@ _G.YOKUDO_ConfigSystem = {
         ApplyConfig(Config)
 
         task.spawn(function()
-            task.wait(0.5)
-
-            -- ✅ Auto Enable Attack Drone
-            if Config.AttackDroneEnabled == true then
-                if _G.YOKUDO_ManagerDrone then
-                    print("[YOKUDO] Auto Enable Attack Drone from Config")
-                    pcall(function()
-                        _G.YOKUDO_ManagerDrone.Enable()
-                    end)
-                end
-            end
-
             task.wait(0.5)
 
             -- ✅ Update Event Tab UI
@@ -186,20 +149,12 @@ _G.YOKUDO_ConfigSystem = {
     end,
 
     Save = function()
-        local Config = {
-            SelectedMethod = _G.YOKUDO_SelectedMethod or DefaultConfig.SelectedMethod,
-            TeleportSpeed = _G.YOKUDO_TeleportSpeed or DefaultConfig.TeleportSpeed,
-            AttackDroneEnabled = _G.YOKUDO_AttackDroneEnabled or DefaultConfig.AttackDroneEnabled
-        }
+        local Config = {}
         return SaveConfig(Config)
     end,
 
     Get = function()
-        return {
-            SelectedMethod = _G.YOKUDO_SelectedMethod or DefaultConfig.SelectedMethod,
-            TeleportSpeed = _G.YOKUDO_TeleportSpeed or DefaultConfig.TeleportSpeed,
-            AttackDroneEnabled = _G.YOKUDO_AttackDroneEnabled or DefaultConfig.AttackDroneEnabled
-        }
+        return {}
     end,
 
     Reset = function()
@@ -208,4 +163,4 @@ _G.YOKUDO_ConfigSystem = {
     end
 }
 
-print("✅ ConfigSystem Loaded")
+print("✅ ConfigSystem Loaded (Empty — No AttackDrone/SafeSpeedMode)")
