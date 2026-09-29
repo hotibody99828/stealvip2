@@ -2,6 +2,7 @@
 -- YOKUDO HUB | FEATURE | Auto Farm (FAST)
 -- ✅ Cache PetData + UidCategory → លឿន
 -- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Walk TP + Shot TP)
+-- ✅ ដក SetMethod/SetSpeed ចេញ
 --==================================================
 
 local Players = game:GetService("Players")
@@ -77,7 +78,6 @@ BuildMeshIdMap()
 local function GetPetData(AssetCategory)
     if not AssetCategory then return nil end
 
-    -- ✅ Cache Hit
     if Cache.PetData[AssetCategory] then
         return Cache.PetData[AssetCategory]
     end
@@ -102,7 +102,6 @@ local function GetPetData(AssetCategory)
         Data.Icon = Module.Icon
     end
 
-    -- ✅ Save Cache
     Cache.PetData[AssetCategory] = Data
     return Data
 end
@@ -155,7 +154,6 @@ end
 local function FindAssetCategory(EggModel)
     if not EggModel then return nil end
 
-    -- ✅ Cache Hit តាម Uid
     local Uid = EggModel.Name
     if Cache.UidCategory[Uid] then
         return Cache.UidCategory[Uid]
@@ -238,7 +236,7 @@ local function SelectEgg(EggData)
 end
 
 --==================================================
--- START TELEPORT (✅ ប្រើ TeleportSystem ថ្មី)
+-- START TELEPORT (✅ ដក SetMethod/SetSpeed ចេញ)
 --==================================================
 local function StartTeleport()
     if not SelectedEgg then
@@ -246,12 +244,9 @@ local function StartTeleport()
         return
     end
 
-    local Speed = _G.YOKUDO_TeleportSpeed or 275
-
-    print("[YOKUDO] Start Teleport | Target: " .. SelectedEgg.Id .. " | Speed: " .. tostring(Speed))
+    print("[YOKUDO] Start Teleport | Target: " .. SelectedEgg.Id)
 
     if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.SetSpeed(Speed)
         _G.YOKUDO_TeleportSystem.SetTargetId(SelectedEgg.Id)
         _G.YOKUDO_TeleportSystem.Enable()
         print("[YOKUDO] ✅ TeleportSystem Enabled")
@@ -285,7 +280,6 @@ _G.YOKUDO_AutoFarm = {
     GetSelectedEgg = function() return SelectedEgg end,
     FormatMoney = FormatMoney,
 
-    -- ✅ Clear Cache
     ClearCache = function()
         Cache.UidCategory = {}
         print("[AutoFarm] Uid Cache Cleared")
