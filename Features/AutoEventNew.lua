@@ -1,12 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Auto Event New (v20 FINAL)
--- ✅ Boss1 (Mech): Lock Behind 3 + Above 5 + Face + Attack (Range 100)
--- ✅ Boss2 (Ball): Fly Position → Face Boss when 30m → Attack (Range 100)
--- ✅ Boss3 (ScrambleHuman): Fly Position → Lock Front 1 + Face + Attack (Range 100)
+-- YOKUDO HUB | FEATURE | Auto Event New (v23 FINAL)
+-- ✅ Boss1 (Mech): Fly TP → Lock Boss Behind 3 + Face + Attack
+-- ✅ Boss2 (Ball): Fly Position → Lock Position → Face Boss when 30m → Attack
+-- ✅ Boss3 (ScrambleHuman): Fly Position → Lock Position → Face Boss → Attack
 -- ✅ Portal Gone → Call ManagerDrone (No Fallback)
--- ✅ Full Reset ពេល User ដកធិក
--- ❌ គ្មាន ConfigSystem
--- ❌ គ្មាន Register CharacterSystem
+-- ✅ Full Reset + CharacterAdded Resume + Restore WalkSpeed
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -26,21 +24,20 @@ local BOSS_ORDER = { "Mech", "Ball", "ScrambleHuman" }
 
 -- ✅ Positions ថ្មី
 local POSITIONS = {
-    Vector3.new(-14789, -472, 5126),  -- Position 1
-    Vector3.new(-14763, -472, 4608),  -- Position 2
-    Vector3.new(-15279, -472, 4589),  -- Position 3
-    Vector3.new(-15304, -472, 5098),  -- Position 4
+    Vector3.new(-14797, -472, 5110),  -- Position 1
+    Vector3.new(-14767, -472, 4619),  -- Position 2
+    Vector3.new(-15274, -472, 4597),  -- Position 3
+    Vector3.new(-15280, -472, 5099),  -- Position 4
 }
 
 -- ✅ Position Settings
 local POSITION_CHECK_INTERVAL = 1
 
 -- ✅ Boss 2 Face Distance
-local BOSS2_FACE_DISTANCE = 30      -- ✅ Boss 2 មកជិត 30m → Face + Attack
+local BOSS2_FACE_DISTANCE = 30
 
--- ✅ Lock Settings
-local LOCK_BEHIND_NORMAL = 3         -- Boss 1: Behind 3
-local LOCK_FRONT_DISTANCE = 1        -- Boss 3: Front 1
+-- ✅ Lock Settings (Boss 1)
+local LOCK_BEHIND_NORMAL = 3
 local LOCK_ABOVE_HEIGHT = 5
 
 -- ✅ Attack Range
@@ -67,7 +64,7 @@ local CHECK_INTERVAL = 0.5
 local SAFE_WAIT_TIME = 1
 local BOSS_CHECK_INTERVAL = 0.3
 local BOSS_SPAWN_TIMEOUT = 120
-local DEATH_WAIT = 2
+local DEATH_WAIT = 3
 local EQUIP_CHECK_INTERVAL = 0.1
 
 local NEXT_BOSS_WAIT_TIMEOUT = 60
@@ -148,6 +145,7 @@ local function GetLookVector(Object)
     return Vector3.new(0, 0, -1)
 end
 
+-- ✅ Lock Position សម្រាប់ Boss 1 (Behind Boss)
 local function GetLockPosition(Target, BossName)
     if not Target then return nil, nil end
     local CenterPos = nil
@@ -159,17 +157,10 @@ local function GetLockPosition(Target, BossName)
     if not CenterPos then return nil, nil end
 
     local LookVector = GetLookVector(Target)
-    local LockPos
-
-    if BossName == "Mech" then
-        LockPos = CenterPos - (LookVector * LOCK_BEHIND_NORMAL)
-        DebugPrint("🔒 Boss 1 → Behind 3")
-    else
-        LockPos = CenterPos + (LookVector * LOCK_FRONT_DISTANCE)
-        DebugPrint("🔒 Boss", BossName, "→ Front 1")
-    end
-
+    local LockPos = CenterPos - (LookVector * LOCK_BEHIND_NORMAL)
     LockPos = Vector3.new(LockPos.X, CenterPos.Y + LOCK_ABOVE_HEIGHT, LockPos.Z)
+
+    DebugPrint("🔒 Boss 1 → Behind 3")
     return LockPos, CenterPos
 end
 
@@ -402,6 +393,29 @@ local function StopFaceBoss()
     if FaceConnection then FaceConnection:Disconnect() FaceConnection = nil end
 end
 
+-- ✅ Lock Position (Boss 2 & 3)
+local function StartLockPosition(Position)
+    if not Position then return end
+
+    if LockConnection then LockConnection:Disconnect() end
+    LockConnection = RunService.Heartbeat:Connect(function()
+        if not AutoEventEnabled then
+            if LockConnection then LockConnection:Disconnect() LockConnection = nil end
+            return
+        end
+
+        local Hum, Root = GetHumanoid()
+        if not Hum or not Root or Hum.Health <= 0 then return end
+
+        Root.CFrame = CFrame.new(Position)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    DebugPrint("🔒 Lock Position:", tostring(Position))
+end
+
+-- ✅ Lock Boss (Boss 1)
 local function StartLockBoss()
     if LockConnection then LockConnection:Disconnect() end
     LockConnection = RunService.Heartbeat:Connect(function()
@@ -504,7 +518,7 @@ local function FlyToClosestPortal()
 end
 
 -- ==================================================
--- SETUP TARGET
+-- ✅ SETUP TARGET
 -- ==================================================
 local function SetupTargetForBoss(Boss, BossName)
     if not Boss or not Boss.Parent then return false end
@@ -518,49 +532,37 @@ local function SetupTargetForBoss(Boss, BossName)
     DebugPrint("========================================")
     DebugPrint("🎯 SETUP Target:", BossName)
 
-    -- ✅ Boss 2 (Ball) → Fly Position → No Lock (Face when 30m)
-    if BossName == "Ball" then
-        DebugPrint("🚀 Boss 2 (Ball) → Find Closest Position (No Lock)")
+    -- ✅ Boss 1 (Mech) → Fly TP → Lock Boss Behind 3
+    if BossName == "Mech" then
+        DebugPrint("🚀 Boss 1 (Mech) → Lock Behind 3")
+        local LockPos = GetLockPosition(CurrentTarget, BossName)
+        if not LockPos then return false end
 
-        CurrentPosition = FindClosestPositionToBoss(CurrentTarget)
-        if not CurrentPosition then
-            DebugPrint("❌ No Position → Skip")
-            return true
-        end
+        local Arrived = false
+        FlyTP(LockPos, function() Arrived = true end)
+        while AutoEventEnabled and not Arrived do task.wait(0.1) end
+        if not AutoEventEnabled then return false end
 
-        FlyToPosition(CurrentPosition)
-        DebugPrint("✅ At Position → Wait for Boss (Face when 30m)")
-        return true
-    end
-
-    -- ✅ Boss 3 (ScrambleHuman) → Fly Position → Lock Front 1
-    if BossName == "ScrambleHuman" then
-        DebugPrint("🚀 Boss 3 (ScrambleHuman) → Find Closest Position → Lock Front 1")
-
-        CurrentPosition = FindClosestPositionToBoss(CurrentTarget)
-        if not CurrentPosition then
-            DebugPrint("❌ No Position → Skip")
-            return true
-        end
-
-        FlyToPosition(CurrentPosition)
-        DebugPrint("🔒 Lock Boss 3 → Front 1")
         StartLockBoss()
         return true
     end
 
-    -- ✅ Boss 1 (Mech) → Lock Behind 3
-    DebugPrint("🚀 Boss 1 (Mech) → Lock Behind 3")
-    local LockPos = GetLockPosition(CurrentTarget, BossName)
-    if not LockPos then return false end
+    -- ✅ Boss 2 & 3 → Fly Position → Lock Position
+    if BossName == "Ball" or BossName == "ScrambleHuman" then
+        DebugPrint("🚀 Boss", BossName, "→ Find Closest Position")
 
-    local Arrived = false
-    FlyTP(LockPos, function() Arrived = true end)
-    while AutoEventEnabled and not Arrived do task.wait(0.1) end
-    if not AutoEventEnabled then return false end
+        CurrentPosition = FindClosestPositionToBoss(CurrentTarget)
+        if not CurrentPosition then
+            DebugPrint("❌ No Position → Skip")
+            return true
+        end
 
-    StartLockBoss()
-    return true
+        FlyToPosition(CurrentPosition)
+        StartLockPosition(CurrentPosition)
+        return true
+    end
+
+    return false
 end
 
 local function StartPushUpY()
@@ -694,7 +696,6 @@ local function MainLoop()
 
     local LastPositionCheck = 0
     while AutoEventEnabled do
-        -- ✅ Check Portal Gone
         local Portal = workspace:FindFirstChild(PORTAL_NAME)
         if not Portal then
             DebugPrint("🚪 Portal Gone → Call Manager")
@@ -750,11 +751,7 @@ local function MainLoop()
                             DebugPrint("🔄 Switch Position")
                             CurrentPosition = NewPos
                             FlyToPosition(CurrentPosition)
-
-                            if CurrentBossName == "ScrambleHuman" then
-                                DebugPrint("🔒 Re-Lock Boss 3 → Front 1")
-                                StartLockBoss()
-                            end
+                            StartLockPosition(CurrentPosition)
                         end
                     end
                 end
@@ -768,11 +765,16 @@ local function MainLoop()
             if BossPos and Root3 then
                 local Dist = (BossPos - Root3.Position).Magnitude
                 if Dist <= BOSS2_FACE_DISTANCE then
-                    StartFaceBoss()  -- ✅ Face Boss ពេល Boss នៅជិត 30m
+                    StartFaceBoss()
                 else
-                    StopFaceBoss()  -- ✅ បើ Boss ឆ្ងាយ → Stop Face
+                    StopFaceBoss()
                 end
             end
+        end
+
+        -- ✅ Boss 3 → Face Boss ជាប់
+        if CurrentBossName == "ScrambleHuman" then
+            StartFaceBoss()
         end
 
         -- ✅ Attack Range
@@ -840,13 +842,21 @@ local function Toggle()
 end
 
 -- ==================================================
--- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- ✅ CHARACTER ADDED (Resume + Restore WalkSpeed)
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not AutoEventEnabled then return end
 
     DebugPrint("🔄 Character Added → Wait for Respawn...")
-    task.wait(DEATH_WAIT)
+    task.wait(DEATH_WAIT)  -- ✅ រង់ចាំ 3s ឲ្យ BypassAntiCheat បញ្ចប់
+
+    -- ✅ Restore WalkSpeed បន្ទាប់ពី Bypass
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.RestoreWalkSpeed then
+        pcall(function()
+            _G.YOKUDO_AFKSystem.RestoreWalkSpeed()
+        end)
+        DebugPrint("✅ Restored WalkSpeed")
+    end
 
     CleanupMovers()
     StopAutoEquip()
@@ -884,8 +894,9 @@ _G.YOKUDO_AutoEventNew = {
     FindAnyBoss = FindAnyBoss,
     FindClosestPositionToBoss = FindClosestPositionToBoss,
     FlyToPosition = FlyToPosition,
+    StartLockPosition = StartLockPosition,
+    StartLockBoss = StartLockBoss,
     LOCK_BEHIND_NORMAL = LOCK_BEHIND_NORMAL,
-    LOCK_FRONT_DISTANCE = LOCK_FRONT_DISTANCE,
     BOSS2_FACE_DISTANCE = BOSS2_FACE_DISTANCE,
     ATTACK_RANGE_NORMAL = ATTACK_RANGE_NORMAL,
     ATTACK_RANGE_BALL = ATTACK_RANGE_BALL,
@@ -893,4 +904,4 @@ _G.YOKUDO_AutoEventNew = {
     POSITIONS = POSITIONS,
 }
 
-print("✅ AutoEventNew Feature Loaded (v20 FINAL — Boss2 Face at 30m + New Positions + Resume)")
+print("✅ AutoEventNew Feature Loaded (v23 FINAL — Boss1 Lock Boss | Boss2&3 Lock Position + Restore WalkSpeed)")
