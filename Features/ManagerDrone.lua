@@ -1,10 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Manager Drone (v16 FINAL)
+-- YOKUDO HUB | FEATURE | Manager Drone (v17 FINAL)
 -- ✅ ប្រើ AFKSystem.JumpOutTreadmill (ដូច FarmingManager)
 -- ✅ ឃើញ Portal → Jump Out → Stop AFK → Fly Safe Zone → Wait 3s → Fly Portal → AutoEventNew.Enable()
 -- ✅ Portal បាត់ → AutoEventNew.Disable() → AFKSystem.Enable()
 -- ✅ Guard: FarmingManager ដំណើរការ → មិនហៅ AFK
--- ✅ CharacterAdded Resume
+-- ✅ CharacterAdded Resume + Restore WalkSpeed
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -21,6 +21,7 @@ local SAFE_ZONE_WAIT = 3
 local FLY_SPEED = 500
 local ARRIVE_DISTANCE = 5
 local FLY_TIMEOUT = 15
+local RESPAWN_WAIT = 3              -- ✅ រង់ចាំ 3s ឲ្យ BypassAntiCheat បញ្ចប់
 
 -- ==================================================
 -- STATE
@@ -74,6 +75,18 @@ local function GetHumanoid()
     local Char = Player.Character
     if not Char then return nil, nil end
     return Char:FindFirstChildOfClass("Humanoid"), Char:FindFirstChild("HumanoidRootPart")
+end
+
+-- ==================================================
+-- ✅ RESTORE WALK SPEED
+-- ==================================================
+local function RestoreWalkSpeed()
+    if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.RestoreWalkSpeed then
+        pcall(function()
+            _G.YOKUDO_AFKSystem.RestoreWalkSpeed()
+        end)
+        DebugPrint("✅ Restored WalkSpeed from AFKSystem")
+    end
 end
 
 -- ==================================================
@@ -294,7 +307,7 @@ local function CallManagerAfterDone()
 end
 
 -- ==================================================
--- ✅ SWITCH FROM AFK TO AUTO EVENT (ដូច FarmingManager)
+-- SWITCH FROM AFK TO AUTO EVENT (ដូច FarmingManager)
 -- ==================================================
 local function SwitchAFKToAttack()
     DebugPrint("=========================================")
@@ -476,13 +489,16 @@ local function ToggleManager()
 end
 
 -- ==================================================
--- CHARACTER ADDED (Resume)
+-- ✅ CHARACTER ADDED (Resume + Restore WalkSpeed)
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not ManagerEnabled then return end
 
     DebugPrint("🔄 Character Added → Wait for Respawn...")
-    task.wait(2)
+    task.wait(RESPAWN_WAIT)  -- ✅ រង់ចាំ 3s ឲ្យ BypassAntiCheat បញ្ចប់
+
+    -- ✅ Restore WalkSpeed បន្ទាប់ពី Bypass
+    RestoreWalkSpeed()
 
     DebugPrint("✅ Resumed after Respawn")
 
@@ -516,6 +532,7 @@ _G.YOKUDO_ManagerDrone = {
     IsFarmingManagerActive = IsFarmingManagerActive,
     FlyToSafeZone = FlyToSafeZone,
     FlyToPortal = FlyToPortal,
+    RestoreWalkSpeed = RestoreWalkSpeed,
 }
 
-print("✅ ManagerDrone Feature Loaded (v16 FINAL — AFKSystem.JumpOutTreadmill)")
+print("✅ ManagerDrone Feature Loaded (v17 FINAL — Resume + Restore WalkSpeed)")
