@@ -1,6 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (v4 FINAL)
+-- YOKUDO HUB | FEATURE | AFK System (v5 FINAL)
 -- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
+-- ✅ Save / Restore WalkSpeed (បញ្ហា Respawn)
 -- ✅ Reset PlatformStand ពេល Arrived
 -- ✅ Check Grounded ពេល Arrived
 -- ✅ Character Respawn → Resume
@@ -33,6 +34,7 @@ local MyTreadmill = nil
 local MyTreadmillPos = nil
 local WalkConnection = nil
 local DistCheckThread = nil
+local SavedWalkSpeed = nil   -- ✅ Save WalkSpeed ដើម
 
 -- ==================================================
 -- GET HUMANOID
@@ -43,6 +45,25 @@ local function GetHumanoid()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     local Root = Char:FindFirstChild("HumanoidRootPart")
     return Hum, Root
+end
+
+-- ==================================================
+-- ✅ SAVE / RESTORE WALK SPEED
+-- ==================================================
+local function SaveWalkSpeed()
+    local Hum = GetHumanoid()
+    if Hum and SavedWalkSpeed == nil then
+        SavedWalkSpeed = Hum.WalkSpeed
+        print("[AFK] 💾 Saved WalkSpeed:", SavedWalkSpeed)
+    end
+end
+
+local function RestoreWalkSpeed()
+    local Hum = GetHumanoid()
+    if Hum and SavedWalkSpeed then
+        Hum.WalkSpeed = SavedWalkSpeed
+        print("[AFK] ✅ Restored WalkSpeed:", SavedWalkSpeed)
+    end
 end
 
 -- ==================================================
@@ -119,7 +140,12 @@ local function WalkTP(Destination, Callback)
         return
     end
 
-    -- ✅ Reset PlatformStand មុន Walk
+    -- ✅ Save WalkSpeed បើមិនទាន់
+    SaveWalkSpeed()
+
+    -- ✅ Restore WalkSpeed
+    RestoreWalkSpeed()
+
     ResetPlatformStand()
 
     local StartTime = tick()
@@ -137,6 +163,11 @@ local function WalkTP(Destination, Callback)
             return
         end
 
+        -- ✅ Ensure WalkSpeed ជាប់
+        if SavedWalkSpeed and Hum2.WalkSpeed ~= SavedWalkSpeed then
+            Hum2.WalkSpeed = SavedWalkSpeed
+        end
+
         Hum2:MoveTo(Destination)
 
         if tick() - LastCheck > 0.05 then
@@ -145,14 +176,10 @@ local function WalkTP(Destination, Callback)
             local Dist = (Root2.Position - Destination).Magnitude
             if Dist <= 3 then
                 CleanupMovers()
-
-                -- ✅ Reset PlatformStand ពេល Arrived
                 ResetPlatformStand()
 
-                -- ✅ Wait ឲ្យ Grounded
                 task.wait(0.5)
 
-                -- ✅ Check Grounded
                 if IsGrounded() then
                     print("[AFK] ✅ Player Grounded")
                 else
@@ -215,7 +242,6 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
         return
     end
 
-    -- ✅ Reset PlatformStand មុន Jump
     ResetPlatformStand()
 
     task.spawn(function()
@@ -228,7 +254,6 @@ local function JumpOutTreadmill(TreadmillPos, Callback)
             local DistToTreadmill = math.floor((Root2.Position - TreadmillPos).Magnitude)
 
             if DistToTreadmill > JUMP_DISTANCE_THRESHOLD then
-                -- ✅ Reset PlatformStand ពេល Jump Out
                 ResetPlatformStand()
                 if Callback then Callback() end
                 return
@@ -264,7 +289,6 @@ local function StartDistanceCheck()
             local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
 
             if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
-                -- ✅ Reset PlatformStand មុន Walk
                 ResetPlatformStand()
                 WalkTP(MyTreadmillPos)
             end
@@ -279,6 +303,9 @@ local function EnableAFK()
     if AFKEnabled then return end
     AFKEnabled = true
 
+    -- ✅ Save WalkSpeed ដើម
+    SaveWalkSpeed()
+
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
     if MyTreadmill then
         MyTreadmillPos = MyTreadmill.Position
@@ -288,19 +315,14 @@ local function EnableAFK()
         return
     end
 
-    -- ✅ Reset PlatformStand មុន Walk
     ResetPlatformStand()
 
     WalkTP(SAFE_ZONE, function()
         task.wait(SAFE_WAIT_TIME)
         WalkTP(MyTreadmillPos, function()
-            -- ✅ Reset PlatformStand ពេល Arrived
             ResetPlatformStand()
-
-            -- ✅ Wait ឲ្យ Grounded
             task.wait(0.5)
 
-            -- ✅ Check Grounded
             if IsGrounded() then
                 print("[AFK] ✅ Player Grounded at Treadmill")
             else
@@ -313,7 +335,7 @@ local function EnableAFK()
         end)
     end)
 
-    print("[AFK] AFK System: ON (Walk TP + Grounded Check)")
+    print("[AFK] AFK System: ON (Walk TP + Save WalkSpeed)")
 end
 
 -- ==================================================
@@ -333,6 +355,7 @@ local function DisableAFK()
     MyPlot = nil
     MyTreadmill = nil
     MyTreadmillPos = nil
+    -- ✅ មិន Reset SavedWalkSpeed ព្រោះត្រូវការ Resume
 
     print("[AFK] AFK System: OFF")
 end
@@ -343,9 +366,13 @@ end
 Player.CharacterAdded:Connect(function(Char)
     if not AFKEnabled then return end
 
-    task.wait(2)
+    task.wait(3)  -- ✅ រង់ចាំ BypassAntiCheat បញ្ចប់ជាមុន
 
     CleanupMovers()
+
+    -- ✅ Restore WalkSpeed បន្ទាប់ពី Bypass
+    RestoreWalkSpeed()
+
     ResetPlatformStand()
 
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
@@ -392,7 +419,10 @@ _G.YOKUDO_AFKSystem = {
     IsFlying = function() return WalkConnection ~= nil end,
     ResetPlatformStand = ResetPlatformStand,
     IsGrounded = IsGrounded,
+    SaveWalkSpeed = SaveWalkSpeed,        -- ✅ Export
+    RestoreWalkSpeed = RestoreWalkSpeed,  -- ✅ Export
+    GetSavedWalkSpeed = function() return SavedWalkSpeed end,
     SAFE_ZONE = SAFE_ZONE,
 }
 
-print("✅ AFKSystem Loaded (v4 FINAL — Grounded Check + Reset PlatformStand)")
+print("✅ AFKSystem Loaded (v5 FINAL — Save/Restore WalkSpeed)")
