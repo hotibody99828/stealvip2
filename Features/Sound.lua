@@ -1,12 +1,15 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Sound System
+-- YOKUDO HUB | FEATURE | Sound System + Background
 -- ✅ Folder: YOKUDO-audio
 -- ✅ Audio 1: audio1.mp3 (Auto AFK Farming)
 -- ✅ Audio 2: audio2.mp3 (Click Get Egg)
--- ✅ Auto Play / Stop ពេលធិក / ដកធិក
+-- ✅ Background "YOKUDO HUB" ពណ៌ខ្មៅ
+-- ✅ Play/Stop + Show/Hide Background
 -- ==================================================
 
 local SoundService = game:GetService("SoundService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
 -- ==================================================
 -- CONFIG
@@ -29,7 +32,7 @@ pcall(function()
 end)
 
 -- ==================================================
--- DOWNLOAD FUNCTION
+-- DOWNLOAD AUDIO
 -- ==================================================
 local function DownloadAudio(FilePath, Link, Name)
     if not isfile(FilePath) then
@@ -47,7 +50,6 @@ local function DownloadAudio(FilePath, Link, Name)
     return true
 end
 
--- ✅ ទាញយក Audio 1 + 2
 DownloadAudio(AUDIO1_FILE, AUDIO1_LINK, "Audio 1")
 DownloadAudio(AUDIO2_FILE, AUDIO2_LINK, "Audio 2")
 
@@ -66,7 +68,6 @@ local Audio2Asset = GetAsset(AUDIO2_FILE)
 -- ==================================================
 -- CREATE SOUND OBJECTS
 -- ==================================================
--- ✅ សម្អាតចាស់
 pcall(function()
     local old1 = SoundService:FindFirstChild("YokudoAudio1")
     if old1 then old1:Destroy() end
@@ -74,7 +75,6 @@ pcall(function()
     if old2 then old2:Destroy() end
 end)
 
--- Sound 1
 local Sound1 = Instance.new("Sound")
 Sound1.Name = "YokudoAudio1"
 Sound1.SoundId = Audio1Asset or ""
@@ -82,7 +82,6 @@ Sound1.Volume = 1
 Sound1.Looped = true
 Sound1.Parent = SoundService
 
--- Sound 2
 local Sound2 = Instance.new("Sound")
 Sound2.Name = "YokudoAudio2"
 Sound2.SoundId = Audio2Asset or ""
@@ -91,7 +90,7 @@ Sound2.Looped = true
 Sound2.Parent = SoundService
 
 -- ==================================================
--- PLAY / STOP FUNCTIONS
+-- PLAY / STOP AUDIO
 -- ==================================================
 local function PlaySound1()
     if Sound1.SoundId and Sound1.SoundId ~= "" then
@@ -126,6 +125,142 @@ local function StopSound2()
 end
 
 -- ==================================================
+-- ✅ BACKGROUND "YOKUDO HUB"
+-- ==================================================
+local CurrentBG = nil
+
+local function CreateBackground(SubtitleText)
+    -- សម្អាតចាស់
+    pcall(function()
+        local old = CoreGui:FindFirstChild("YokudoAudioBG")
+        if old then old:Destroy() end
+    end)
+
+    local BG = Instance.new("ScreenGui")
+    BG.Name = "YokudoAudioBG"
+    BG.ResetOnSpawn = false
+    BG.IgnoreGuiInset = true
+    BG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    BG.DisplayOrder = 9997
+    BG.Parent = CoreGui
+
+    local BGFrame = Instance.new("Frame")
+    BGFrame.Name = "BgFrame"
+    BGFrame.Size = UDim2.new(1, 0, 1, 0)
+    BGFrame.Position = UDim2.new(0, 0, 0, 0)
+    BGFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    BGFrame.BackgroundTransparency = 0
+    BGFrame.BorderSizePixel = 0
+    BGFrame.ZIndex = 1
+    BGFrame.Parent = BG
+
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2.new(1, 0, 0, 70)
+    Title.Position = UDim2.new(0, 0, 0.5, -80)
+    Title.BackgroundTransparency = 1
+    Title.Text = "YOKUDO HUB"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 56
+    Title.Font = Enum.Font.GothamBold
+    Title.TextStrokeTransparency = 0.3
+    Title.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    Title.ZIndex = 2
+    Title.Parent = BGFrame
+
+    local Sub = Instance.new("TextLabel")
+    Sub.Name = "Sub"
+    Sub.Size = UDim2.new(1, 0, 0, 30)
+    Sub.Position = UDim2.new(0, 0, 0.5, 10)
+    Sub.BackgroundTransparency = 1
+    Sub.Text = SubtitleText or "Loading..."
+    Sub.TextColor3 = Color3.fromRGB(150, 150, 170)
+    Sub.TextSize = 20
+    Sub.Font = Enum.Font.GothamMedium
+    Sub.ZIndex = 2
+    Sub.Parent = BGFrame
+
+    local Note = Instance.new("TextLabel")
+    Note.Name = "Note"
+    Note.Size = UDim2.new(1, 0, 0, 20)
+    Note.Position = UDim2.new(0, 0, 0.5, 55)
+    Note.BackgroundTransparency = 1
+    Note.Text = "Uncheck to Stop"
+    Note.TextColor3 = Color3.fromRGB(100, 100, 120)
+    Note.TextSize = 13
+    Note.Font = Enum.Font.Gotham
+    Note.ZIndex = 2
+    Note.Parent = BGFrame
+
+    -- Blink Animation
+    task.spawn(function()
+        while BG.Parent do
+            TweenService:Create(Sub, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+                TextTransparency = 0.7
+            }):Play()
+            task.wait(1)
+            if not BG.Parent then break end
+            TweenService:Create(Sub, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+                TextTransparency = 0
+            }):Play()
+            task.wait(1)
+        end
+    end)
+
+    print("🖤 Background: Created | " .. (SubtitleText or "Loading..."))
+    return BG
+end
+
+local function RemoveBackground()
+    local BG = CoreGui:FindFirstChild("YokudoAudioBG")
+    if BG then
+        local BGFrame = BG:FindFirstChild("BgFrame")
+        if BGFrame then
+            TweenService:Create(BGFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundTransparency = 1
+            }):Play()
+            for _, child in ipairs(BGFrame:GetDescendants()) do
+                if child:IsA("TextLabel") then
+                    TweenService:Create(child, TweenInfo.new(0.3), {
+                        TextTransparency = 1
+                    }):Play()
+                end
+            end
+            task.delay(0.35, function()
+                if BG then BG:Destroy() end
+                print("🔓 Background: Removed")
+            end)
+        else
+            BG:Destroy()
+            print("🔓 Background: Removed")
+        end
+    end
+end
+
+-- ==================================================
+-- ✅ COMBINED FUNCTIONS
+-- ==================================================
+local function StartFarming()
+    PlaySound1()
+    CreateBackground("Auto AFK Farming...")
+end
+
+local function StopFarming()
+    StopSound1()
+    RemoveBackground()
+end
+
+local function StartGetEgg()
+    PlaySound2()
+    CreateBackground("Auto Farming...")
+end
+
+local function StopGetEgg()
+    StopSound2()
+    RemoveBackground()
+end
+
+-- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_Sound = {
@@ -139,10 +274,21 @@ _G.YOKUDO_Sound = {
     Stop2 = StopSound2,
     IsPlaying2 = function() return Sound2.IsPlaying end,
 
+    -- ✅ Combined (Audio + Background)
+    StartFarming = StartFarming,
+    StopFarming = StopFarming,
+    StartGetEgg = StartGetEgg,
+    StopGetEgg = StopGetEgg,
+
+    -- ✅ Background Only
+    CreateBackground = CreateBackground,
+    RemoveBackground = RemoveBackground,
+
     -- Stop All
     StopAll = function()
         StopSound1()
         StopSound2()
+        RemoveBackground()
     end,
 
     -- Sound Objects
@@ -155,7 +301,7 @@ _G.YOKUDO_Sound = {
     Audio2File = AUDIO2_FILE,
 }
 
-print("✅ Sound Feature Loaded")
+print("✅ Sound + Background Feature Loaded")
 print("📁 Folder: " .. AUDIO_FOLDER)
-print("🎵 Audio 1: audio1.mp3")
-print("🎵 Audio 2: audio2.mp3")
+print("🎵 Audio 1: audio1.mp3 (Auto AFK Farming)")
+print("🎵 Audio 2: audio2.mp3 (Click Get Egg)")
