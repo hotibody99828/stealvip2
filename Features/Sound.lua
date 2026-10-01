@@ -1,10 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Sound System + Background
--- ✅ Folder: YOKUDO-audio
--- ✅ Audio 1: audio1.mp3 (Auto AFK Farming)
--- ✅ Audio 2: audio2.mp3 (Click Get Egg)
--- ✅ Background "YOKUDO HUB" ពណ៌ខ្មៅ
--- ✅ Play/Stop + Show/Hide Background
+-- ✅ Background DisplayOrder = 1 (ទាបជាង Icon/UI)
+-- ✅ Icon + UI DisplayOrder = 999 (ខ្ពស់)
+-- ✅ User នៅតែឃើញ Icon + UI ដើម្បីដកធិក
 -- ==================================================
 
 local SoundService = game:GetService("SoundService")
@@ -125,7 +123,7 @@ local function StopSound2()
 end
 
 -- ==================================================
--- ✅ BACKGROUND "YOKUDO HUB"
+-- ✅ BACKGROUND "YOKUDO HUB" (DisplayOrder = 1)
 -- ==================================================
 local CurrentBG = nil
 
@@ -141,7 +139,7 @@ local function CreateBackground(SubtitleText)
     BG.ResetOnSpawn = false
     BG.IgnoreGuiInset = true
     BG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    BG.DisplayOrder = 9997
+    BG.DisplayOrder = 1  -- ✅ ទាបជាង Icon + UI (999)
     BG.Parent = CoreGui
 
     local BGFrame = Instance.new("Frame")
@@ -149,11 +147,12 @@ local function CreateBackground(SubtitleText)
     BGFrame.Size = UDim2.new(1, 0, 1, 0)
     BGFrame.Position = UDim2.new(0, 0, 0, 0)
     BGFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    BGFrame.BackgroundTransparency = 0
+    BGFrame.BackgroundTransparency = 0  -- ✅ ខ្មៅ 100%
     BGFrame.BorderSizePixel = 0
     BGFrame.ZIndex = 1
     BGFrame.Parent = BG
 
+    -- ✅ អក្សរ YOKUDO HUB នៅកណ្តាល
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
     Title.Size = UDim2.new(1, 0, 0, 70)
@@ -185,7 +184,7 @@ local function CreateBackground(SubtitleText)
     Note.Size = UDim2.new(1, 0, 0, 20)
     Note.Position = UDim2.new(0, 0, 0.5, 55)
     Note.BackgroundTransparency = 1
-    Note.Text = "Uncheck to Stop"
+    Note.Text = "Uncheck Start to Stop"
     Note.TextColor3 = Color3.fromRGB(100, 100, 120)
     Note.TextSize = 13
     Note.Font = Enum.Font.Gotham
@@ -207,7 +206,7 @@ local function CreateBackground(SubtitleText)
         end
     end)
 
-    print("🖤 Background: Created | " .. (SubtitleText or "Loading..."))
+    print("🖤 Background: Created (DisplayOrder=1) | " .. (SubtitleText or "Loading..."))
     return BG
 end
 
@@ -232,7 +231,6 @@ local function RemoveBackground()
             end)
         else
             BG:Destroy()
-            print("🔓 Background: Removed")
         end
     end
 end
@@ -264,12 +262,10 @@ end
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_Sound = {
-    -- Audio 1 (Auto AFK Farming)
     Play1 = PlaySound1,
     Stop1 = StopSound1,
     IsPlaying1 = function() return Sound1.IsPlaying end,
 
-    -- Audio 2 (Click Get Egg)
     Play2 = PlaySound2,
     Stop2 = StopSound2,
     IsPlaying2 = function() return Sound2.IsPlaying end,
@@ -284,24 +280,20 @@ _G.YOKUDO_Sound = {
     CreateBackground = CreateBackground,
     RemoveBackground = RemoveBackground,
 
-    -- Stop All
     StopAll = function()
         StopSound1()
         StopSound2()
         RemoveBackground()
     end,
 
-    -- Sound Objects
     Sound1 = Sound1,
     Sound2 = Sound2,
 
-    -- Folder Info
     Folder = AUDIO_FOLDER,
     Audio1File = AUDIO1_FILE,
     Audio2File = AUDIO2_FILE,
 }
 
 print("✅ Sound + Background Feature Loaded")
-print("📁 Folder: " .. AUDIO_FOLDER)
-print("🎵 Audio 1: audio1.mp3 (Auto AFK Farming)")
-print("🎵 Audio 2: audio2.mp3 (Click Get Egg)")
+print("🎯 Background DisplayOrder = 1 (ទាបជាង Icon/UI)")
+print("🎯 Icon + UI DisplayOrder = 999 (ខ្ពស់ → ឃើញ)")
