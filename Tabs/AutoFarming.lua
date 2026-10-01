@@ -1,18 +1,17 @@
 --==================================================
--- YOKUDO HUB | TAB | Auto Farming (កែថ្មី)
--- ✅ Check Egg → គ្មាន Audio/Background
--- ✅ Select Egg → គ្មាន Audio/Background
--- ✅ Start → StartGetEgg() (Audio 2 + BG)
--- ✅ ដកធិក → StopGetEgg()
--- ✅ ✅ Collect Egg Target ជោគជ័យ → Auto Stop Sound + BG + Uncheck UI
+-- YOKUDO HUB | TAB | Auto Farming (FAST)
+-- ✅ ភ្ជាប់ជាមួយ AutoFarm + TeleportSystem v21
+-- ✅ User ធិក Check Egg → Select Egg → ធិក Start
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
+--==================================================
+-- CONTENT
+--==================================================
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
 --==================================================
@@ -117,39 +116,9 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ Function សម្រាប់ Stop ទាំងអស់ (UI + Audio + BG)
-local function ForceStopAll()
-    if not GetEggEnabled then return end
-
-    GetEggEnabled = false
-    GetEggCheck.Visible = false
-
-    -- ✅ Reset UI
-    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    GetEggCheckButton.BackgroundTransparency = 0.85
-    GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
-
-    -- ✅ Stop AutoFarm
-    if _G.YOKUDO_AutoFarm then
-        pcall(function() _G.YOKUDO_AutoFarm.StopTeleport() end)
-    end
-
-    -- ✅ Stop Audio 2 + Background
-    if _G.YOKUDO_Sound then
-        _G.YOKUDO_Sound.StopGetEgg()
-        print("🔇 Auto Farming: Auto Stopped (Collect Done)")
-    end
-end
-
 local function ToggleGetEgg()
-    if not GetEggEnabled and not SelectedEggId then
-        warn("[YOKUDO] សូម Select Egg មុននឹង Start!")
-        return
-    end
-
     GetEggEnabled = not GetEggEnabled
     GetEggCheck.Visible = GetEggEnabled
-
     if GetEggEnabled then
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         GetEggCheckButton.BackgroundTransparency = 0
@@ -158,35 +127,19 @@ local function ToggleGetEgg()
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
-
-        if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.StartGetEgg()
-        end
     else
-        ForceStopAll()
+        GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        GetEggCheckButton.BackgroundTransparency = 0.85
+        GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+
+        if _G.YOKUDO_AutoFarm then
+            _G.YOKUDO_AutoFarm.StopTeleport()
+        end
     end
 end
 
 GetEggCheckButton.MouseButton1Click:Connect(function()
     ToggleGetEgg()
-end)
-
---==================================================
--- ✅ AUTO STOP LOOP (Monitor Collect Egg Target)
---==================================================
-task.spawn(function()
-    while task.wait(0.2) do
-        if not GetEggEnabled then continue end
-
-        -- ✅ ពិនិត្យ AutoFarm State
-        local AutoFarmActive = _G.YOKUDO_AutoFarm and _G.YOKUDO_AutoFarm.IsEnabled()
-
-        -- ✅ បើ AutoFarm បិទដោយស្វ័យប្រវត្តិ (Collect Done) → Stop UI + Audio
-        if not AutoFarmActive and GetEggEnabled then
-            print("✅ Collect Egg Target Done → Auto Stop")
-            ForceStopAll()
-        end
-    end
 end)
 
 --==================================================
@@ -375,6 +328,7 @@ local function RefreshEggList()
     CheckEggCount.Text = "Egg: " .. #Eggs
 end
 
+-- ✅ Debounce Refresh
 local RefreshPending = false
 
 local function QueueRefresh()
@@ -458,4 +412,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded (Auto Stop on Collect Done)")
+print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21)")
