@@ -3,8 +3,8 @@
 -- ✅ ភ្ជាប់ជាមួយ FarmingManager (Full Auto Loop)
 -- ✅ Dropdown Select Rarity (Scroll បាន)
 -- ✅ Checkbox Auto AFK Farming
--- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
--- ✅ Default: Top1-Top5 Only | ផ្សេងទៀត ឲ្យ User Select
+-- ✅ Default: Top1-Top5 Only (Divine, Eternal, Secret, Mythic, Legendary)
+-- ✅ ផ្សេងទៀត User Select ខ្លួនឯង
 -- ✅ Divine = Yellow | Legendary = Red
 -- ==================================================
 
@@ -86,18 +86,17 @@ RarityTitle.Parent = RarityHolder
 
 -- ==================================================
 -- SELECTED RARITIES (Default: Top1-Top5 Only)
--- ផ្សេងទៀត ឲ្យ User Select ខ្លួនឯង
 -- ==================================================
 local SelectedRarities = {
-    Divine = true,      -- Top1
-    Eternal = true,     -- Top2
-    Secret = true,      -- Top3
-    Mythic = true,      -- Top3
-    Legendary = true,   -- Top4
-    Epic = false,       -- Top5 (ឲ្យ user select)
-    Rare = false,       -- Top5 (ឲ្យ user select)
-    Uncommon = false,   -- Top5 (ឲ្យ user select)
-    Common = false      -- Top5 (ឲ្យ user select)
+    Divine = true,
+    Eternal = true,
+    Secret = true,
+    Mythic = true,
+    Legendary = true,
+    Epic = false,
+    Rare = false,
+    Uncommon = false,
+    Common = false
 }
 
 local function GetSelectedText()
@@ -183,20 +182,16 @@ local function UpdateOptionVisual(Name)
     if not Option then return end
 
     if SelectedRarities[Name] then
-        -- ពេល SELECT: ពណ៌ Background ជាពណ៌ Rarity
         Option.BackgroundColor3 = RarityColors[Name] or Color3.fromRGB(105, 90, 190)
         Option.Text = "✓ " .. Name
-        -- ពណ៌ Text ខ្មៅ ដើម្បីអានបានលើ Background ភ្លឺ
         if Name == "Divine" or Name == "Eternal" or Name == "Uncommon" or Name == "Common" then
             Option.TextColor3 = Color3.fromRGB(0, 0, 0)
         else
             Option.TextColor3 = Color3.fromRGB(255, 255, 255)
         end
     else
-        -- ពេល DESELECT: ពណ៌ Background ដើម
         Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
         Option.Text = Name
-        -- ពណ៌ Text ជាពណ៌ Rarity
         Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
     end
 end
@@ -221,7 +216,6 @@ local function CreateDropdownOption(Name, Order)
 
     OptionButtons[Name] = Option
 
-    -- ពេលចុច
     Option.MouseButton1Click:Connect(function()
         SelectedRarities[Name] = not SelectedRarities[Name]
         UpdateOptionVisual(Name)
@@ -240,7 +234,6 @@ local function CreateDropdownOption(Name, Order)
         print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
-    -- ពេល Hover (មិនបាត់ពណ៌)
     Option.MouseEnter:Connect(function()
         if not SelectedRarities[Name] then
             Option.BackgroundColor3 = Color3.fromRGB(45, 46, 60)
@@ -258,7 +251,6 @@ for i, rarity in ipairs(RarityOrder) do
     CreateDropdownOption(rarity, i)
 end
 
--- កំណត់ CanvasSize តាមចំនួន Options
 DropdownScroll.CanvasSize = UDim2.new(0, 0, 0, #RarityOrder * 24 + 8)
 
 DropdownBtn.MouseButton1Click:Connect(function()
@@ -427,4 +419,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded (Default: Top1-Top5 Only)")
+print("✅ Farming Tab Loaded (Default: Top1-Top5 Only | User Select Others)")
