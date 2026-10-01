@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v21)
--- ✅ Save WalkSpeed + Restore WalkSpeed
--- ✅ Character Died → Restore + Re-apply
--- ✅ API ដូចដើម (AutoFarm.lua)
+-- ✅ WalkSpeed ថេរ (គ្មាន TextBox)
+-- ✅ គ្មាន Method Teleport (គ្មាន TeleportFly/Instant)
+-- ✅ Save/Restore WalkSpeed Real ពី Player
+-- ✅ Logic v21 ពេញលេញ
 -- ✅ Function Order ត្រឹមត្រូវ 100%
 -- ==================================================
 
@@ -14,12 +15,12 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG
+-- CONFIG (គ្មាន Method, គ្មាន TextBox)
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
     LockDistance = 1,
-    WalkSpeed = 200,
+    WalkSpeed = 200,           -- ✅ Speed ថេរ (គ្មាន TextBox)
     FlyTPDistance = 20,
     FlyOffset = 3,
     FlySpeed = 200,
@@ -44,7 +45,7 @@ local Config = {
 }
 
 -- ==================================================
--- MAP POSITIONS (10 Map)
+-- MAP POSITIONS
 -- ==================================================
 local MapPositions = {
     {Pos = Vector3.new(5666, 70, -329), Wait = 9},
@@ -71,12 +72,11 @@ if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
 print("[TeleportSystem] CollectEvent + DropEvent OK")
 
 -- ==================================================
--- STATE (បន្ថែម SavedWalkSpeed + SavedJumpPower + SavedJumpHeight)
+-- STATE
 -- ==================================================
 local State = {
     Running = false,
     Step = "idle",
-    Method = "TeleportFly",
     FirstEggUid = nil,
     FirstEggSlotKey = nil,
     TargetUid = nil,
@@ -93,6 +93,13 @@ local State = {
     CollectedAgain = false,
     DropDone = false,
     CollectAttempts = 0,
+
+    -- ✅ Save/Restore WalkSpeed Real
+    SavedWalkSpeed = nil,
+    SavedJumpPower = nil,
+    SavedJumpHeight = nil,
+    SavedUseJumpPower = nil,
+
     FlySequence = 0,
     FirstDropDone = false,
     RepeatCount = 0,
@@ -102,13 +109,6 @@ local State = {
     SafeName = nil,
     CurrentEggUid = nil,
     EggGoneCheckThread = nil,
-
-    -- ✅ Save Stats
-    SavedWalkSpeed = nil,
-    SavedJumpPower = nil,
-    SavedJumpHeight = nil,
-    SavedUseJumpPower = nil,
-    SavedHumanoid = nil,
 }
 
 -- ==================================================
@@ -116,7 +116,7 @@ local State = {
 -- ==================================================
 local GetHumanoid
 local GetPosition
-local SaveStats
+local SavePlayerStats
 local RestoreStats
 local CleanupMovers
 local IsEggGone
@@ -170,46 +170,43 @@ GetPosition = function(Object)
     return nil
 end
 
--- ✅ Save Stats (WalkSpeed + JumpPower + JumpHeight)
-SaveStats = function()
+-- ==================================================
+-- ✅ SAVE PLAYER STATS (Real)
+-- ==================================================
+SavePlayerStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
 
-    if State.SavedHumanoid ~= Hum then
-        State.SavedHumanoid = Hum
-        State.SavedWalkSpeed = Hum.WalkSpeed
-        State.SavedJumpPower = Hum.JumpPower
-        State.SavedJumpHeight = Hum.JumpHeight
-        State.SavedUseJumpPower = Hum.UseJumpPower
+    State.SavedWalkSpeed = Hum.WalkSpeed
+    State.SavedJumpPower = Hum.JumpPower
+    State.SavedJumpHeight = Hum.JumpHeight
+    State.SavedUseJumpPower = Hum.UseJumpPower
 
-        print("[TeleportSystem] ✅ Saved Stats | WalkSpeed:", State.SavedWalkSpeed)
-    end
+    print(string.format("[TeleportSystem] ✅ Saved WalkSpeed: %.1f | JumpPower: %.1f",
+        State.SavedWalkSpeed, State.SavedJumpPower))
 end
 
--- ✅ Restore Stats
+-- ==================================================
+-- ✅ RESTORE PLAYER STATS (Real)
+-- ==================================================
 RestoreStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
 
     if State.SavedWalkSpeed ~= nil then
         pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
-    else
-        pcall(function() Hum.WalkSpeed = 16 end)
+        print(string.format("[TeleportSystem] ✅ Restored WalkSpeed: %.1f", State.SavedWalkSpeed))
     end
 
     if State.SavedJumpPower ~= nil then
         pcall(function() Hum.JumpPower = State.SavedJumpPower end)
     end
-
     if State.SavedJumpHeight ~= nil then
         pcall(function() Hum.JumpHeight = State.SavedJumpHeight end)
     end
-
     if State.SavedUseJumpPower ~= nil then
         pcall(function() Hum.UseJumpPower = State.SavedUseJumpPower end)
     end
-
-    print("[TeleportSystem] ✅ Restored Stats | WalkSpeed:", State.SavedWalkSpeed)
 end
 
 CleanupMovers = function()
@@ -537,7 +534,7 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
 end
 
 -- ==================================================
--- WALK TP
+-- WALK TP (WalkSpeed ថេរ 200)
 -- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
@@ -599,12 +596,12 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
 end
 
 -- ==================================================
--- AUTO STOP (Restore Stats)
+-- AUTO STOP (Restore WalkSpeed)
 -- ==================================================
 AutoStop = function()
     StopLock()
     CleanupMovers()
-    RestoreStats()  -- ✅ Restore WalkSpeed + JumpPower
+    RestoreStats()
     State.Running = false
     State.Step = "done"
     State.FirstCollected = false
@@ -628,7 +625,7 @@ AutoStop = function()
         State.EggGoneCheckThread = nil
     end
 
-    print("[TeleportSystem] ✅ Auto Stop")
+    print("[TeleportSystem] ✅ Auto Stop + Restored WalkSpeed")
 end
 
 -- ==================================================
@@ -927,13 +924,7 @@ StartProcess = function()
         return
     end
 
-    -- ✅ Save Stats មុនចាប់ផ្ដើម
-    State.SavedHumanoid = nil
-    State.SavedWalkSpeed = nil
-    State.SavedJumpPower = nil
-    State.SavedJumpHeight = nil
-    State.SavedUseJumpPower = nil
-    SaveStats()
+    SavePlayerStats()
 
     State.Running = true
     State.Step = "idle"
@@ -961,12 +952,12 @@ StartProcess = function()
 end
 
 -- ==================================================
--- FULL RESET (Restore Stats)
+-- FULL RESET
 -- ==================================================
 FullReset = function()
     StopLock()
     CleanupMovers()
-    RestoreStats()  -- ✅ Restore WalkSpeed
+    RestoreStats()
 
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
@@ -996,30 +987,7 @@ FullReset = function()
 end
 
 -- ==================================================
--- CHARACTER DIED LISTENER (Restore + Re-apply)
--- ==================================================
-Player.CharacterAdded:Connect(function(Char)
-    if State.Running then
-        task.wait(1)
-        State.SavedHumanoid = nil
-        State.SavedWalkSpeed = nil
-        State.SavedJumpPower = nil
-        State.SavedJumpHeight = nil
-        State.SavedUseJumpPower = nil
-        SaveStats()
-        print("[TeleportSystem] ✅ Character Respawned → Re-save Stats")
-    end
-end)
-
-Player.CharacterRemoving:Connect(function()
-    if State.Running then
-        RestoreStats()
-        print("[TeleportSystem] ⚠️ Character Removing → Restore Stats")
-    end
-end)
-
--- ==================================================
--- PUBLIC API (ដូចដើម)
+-- PUBLIC API (គ្មាន SetMethod, គ្មាន SetSpeed)
 -- ==================================================
 local TeleportSystem = {}
 
@@ -1045,23 +1013,12 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
-function TeleportSystem.SetSpeed(Value)
-    Value = math.clamp(Value, 50, 1100)
-    Config.WalkSpeed = Value
-    print("[TeleportSystem] Walk Speed: " .. tostring(Value))
-end
-
-function TeleportSystem.SetMethod(Method)
-    State.Method = (Method == "InstantTeleport") and "InstantTeleport" or "TeleportFly"
-    print("[TeleportSystem] Method: " .. State.Method)
-end
-
-function TeleportSystem.GetMethod() return State.Method end
-function TeleportSystem.GetSpeed() return Config.WalkSpeed end
+function TeleportSystem.GetSavedWalkSpeed() return State.SavedWalkSpeed end
+function TeleportSystem.GetWalkSpeed() return Config.WalkSpeed end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v21 + Save/Restore WalkSpeed)")
+print("✅ TeleportSystem Loaded (Smart Safe v21 - No TextBox, No Method)")
