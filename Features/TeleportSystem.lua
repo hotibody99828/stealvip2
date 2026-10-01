@@ -1,8 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v21)
--- ✅ API ដូចដើម (សម្រាប់ AutoFarm.lua)
--- ✅ Logic v21 (Smart Safe)
--- ✅ Function Order ត្រឹមត្រូវ
+-- ✅ Save WalkSpeed + Restore WalkSpeed
+-- ✅ Character Died → Restore + Re-apply
+-- ✅ API ដូចដើម (AutoFarm.lua)
+-- ✅ Function Order ត្រឹមត្រូវ 100%
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -70,7 +71,7 @@ if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
 print("[TeleportSystem] CollectEvent + DropEvent OK")
 
 -- ==================================================
--- STATE
+-- STATE (បន្ថែម SavedWalkSpeed + SavedJumpPower + SavedJumpHeight)
 -- ==================================================
 local State = {
     Running = false,
@@ -92,7 +93,6 @@ local State = {
     CollectedAgain = false,
     DropDone = false,
     CollectAttempts = 0,
-    SavedWalkSpeed = nil,
     FlySequence = 0,
     FirstDropDone = false,
     RepeatCount = 0,
@@ -102,6 +102,13 @@ local State = {
     SafeName = nil,
     CurrentEggUid = nil,
     EggGoneCheckThread = nil,
+
+    -- ✅ Save Stats
+    SavedWalkSpeed = nil,
+    SavedJumpPower = nil,
+    SavedJumpHeight = nil,
+    SavedUseJumpPower = nil,
+    SavedHumanoid = nil,
 }
 
 -- ==================================================
@@ -109,7 +116,7 @@ local State = {
 -- ==================================================
 local GetHumanoid
 local GetPosition
-local SavePlayerWalkSpeed
+local SaveStats
 local RestoreStats
 local CleanupMovers
 local IsEggGone
@@ -163,22 +170,46 @@ GetPosition = function(Object)
     return nil
 end
 
-SavePlayerWalkSpeed = function()
+-- ✅ Save Stats (WalkSpeed + JumpPower + JumpHeight)
+SaveStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
-    if State.SavedWalkSpeed == nil then
+
+    if State.SavedHumanoid ~= Hum then
+        State.SavedHumanoid = Hum
         State.SavedWalkSpeed = Hum.WalkSpeed
+        State.SavedJumpPower = Hum.JumpPower
+        State.SavedJumpHeight = Hum.JumpHeight
+        State.SavedUseJumpPower = Hum.UseJumpPower
+
+        print("[TeleportSystem] ✅ Saved Stats | WalkSpeed:", State.SavedWalkSpeed)
     end
 end
 
+-- ✅ Restore Stats
 RestoreStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
+
     if State.SavedWalkSpeed ~= nil then
         pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
     else
         pcall(function() Hum.WalkSpeed = 16 end)
     end
+
+    if State.SavedJumpPower ~= nil then
+        pcall(function() Hum.JumpPower = State.SavedJumpPower end)
+    end
+
+    if State.SavedJumpHeight ~= nil then
+        pcall(function() Hum.JumpHeight = State.SavedJumpHeight end)
+    end
+
+    if State.SavedUseJumpPower ~= nil then
+        pcall(function() Hum.UseJumpPower = State.SavedUseJumpPower end)
+    end
+
+    print("[TeleportSystem] ✅ Restored Stats | WalkSpeed:", State.SavedWalkSpeed)
 end
 
 CleanupMovers = function()
@@ -568,12 +599,12 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
 end
 
 -- ==================================================
--- AUTO STOP
+-- AUTO STOP (Restore Stats)
 -- ==================================================
 AutoStop = function()
     StopLock()
     CleanupMovers()
-    RestoreStats()
+    RestoreStats()  -- ✅ Restore WalkSpeed + JumpPower
     State.Running = false
     State.Step = "done"
     State.FirstCollected = false
@@ -822,7 +853,7 @@ StartEggGoneCheck = function()
 end
 
 -- ==================================================
--- DROPHELDEGG (Setup ក្រោយ Step Functions ទាំងអស់)
+-- DROPHELDEGG
 -- ==================================================
 SetupDropHeldEgg = function()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
@@ -896,8 +927,13 @@ StartProcess = function()
         return
     end
 
+    -- ✅ Save Stats មុនចាប់ផ្ដើម
+    State.SavedHumanoid = nil
     State.SavedWalkSpeed = nil
-    SavePlayerWalkSpeed()
+    State.SavedJumpPower = nil
+    State.SavedJumpHeight = nil
+    State.SavedUseJumpPower = nil
+    SaveStats()
 
     State.Running = true
     State.Step = "idle"
@@ -925,12 +961,12 @@ StartProcess = function()
 end
 
 -- ==================================================
--- FULL RESET
+-- FULL RESET (Restore Stats)
 -- ==================================================
 FullReset = function()
     StopLock()
     CleanupMovers()
-    RestoreStats()
+    RestoreStats()  -- ✅ Restore WalkSpeed
 
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
@@ -960,7 +996,30 @@ FullReset = function()
 end
 
 -- ==================================================
--- PUBLIC API (ដូចដើម — សម្រាប់ AutoFarm.lua)
+-- CHARACTER DIED LISTENER (Restore + Re-apply)
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if State.Running then
+        task.wait(1)
+        State.SavedHumanoid = nil
+        State.SavedWalkSpeed = nil
+        State.SavedJumpPower = nil
+        State.SavedJumpHeight = nil
+        State.SavedUseJumpPower = nil
+        SaveStats()
+        print("[TeleportSystem] ✅ Character Respawned → Re-save Stats")
+    end
+end)
+
+Player.CharacterRemoving:Connect(function()
+    if State.Running then
+        RestoreStats()
+        print("[TeleportSystem] ⚠️ Character Removing → Restore Stats")
+    end
+end)
+
+-- ==================================================
+-- PUBLIC API (ដូចដើម)
 -- ==================================================
 local TeleportSystem = {}
 
@@ -1005,4 +1064,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v21 - WORKING)")
+print("✅ TeleportSystem Loaded (Smart Safe v21 + Save/Restore WalkSpeed)")
