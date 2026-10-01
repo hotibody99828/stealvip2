@@ -4,6 +4,7 @@
 -- ✅ Dropdown Select Rarity (Scroll បាន)
 -- ✅ Checkbox Auto AFK Farming
 -- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
+-- ✅ Default: Top1-Top5 Only | ផ្សេងទៀត ឲ្យ User Select
 -- ✅ Divine = Yellow | Legendary = Red
 -- ==================================================
 
@@ -83,17 +84,20 @@ RarityTitle.Font = Enum.Font.Gotham
 RarityTitle.ZIndex = 101
 RarityTitle.Parent = RarityHolder
 
--- Selected Rarities (Default: All — លើកលែង Titan)
+-- ==================================================
+-- SELECTED RARITIES (Default: Top1-Top5 Only)
+-- ផ្សេងទៀត ឲ្យ User Select ខ្លួនឯង
+-- ==================================================
 local SelectedRarities = {
-    Divine = true,
-    Eternal = true,
-    Secret = true,
-    Mythic = true,
-    Legendary = true,
-    Epic = true,
-    Rare = true,
-    Uncommon = true,
-    Common = true
+    Divine = true,      -- Top1
+    Eternal = true,     -- Top2
+    Secret = true,      -- Top3
+    Mythic = true,      -- Top3
+    Legendary = true,   -- Top4
+    Epic = false,       -- Top5 (ឲ្យ user select)
+    Rare = false,       -- Top5 (ឲ្យ user select)
+    Uncommon = false,   -- Top5 (ឲ្យ user select)
+    Common = false      -- Top5 (ឲ្យ user select)
 }
 
 local function GetSelectedText()
@@ -423,4 +427,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded (Scrollable + No Titan + Divine Yellow + Legendary Red)")
+print("✅ Farming Tab Loaded (Default: Top1-Top5 Only)")
