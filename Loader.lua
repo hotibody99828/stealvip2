@@ -1,13 +1,14 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v7)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v8)
 -- ✅ TeleportSystem (Tab Auto Farming + Tab Farming)
 -- ✅ SafeSpeedMode Feature
 -- ✅ AutoEventNew + ManagerDrone
 -- ✅ CollectEggNew + ESP Tabs
 -- ✅ FarmingManager (TeleportSystem) + AFKSystem (Walk TP)
--- ✅ AntiGuard.lua (បន្ថែមវិញ)
--- ✅ DropEgg.lua (បន្ថែមវិញ)
--- ❌ គ្មាន VIPTP (ប្រើ TeleportSystem ជំនួស)
+-- ✅ AntiGuard.lua
+-- ✅ DropEgg.lua
+-- ✅ Sound.lua (YOKUDO-audio Folder) ← NEW
+-- ❌ គ្មាន VIPTP
 -- ❌ គ្មាន AntiRagdoll
 -- ==================================================
 
@@ -182,6 +183,9 @@ loadstring(GetScript("Tabs/Init.lua"))()
 -- ==================================================
 -- LOAD FEATURES
 -- ==================================================
+Loading.Update(26)
+loadstring(GetScript("Features/Sound.lua"))()  -- ✅ NEW — Sound System
+
 Loading.Update(28)
 loadstring(GetScript("Features/AntiAFK.lua"))()
 
