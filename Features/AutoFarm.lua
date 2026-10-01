@@ -1,7 +1,7 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Auto Farm (FAST)
 -- ✅ Cache PetData + UidCategory → លឿន
--- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Walk TP + Shot TP)
+-- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Smart Safe v21)
 -- ✅ Disable VIPTP ពេល StartTeleport (ការពារជាន់គ្នា)
 -- ==================================================
 
@@ -316,4 +316,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem + No Conflict)")
+print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem v21)")
