@@ -1,8 +1,10 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
 -- ✅ ភ្ជាប់ជាមួយ FarmingManager
--- ✅ Dropdown Select Rarity (11 Rarity)
+-- ✅ Dropdown Select Rarity (Scroll បាន)
 -- ✅ Checkbox Auto AFK Farming
+-- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
+-- ✅ Divine = Yellow | Legendary = Red
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -16,25 +18,34 @@ local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
--- RARITY COLORS
+-- RARITY COLORS (ដក Titan)
+-- Divine = Yellow | Legendary = Red
 -- ==================================================
 local RarityColors = {
-    Titan = Color3.fromRGB(255, 0, 0),
-    Cosmic = Color3.fromRGB(150, 0, 255),
-    Eternal = Color3.fromRGB(0, 255, 255),
-    Divine = Color3.fromRGB(255, 255, 255),
-    Secret = Color3.fromRGB(255, 50, 200),
-    Mythic = Color3.fromRGB(255, 100, 100),
-    Legendary = Color3.fromRGB(255, 200, 50),
-    Epic = Color3.fromRGB(200, 100, 255),
-    Rare = Color3.fromRGB(100, 150, 255),
-    Uncommon = Color3.fromRGB(100, 255, 100),
-    Common = Color3.fromRGB(200, 200, 200)
+    Divine = Color3.fromRGB(255, 215, 0),      -- លឿង (Yellow)
+    Eternal = Color3.fromRGB(0, 255, 255),     -- ខៀវភ្លឺ (Cyan)
+    Secret = Color3.fromRGB(255, 50, 200),     -- ផ្កាឈូក (Pink)
+    Mythic = Color3.fromRGB(255, 100, 100),    -- ក្រហមស្រាល (Light Red)
+    Legendary = Color3.fromRGB(255, 0, 0),     -- ក្រហម (Red)
+    Epic = Color3.fromRGB(200, 100, 255),      -- ស្វាយ (Purple)
+    Rare = Color3.fromRGB(100, 150, 255),      -- ខៀវ (Blue)
+    Uncommon = Color3.fromRGB(100, 255, 100),  -- បៃតង (Green)
+    Common = Color3.fromRGB(200, 200, 200)     -- ស (Gray)
 }
 
+-- ==================================================
+-- RARITY ORDER (ដក Titan)
+-- ==================================================
 local RarityOrder = {
-    "Titan", "Cosmic", "Eternal", "Divine", "Secret",
-    "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+    "Divine",
+    "Eternal",
+    "Secret",
+    "Mythic",
+    "Legendary",
+    "Epic",
+    "Rare",
+    "Uncommon",
+    "Common"
 }
 
 -- ==================================================
@@ -72,12 +83,10 @@ RarityTitle.Font = Enum.Font.Gotham
 RarityTitle.ZIndex = 101
 RarityTitle.Parent = RarityHolder
 
--- Selected Rarities (Default: All)
+-- Selected Rarities (Default: All — លើកលែង Titan)
 local SelectedRarities = {
-    Titan = true,
-    Cosmic = true,
-    Eternal = true,
     Divine = true,
+    Eternal = true,
     Secret = true,
     Mythic = true,
     Legendary = true,
@@ -95,7 +104,7 @@ local function GetSelectedText()
         end
     end
     if #List == 0 then return "None" end
-    if #List == 11 then return "All" end
+    if #List == #RarityOrder then return "All" end
     return table.concat(List, ", ")
 end
 
@@ -123,37 +132,42 @@ DdStroke.Thickness = 1
 DdStroke.Transparency = 0.3
 DdStroke.Parent = DropdownBtn
 
--- Dropdown List
-local DropdownList = Instance.new("Frame")
-DropdownList.Size = UDim2.new(0, 120, 0, 280)
-DropdownList.Position = UDim2.new(1, -120, 1, 2)
-DropdownList.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
-DropdownList.BorderSizePixel = 0
-DropdownList.Visible = false
-DropdownList.ZIndex = 200
-DropdownList.Parent = RarityHolder
+-- ==================================================
+-- DROPDOWN LIST (SCROLLABLE)
+-- ==================================================
+local DropdownScroll = Instance.new("ScrollingFrame")
+DropdownScroll.Size = UDim2.new(0, 120, 0, 200)
+DropdownScroll.Position = UDim2.new(1, -120, 1, 2)
+DropdownScroll.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
+DropdownScroll.BorderSizePixel = 0
+DropdownScroll.Visible = false
+DropdownScroll.ZIndex = 200
+DropdownScroll.ScrollBarThickness = 4
+DropdownScroll.ScrollBarImageColor3 = Color3.fromRGB(105, 90, 190)
+DropdownScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+DropdownScroll.Parent = RarityHolder
 
 local DlCorner = Instance.new("UICorner")
 DlCorner.CornerRadius = UDim.new(0, 6)
-DlCorner.Parent = DropdownList
+DlCorner.Parent = DropdownScroll
 
 local DlStroke = Instance.new("UIStroke")
 DlStroke.Color = Color3.fromRGB(200, 200, 220)
 DlStroke.Thickness = 1
 DlStroke.Transparency = 0.3
-DlStroke.Parent = DropdownList
+DlStroke.Parent = DropdownScroll
 
 local DlLayout = Instance.new("UIListLayout")
 DlLayout.Padding = UDim.new(0, 2)
 DlLayout.SortOrder = Enum.SortOrder.LayoutOrder
-DlLayout.Parent = DropdownList
+DlLayout.Parent = DropdownScroll
 
 local DlPadding = Instance.new("UIPadding")
 DlPadding.PaddingTop = UDim.new(0, 4)
 DlPadding.PaddingBottom = UDim.new(0, 4)
 DlPadding.PaddingLeft = UDim.new(0, 4)
 DlPadding.PaddingRight = UDim.new(0, 4)
-DlPadding.Parent = DropdownList
+DlPadding.Parent = DropdownScroll
 
 -- ==================================================
 -- CREATE DROPDOWN OPTION
@@ -165,12 +179,20 @@ local function UpdateOptionVisual(Name)
     if not Option then return end
 
     if SelectedRarities[Name] then
-        Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
+        -- ពេល SELECT: ពណ៌ Background ជាពណ៌ Rarity
+        Option.BackgroundColor3 = RarityColors[Name] or Color3.fromRGB(105, 90, 190)
         Option.Text = "✓ " .. Name
-        Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
+        -- ពណ៌ Text ខ្មៅ ដើម្បីអានបានលើ Background ភ្លឺ
+        if Name == "Divine" or Name == "Eternal" or Name == "Uncommon" or Name == "Common" then
+            Option.TextColor3 = Color3.fromRGB(0, 0, 0)
+        else
+            Option.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
     else
+        -- ពេល DESELECT: ពណ៌ Background ដើម
         Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
         Option.Text = Name
+        -- ពណ៌ Text ជាពណ៌ Rarity
         Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
     end
 end
@@ -187,7 +209,7 @@ local function CreateDropdownOption(Name, Order)
     Option.AutoButtonColor = false
     Option.LayoutOrder = Order
     Option.ZIndex = 201
-    Option.Parent = DropdownList
+    Option.Parent = DropdownScroll
 
     local OptCorner = Instance.new("UICorner")
     OptCorner.CornerRadius = UDim.new(0, 4)
@@ -195,12 +217,12 @@ local function CreateDropdownOption(Name, Order)
 
     OptionButtons[Name] = Option
 
+    -- ពេលចុច
     Option.MouseButton1Click:Connect(function()
         SelectedRarities[Name] = not SelectedRarities[Name]
         UpdateOptionVisual(Name)
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
-        -- Update FarmingManager
         if _G.YOKUDO_FarmingManager then
             local List = {}
             for _, rarity in ipairs(RarityOrder) do
@@ -214,11 +236,10 @@ local function CreateDropdownOption(Name, Order)
         print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
+    -- ពេល Hover (មិនបាត់ពណ៌)
     Option.MouseEnter:Connect(function()
         if not SelectedRarities[Name] then
-            TweenService:Create(Option, TweenInfo.new(0.1), {
-                BackgroundColor3 = Color3.fromRGB(45, 46, 60)
-            }):Play()
+            Option.BackgroundColor3 = Color3.fromRGB(45, 46, 60)
         end
     end)
 
@@ -229,13 +250,15 @@ local function CreateDropdownOption(Name, Order)
     UpdateOptionVisual(Name)
 end
 
--- Create all 11 options
 for i, rarity in ipairs(RarityOrder) do
     CreateDropdownOption(rarity, i)
 end
 
+-- កំណត់ CanvasSize តាមចំនួន Options
+DropdownScroll.CanvasSize = UDim2.new(0, 0, 0, #RarityOrder * 24 + 8)
+
 DropdownBtn.MouseButton1Click:Connect(function()
-    DropdownList.Visible = not DropdownList.Visible
+    DropdownScroll.Visible = not DropdownScroll.Visible
 end)
 
 -- ==================================================
@@ -316,7 +339,6 @@ local function ToggleFarm()
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         FarmStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- Set Rarities to FarmingManager
         local List = {}
         for _, rarity in ipairs(RarityOrder) do
             if SelectedRarities[rarity] then
@@ -401,4 +423,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded (11 Rarity)")
+print("✅ Farming Tab Loaded (Scrollable + No Titan + Divine Yellow + Legendary Red)")
