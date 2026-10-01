@@ -2,19 +2,21 @@
 -- YOKUDO HUB | TAB | Auto Farming (កែថ្មី)
 -- ✅ Check Egg → គ្មាន Audio/Background
 -- ✅ Select Egg → គ្មាន Audio/Background
--- ✅ Start (ធិក Get Egg) → StartGetEgg() (Audio 2 + BG)
--- ✅ ដកធិក → StopGetEgg() (ឈប់ + លុប BG)
+-- ✅ Start → StartGetEgg() (Audio 2 + BG)
+-- ✅ ដកធិក → StopGetEgg()
+-- ✅ ✅ Collect Egg Target ជោគជ័យ → Auto Stop Sound + BG + Uncheck UI
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
 --==================================================
--- FEATURE 1: Click Get Egg (UI ដើម)
+-- FEATURE 1: Click Get Egg
 --==================================================
 local GetEggBox = Instance.new("Frame")
 GetEggBox.Size = UDim2.new(1, 0, 0, 60)
@@ -115,7 +117,30 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ TOGGLE GET EGG (កែ — ហៅ StartGetEgg / StopGetEgg)
+-- ✅ Function សម្រាប់ Stop ទាំងអស់ (UI + Audio + BG)
+local function ForceStopAll()
+    if not GetEggEnabled then return end
+
+    GetEggEnabled = false
+    GetEggCheck.Visible = false
+
+    -- ✅ Reset UI
+    GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    GetEggCheckButton.BackgroundTransparency = 0.85
+    GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
+
+    -- ✅ Stop AutoFarm
+    if _G.YOKUDO_AutoFarm then
+        pcall(function() _G.YOKUDO_AutoFarm.StopTeleport() end)
+    end
+
+    -- ✅ Stop Audio 2 + Background
+    if _G.YOKUDO_Sound then
+        _G.YOKUDO_Sound.StopGetEgg()
+        print("🔇 Auto Farming: Auto Stopped (Collect Done)")
+    end
+end
+
 local function ToggleGetEgg()
     if not GetEggEnabled and not SelectedEggId then
         warn("[YOKUDO] សូម Select Egg មុននឹង Start!")
@@ -134,23 +159,11 @@ local function ToggleGetEgg()
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
 
-        -- ✅ ហៅ Audio 2 + Background ពី Sound.lua
         if _G.YOKUDO_Sound then
             _G.YOKUDO_Sound.StartGetEgg()
         end
     else
-        GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        GetEggCheckButton.BackgroundTransparency = 0.85
-        GetEggCheckStroke.Color = Color3.fromRGB(255, 255, 255)
-
-        if _G.YOKUDO_AutoFarm then
-            _G.YOKUDO_AutoFarm.StopTeleport()
-        end
-
-        -- ✅ ឈប់ Audio 2 + លុប Background ពី Sound.lua
-        if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.StopGetEgg()
-        end
+        ForceStopAll()
     end
 end
 
@@ -159,7 +172,25 @@ GetEggCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 2: Start Check Egg (គ្មាន Audio)
+-- ✅ AUTO STOP LOOP (Monitor Collect Egg Target)
+--==================================================
+task.spawn(function()
+    while task.wait(0.2) do
+        if not GetEggEnabled then continue end
+
+        -- ✅ ពិនិត្យ AutoFarm State
+        local AutoFarmActive = _G.YOKUDO_AutoFarm and _G.YOKUDO_AutoFarm.IsEnabled()
+
+        -- ✅ បើ AutoFarm បិទដោយស្វ័យប្រវត្តិ (Collect Done) → Stop UI + Audio
+        if not AutoFarmActive and GetEggEnabled then
+            print("✅ Collect Egg Target Done → Auto Stop")
+            ForceStopAll()
+        end
+    end
+end)
+
+--==================================================
+-- FEATURE 2: Start Check Egg
 --==================================================
 local CheckEggHolder = Instance.new("Frame")
 CheckEggHolder.Size = UDim2.new(1, 0, 0, 44)
@@ -360,7 +391,6 @@ task.spawn(function()
     end
 end)
 
--- ✅ TOGGLE CHECK EGG (គ្មាន Audio — រក្សាដើម)
 local function ToggleCheckEgg()
     CheckEggEnabled = not CheckEggEnabled
     CheckEggCheck.Visible = CheckEggEnabled
@@ -428,4 +458,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded (StartGetEgg / StopGetEgg)")
+print("✅ Auto Farming Tab Loaded (Auto Stop on Collect Done)")
