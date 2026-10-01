@@ -1,10 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v21)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v22)
 -- ✅ WalkSpeed ថេរ (គ្មាន TextBox)
--- ✅ គ្មាន Method Teleport (គ្មាន TeleportFly/Instant)
 -- ✅ Save/Restore WalkSpeed Real ពី Player
--- ✅ Logic v21 ពេញលេញ
--- ✅ Function Order ត្រឹមត្រូវ 100%
+-- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
+-- ✅ Logic v21 ពេញលេញ + Callback
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -15,12 +14,12 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG (គ្មាន Method, គ្មាន TextBox)
+-- CONFIG
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
     LockDistance = 1,
-    WalkSpeed = 200,           -- ✅ Speed ថេរ (គ្មាន TextBox)
+    WalkSpeed = 200,
     FlyTPDistance = 20,
     FlyOffset = 3,
     FlySpeed = 200,
@@ -94,7 +93,6 @@ local State = {
     DropDone = false,
     CollectAttempts = 0,
 
-    -- ✅ Save/Restore WalkSpeed Real
     SavedWalkSpeed = nil,
     SavedJumpPower = nil,
     SavedJumpHeight = nil,
@@ -109,6 +107,9 @@ local State = {
     SafeName = nil,
     CurrentEggUid = nil,
     EggGoneCheckThread = nil,
+
+    -- ✅ Callback ទៅ FarmingManager
+    OnComplete = nil,
 }
 
 -- ==================================================
@@ -145,6 +146,7 @@ local StartEggGoneCheck
 local SetupDropHeldEgg
 local StartProcess
 local FullReset
+local NotifyComplete
 
 -- ==================================================
 -- UTILS
@@ -170,9 +172,6 @@ GetPosition = function(Object)
     return nil
 end
 
--- ==================================================
--- ✅ SAVE PLAYER STATS (Real)
--- ==================================================
 SavePlayerStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -186,9 +185,6 @@ SavePlayerStats = function()
         State.SavedWalkSpeed, State.SavedJumpPower))
 end
 
--- ==================================================
--- ✅ RESTORE PLAYER STATS (Real)
--- ==================================================
 RestoreStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -287,9 +283,6 @@ GetSafePosition = function()
     return SafePos, SafeName
 end
 
--- ==================================================
--- PUSH UP
--- ==================================================
 PushUp = function(Offset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -310,9 +303,6 @@ PushUp = function(Offset, Callback)
     if Callback then Callback() end
 end
 
--- ==================================================
--- CFrame Instant
--- ==================================================
 CFrameInstant = function(Destination, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -332,9 +322,6 @@ CFrameInstant = function(Destination, Callback)
     if Callback then Callback() end
 end
 
--- ==================================================
--- REMOTES
--- ==================================================
 RemoteCollectFirst = function()
     if not CollectEvent or not State.FirstEggSlotKey or not State.FirstEggUid then return false end
     return pcall(function()
@@ -360,9 +347,6 @@ RemoteDrop = function()
     return Success and Result
 end
 
--- ==================================================
--- LOCK
--- ==================================================
 StartLock = function(TargetPos)
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
     local LockedCFrame = CFrame.new(TargetPos + Vector3.new(0, Config.LockDistance, 0))
@@ -386,9 +370,6 @@ StopLock = function()
     end
 end
 
--- ==================================================
--- FLY TP + LOCK
--- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -438,9 +419,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
--- ==================================================
--- SHOT TP
--- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -483,9 +461,6 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
--- ==================================================
--- SHOT TP WITH STOP+DROP
--- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -533,9 +508,6 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
--- ==================================================
--- WALK TP (WalkSpeed ថេរ 200)
--- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -596,8 +568,20 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
 end
 
 -- ==================================================
--- AUTO STOP (Restore WalkSpeed)
+-- NOTIFY COMPLETE (Call ទៅ FarmingManager)
 -- ==================================================
+NotifyComplete = function()
+    print("[TeleportSystem] ✅ NotifyComplete → Call FarmingManager")
+
+    if State.OnComplete then
+        pcall(function() State.OnComplete() end)
+    end
+
+    if _G.YOKUDO_FarmingManager and _G.YOKUDO_FarmingManager.OnTeleportComplete then
+        pcall(function() _G.YOKUDO_FarmingManager.OnTeleportComplete() end)
+    end
+end
+
 AutoStop = function()
     StopLock()
     CleanupMovers()
@@ -626,11 +610,11 @@ AutoStop = function()
     end
 
     print("[TeleportSystem] ✅ Auto Stop + Restored WalkSpeed")
+
+    -- ✅ Call FarmingManager
+    NotifyComplete()
 end
 
--- ==================================================
--- STEP FUNCTIONS
--- ==================================================
 Step1_WalkToFirstEgg = function()
     State.Step = "1_to_first"
     local FirstEgg = Container:FindFirstChild(State.FirstEggUid)
@@ -812,9 +796,6 @@ Step9_WalkToSwapPosition = function()
     end)
 end
 
--- ==================================================
--- EGG GONE CHECK
--- ==================================================
 StartEggGoneCheck = function()
     if State.EggGoneCheckThread then
         pcall(function() task.cancel(State.EggGoneCheckThread) end)
@@ -849,9 +830,6 @@ StartEggGoneCheck = function()
     end)
 end
 
--- ==================================================
--- DROPHELDEGG
--- ==================================================
 SetupDropHeldEgg = function()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
     if not PG then return end
@@ -899,9 +877,6 @@ SetupDropHeldEgg = function()
     end)
 end
 
--- ==================================================
--- START PROCESS
--- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
@@ -951,9 +926,6 @@ StartProcess = function()
     end)
 end
 
--- ==================================================
--- FULL RESET
--- ==================================================
 FullReset = function()
     StopLock()
     CleanupMovers()
@@ -987,7 +959,7 @@ FullReset = function()
 end
 
 -- ==================================================
--- PUBLIC API (គ្មាន SetMethod, គ្មាន SetSpeed)
+-- PUBLIC API
 -- ==================================================
 local TeleportSystem = {}
 
@@ -1013,6 +985,11 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
+-- ✅ Set Callback
+function TeleportSystem.SetOnComplete(Callback)
+    State.OnComplete = Callback
+end
+
 function TeleportSystem.GetSavedWalkSpeed() return State.SavedWalkSpeed end
 function TeleportSystem.GetWalkSpeed() return Config.WalkSpeed end
 function TeleportSystem.IsEnabled() return State.Running end
@@ -1021,4 +998,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v21 - No TextBox, No Method)")
+print("✅ TeleportSystem Loaded (Smart Safe v22 - With Callback)")
