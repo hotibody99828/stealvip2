@@ -1,8 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Sound System + Background
 -- ✅ Background DisplayOrder = 1 (ទាបជាង Icon/UI)
--- ✅ Icon + UI DisplayOrder = 999 (ខ្ពស់)
--- ✅ User នៅតែឃើញ Icon + UI ដើម្បីដកធិក
+-- ✅ Icon + UI DisplayOrder = 999/9999 (ខ្ពស់)
+-- ✅ User នៅតែឃើញ Icon + UI
 -- ==================================================
 
 local SoundService = game:GetService("SoundService")
@@ -19,9 +19,6 @@ local AUDIO2_FILE = AUDIO_FOLDER .. "/audio2.mp3"
 local AUDIO1_LINK = "https://files.catbox.moe/yn5vzu.mp3"
 local AUDIO2_LINK = "https://files.catbox.moe/awtf9v.mp3"
 
--- ==================================================
--- ENSURE FOLDER
--- ==================================================
 pcall(function()
     if not isfolder(AUDIO_FOLDER) then
         makefolder(AUDIO_FOLDER)
@@ -29,9 +26,6 @@ pcall(function()
     end
 end)
 
--- ==================================================
--- DOWNLOAD AUDIO
--- ==================================================
 local function DownloadAudio(FilePath, Link, Name)
     if not isfile(FilePath) then
         print("📥 កំពុងទាញយក " .. Name .. "...")
@@ -51,9 +45,6 @@ end
 DownloadAudio(AUDIO1_FILE, AUDIO1_LINK, "Audio 1")
 DownloadAudio(AUDIO2_FILE, AUDIO2_LINK, "Audio 2")
 
--- ==================================================
--- GET CUSTOM ASSET
--- ==================================================
 local function GetAsset(FilePath)
     local Asset
     pcall(function() Asset = getcustomasset(FilePath) end)
@@ -63,9 +54,6 @@ end
 local Audio1Asset = GetAsset(AUDIO1_FILE)
 local Audio2Asset = GetAsset(AUDIO2_FILE)
 
--- ==================================================
--- CREATE SOUND OBJECTS
--- ==================================================
 pcall(function()
     local old1 = SoundService:FindFirstChild("YokudoAudio1")
     if old1 then old1:Destroy() end
@@ -87,9 +75,6 @@ Sound2.Volume = 1
 Sound2.Looped = true
 Sound2.Parent = SoundService
 
--- ==================================================
--- PLAY / STOP AUDIO
--- ==================================================
 local function PlaySound1()
     if Sound1.SoundId and Sound1.SoundId ~= "" then
         if not Sound1.IsPlaying then
@@ -123,12 +108,11 @@ local function StopSound2()
 end
 
 -- ==================================================
--- ✅ BACKGROUND "YOKUDO HUB" (DisplayOrder = 1)
+-- ✅ BACKGROUND (DisplayOrder = 1 — ទាបជាង Icon/UI)
 -- ==================================================
 local CurrentBG = nil
 
 local function CreateBackground(SubtitleText)
-    -- សម្អាតចាស់
     pcall(function()
         local old = CoreGui:FindFirstChild("YokudoAudioBG")
         if old then old:Destroy() end
@@ -139,7 +123,7 @@ local function CreateBackground(SubtitleText)
     BG.ResetOnSpawn = false
     BG.IgnoreGuiInset = true
     BG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    BG.DisplayOrder = 1  -- ✅ ទាបជាង Icon + UI (999)
+    BG.DisplayOrder = 1  -- ✅ ទាបជាង Icon (9999) និង UI (999)
     BG.Parent = CoreGui
 
     local BGFrame = Instance.new("Frame")
@@ -147,12 +131,12 @@ local function CreateBackground(SubtitleText)
     BGFrame.Size = UDim2.new(1, 0, 1, 0)
     BGFrame.Position = UDim2.new(0, 0, 0, 0)
     BGFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    BGFrame.BackgroundTransparency = 0  -- ✅ ខ្មៅ 100%
+    BGFrame.BackgroundTransparency = 0
     BGFrame.BorderSizePixel = 0
     BGFrame.ZIndex = 1
     BGFrame.Parent = BG
 
-    -- ✅ អក្សរ YOKUDO HUB នៅកណ្តាល
+    -- ✅ អក្សរ YOKUDO HUB
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
     Title.Size = UDim2.new(1, 0, 0, 70)
@@ -184,14 +168,13 @@ local function CreateBackground(SubtitleText)
     Note.Size = UDim2.new(1, 0, 0, 20)
     Note.Position = UDim2.new(0, 0, 0.5, 55)
     Note.BackgroundTransparency = 1
-    Note.Text = "Uncheck Start to Stop"
+    Note.Text = "Click Icon to Show UI | Uncheck to Stop"
     Note.TextColor3 = Color3.fromRGB(100, 100, 120)
     Note.TextSize = 13
     Note.Font = Enum.Font.Gotham
     Note.ZIndex = 2
     Note.Parent = BGFrame
 
-    -- Blink Animation
     task.spawn(function()
         while BG.Parent do
             TweenService:Create(Sub, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
@@ -206,7 +189,7 @@ local function CreateBackground(SubtitleText)
         end
     end)
 
-    print("🖤 Background: Created (DisplayOrder=1) | " .. (SubtitleText or "Loading..."))
+    print("🖤 Background: Created (DisplayOrder=1)")
     return BG
 end
 
@@ -236,7 +219,7 @@ local function RemoveBackground()
 end
 
 -- ==================================================
--- ✅ COMBINED FUNCTIONS
+-- COMBINED FUNCTIONS
 -- ==================================================
 local function StartFarming()
     PlaySound1()
@@ -270,13 +253,11 @@ _G.YOKUDO_Sound = {
     Stop2 = StopSound2,
     IsPlaying2 = function() return Sound2.IsPlaying end,
 
-    -- ✅ Combined (Audio + Background)
     StartFarming = StartFarming,
     StopFarming = StopFarming,
     StartGetEgg = StartGetEgg,
     StopGetEgg = StopGetEgg,
 
-    -- ✅ Background Only
     CreateBackground = CreateBackground,
     RemoveBackground = RemoveBackground,
 
@@ -295,5 +276,6 @@ _G.YOKUDO_Sound = {
 }
 
 print("✅ Sound + Background Feature Loaded")
-print("🎯 Background DisplayOrder = 1 (ទាបជាង Icon/UI)")
-print("🎯 Icon + UI DisplayOrder = 999 (ខ្ពស់ → ឃើញ)")
+print("🎯 Background DisplayOrder = 1")
+print("🎯 Icon DisplayOrder = 9999 (ឃើញលើ BG)")
+print("🎯 UI DisplayOrder = 999 (ឃើញលើ BG)")
