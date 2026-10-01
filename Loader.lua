@@ -210,10 +210,6 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ SafeSpeedMode
-Loading.Update(50)
-loadstring(GetScript("Features/SafeSpeedMode.lua"))()
-
 -- ✅ FarmingManager (ប្រើ TeleportSystem)
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
