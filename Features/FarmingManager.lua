@@ -1,12 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | FEATURE | Farming Manager (FULL AUTO LOOP)
--- ✅ Spawn Path First → Workspace Backup
--- ✅ Walk TP (Speed ដើម) → Safe Zone
--- ✅ Start → Check Egg → TeleportSystem
--- ✅ TeleportSystem Done → Call Manager → Check New ID
--- ✅ No Egg → AFKSystem
--- ✅ Loop រហូត (មិនឈប់)
--- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
+-- ✅ Top1 Divine → Top2 Eternal → Top3 Secret/Mythic → Top4 Legendary → Top5+
+-- ✅ យក Top1 មុនឲ្យអស់សិន (តាម $/s ខ្ពស់ជាងគេមុន)
+-- ✅ ចាំយក Top2 → Top3 → Top4 → Top5
+-- ✅ Full Auto Loop (Start → Check Egg → Teleport → AFK → Loop)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -25,7 +22,7 @@ pcall(function()
 end)
 
 -- ==================================================
--- SETTINGS (WALK TP)
+-- SETTINGS
 -- ==================================================
 local NIGHT_CHECK_INTERVAL = 0.03
 local DAY_CHECK_INTERVAL = 0.05
@@ -33,7 +30,7 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
 local WALK_TIMEOUT = 30
-local LOOP_WAIT_AFTER_AFK = 2 -- រង់ចាំបន្ទាប់ពី AFK មុនពេល Loop បន្ត
+local LOOP_WAIT_AFTER_AFK = 2
 
 -- ==================================================
 -- CACHE SYSTEM
@@ -46,8 +43,8 @@ local Cache = {
 }
 
 -- ==================================================
--- RARITY PRIORITY (ដក Titan)
--- Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
+-- RARITY PRIORITY (Top1-Top5)
+-- Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+ (Epic, Rare, Uncommon, Common)
 -- ==================================================
 local RARITY_PRIORITY = {
     Divine = 1,
@@ -56,13 +53,13 @@ local RARITY_PRIORITY = {
     Mythic = 3,
     Legendary = 4,
     Epic = 5,
-    Rare = 6,
-    Uncommon = 7,
-    Common = 8
+    Rare = 5,
+    Uncommon = 5,
+    Common = 5
 }
 
 -- ==================================================
--- SELECTED RARITIES (Default: All — លើកលែង Titan)
+-- SELECTED RARITIES (Default: Top1-Top5 Only)
 -- ==================================================
 local SelectedRarities = {
     Divine = true,
@@ -70,10 +67,10 @@ local SelectedRarities = {
     Secret = true,
     Mythic = true,
     Legendary = true,
-    Epic = true,
-    Rare = true,
-    Uncommon = true,
-    Common = true
+    Epic = false,      -- ឲ្យ user select ខ្លួនឯង
+    Rare = false,      -- ឲ្យ user select ខ្លួនឯង
+    Uncommon = false,  -- ឲ្យ user select ខ្លួនឯង
+    Common = false     -- ឲ្យ user select ខ្លួនឯង
 }
 
 -- ==================================================
@@ -181,7 +178,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGGS
+-- SORT EGGS (តាម Rarity Priority មុន បន្ទាប់មក $/s)
 -- ==================================================
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
@@ -193,7 +190,7 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- FIND BEST EGG
+-- FIND BEST EGG (Top1 មុនឲ្យអស់ → ចាំ Top2 → Top3 → Top4 → Top5)
 -- ==================================================
 local function FindBestEgg()
     local EggList = {}
@@ -270,7 +267,6 @@ local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
 local WaitingForTeleport = false
-local LoopRunning = false
 
 local WalkConnection = nil
 
@@ -507,11 +503,10 @@ local function OnTeleportComplete()
     AFKStarted = false
     print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
-    -- Check New Egg
     local BestEgg = FindBestEgg()
 
     if BestEgg then
-        print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Location:", BestEgg.Location)
+        print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| Location:", BestEgg.Location)
         PendingEggUid = BestEgg.Uid
 
         task.spawn(function()
@@ -683,4 +678,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (Full Auto Loop — TeleportSystem Only)")
+print("✅ FarmingManager Loaded (Full Auto Loop — Top1-Top5)")
