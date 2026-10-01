@@ -1,10 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (TELEPORT SYSTEM ONLY)
+-- YOKUDO HUB | FEATURE | Farming Manager (FULL AUTO LOOP)
 -- ✅ Spawn Path First → Workspace Backup
 -- ✅ Walk TP (Speed ដើម) → Safe Zone
--- ✅ Callback → AFK ពេលអស់ Egg
--- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
--- ✅ បន្ថែម 11 Rarity
+-- ✅ Start → Check Egg → TeleportSystem
+-- ✅ TeleportSystem Done → Call Manager → Check New ID
+-- ✅ No Egg → AFKSystem
+-- ✅ Loop រហូត (មិនឈប់)
+-- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -31,6 +33,7 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
 local WALK_TIMEOUT = 30
+local LOOP_WAIT_AFTER_AFK = 2 -- រង់ចាំបន្ទាប់ពី AFK មុនពេល Loop បន្ត
 
 -- ==================================================
 -- CACHE SYSTEM
@@ -43,30 +46,27 @@ local Cache = {
 }
 
 -- ==================================================
--- RARITY PRIORITY (11 Rarity)
+-- RARITY PRIORITY (ដក Titan)
+-- Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
 -- ==================================================
 local RARITY_PRIORITY = {
-    Titan = 1,
-    Cosmic = 2,
-    Eternal = 3,
-    Divine = 4,
-    Secret = 5,
-    Mythic = 6,
-    Legendary = 7,
-    Epic = 8,
-    Rare = 9,
-    Uncommon = 10,
-    Common = 11
+    Divine = 1,
+    Eternal = 2,
+    Secret = 3,
+    Mythic = 3,
+    Legendary = 4,
+    Epic = 5,
+    Rare = 6,
+    Uncommon = 7,
+    Common = 8
 }
 
 -- ==================================================
--- SELECTED RARITIES (Default: All)
+-- SELECTED RARITIES (Default: All — លើកលែង Titan)
 -- ==================================================
 local SelectedRarities = {
-    Titan = true,
-    Cosmic = true,
-    Eternal = true,
     Divine = true,
+    Eternal = true,
     Secret = true,
     Mythic = true,
     Legendary = true,
@@ -77,7 +77,7 @@ local SelectedRarities = {
 }
 
 -- ==================================================
--- BUILD MESHID MAP (ម្ដងគត់)
+-- BUILD MESHID MAP
 -- ==================================================
 local function BuildMeshIdMap()
     if Cache.MeshIdMapBuilt then return end
@@ -115,7 +115,7 @@ local function BuildMeshIdMap()
 end
 
 -- ==================================================
--- GET PET DATA (CACHE)
+-- GET PET DATA
 -- ==================================================
 local function GetPetData(AssetCategory)
     if not AssetCategory then return nil end
@@ -148,7 +148,7 @@ local function GetPetData(AssetCategory)
 end
 
 -- ==================================================
--- FIND ASSET CATEGORY (CACHE Uid)
+-- FIND ASSET CATEGORY
 -- ==================================================
 local function FindAssetCategory(EggModel)
     if not EggModel then return nil end
@@ -193,7 +193,7 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- FIND BEST EGG (Spawn Path First → Workspace Backup)
+-- FIND BEST EGG
 -- ==================================================
 local function FindBestEgg()
     local EggList = {}
@@ -270,6 +270,7 @@ local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
 local WaitingForTeleport = false
+local LoopRunning = false
 
 local WalkConnection = nil
 
@@ -293,7 +294,7 @@ local function GetHum()
 end
 
 -- ==================================================
--- ✅ CLEANUP WALK
+-- CLEANUP WALK
 -- ==================================================
 local function CleanupWalk()
     if WalkConnection then
@@ -317,7 +318,7 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- ✅ WALK TP (Humanoid:MoveTo + Speed ដើម)
+-- WALK TP
 -- ==================================================
 local function WalkTP(Destination, Callback)
     CleanupWalk()
@@ -379,7 +380,7 @@ local function WalkTP(Destination, Callback)
 end
 
 -- ==================================================
--- GET PHASE (FAST)
+-- GET PHASE
 -- ==================================================
 local function GetPhase()
     if AreaEggCycle then
@@ -434,7 +435,7 @@ local function StopAll()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE AND WAIT (WALK TP)
+-- FLY TO SAFE ZONE AND WAIT
 -- ==================================================
 local function FlyToSafeZoneAndWait()
     local Root = GetRoot()
@@ -462,12 +463,12 @@ local function FlyToSafeZoneAndWait()
 end
 
 -- ==================================================
--- ✅ START TELEPORT SYSTEM (ជំនួស VIPTP)
+-- START TELEPORT SYSTEM
 -- ==================================================
 local function StartTeleportSystem(EggUid)
     if not _G.YOKUDO_TeleportSystem then
         warn("[FarmingManager] TeleportSystem not loaded!")
-        return
+        return false
     end
 
     print("[FarmingManager] Starting TeleportSystem | UID:", EggUid)
@@ -475,10 +476,22 @@ local function StartTeleportSystem(EggUid)
     WaitingForTeleport = true
     _G.YOKUDO_TeleportSystem.SetTargetId(EggUid)
     _G.YOKUDO_TeleportSystem.Enable()
+    return true
 end
 
 -- ==================================================
--- ✅ CALLBACK ពី TELEPORT SYSTEM
+-- ENABLE AFK
+-- ==================================================
+local function EnableAFK()
+    if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
+        _G.YOKUDO_AFKSystem.Enable()
+        AFKStarted = true
+        print("[FarmingManager] ✅ AFKSystem Enabled")
+    end
+end
+
+-- ==================================================
+-- CALLBACK ពី TELEPORT SYSTEM
 -- ==================================================
 local function OnTeleportComplete()
     if not FarmingEnabled then
@@ -494,6 +507,7 @@ local function OnTeleportComplete()
     AFKStarted = false
     print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
+    -- Check New Egg
     local BestEgg = FindBestEgg()
 
     if BestEgg then
@@ -508,142 +522,61 @@ local function OnTeleportComplete()
                 PendingEggUid = nil
             else
                 print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
+                EnableAFK()
             end
         end)
     else
         print("[FarmingManager] ❌ No Egg → Enable AFK")
-
-        if _G.YOKUDO_AFKSystem then
-            if not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-                print("[FarmingManager] ✅ AFKSystem Enabled")
-            end
-        end
+        EnableAFK()
     end
 end
 
 -- ==================================================
--- WAIT FOR DAY
--- ==================================================
-local function WaitForDay()
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-        if Phase == "Day" then return true end
-        task.wait(DAY_CHECK_INTERVAL)
-    end
-    return false
-end
-
--- ==================================================
--- NIGHT LOOP (FAST)
--- ==================================================
-local function NightLoop()
-    print("[FarmingManager] NightLoop (0.03s)")
-
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-
-        if Phase == "Day" then return end
-
-        local BestEgg = FindBestEgg()
-
-        if BestEgg then
-            print("[FarmingManager] ✅ Night + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-            PendingEggUid = BestEgg.Uid
-
-            StopAll()
-            task.wait(0.3)
-
-            local ReachedSafe = FlyToSafeZoneAndWait()
-            if ReachedSafe then
-                task.wait(SAFE_WAIT_AFTER_REACH)
-                local IsDay = WaitForDay()
-                if IsDay and PendingEggUid then
-                    StartTeleportSystem(PendingEggUid)
-                    PendingEggUid = nil
-                    while WaitingForTeleport and FarmingEnabled do
-                        task.wait(0.2)
-                    end
-                end
-            end
-            return
-        else
-            if not AFKStarted then
-                if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                    _G.YOKUDO_AFKSystem.Enable()
-                    AFKStarted = true
-                end
-            end
-        end
-
-        task.wait(NIGHT_CHECK_INTERVAL)
-    end
-end
-
--- ==================================================
--- DAY LOOP (FAST)
--- ==================================================
-local function DayLoop()
-    print("[FarmingManager] DayLoop (0.05s)")
-
-    while FarmingEnabled do
-        local Phase = GetPhase()
-        CurrentPhase = Phase
-
-        if Phase == "Night" then return end
-
-        local BestEgg = FindBestEgg()
-
-        if BestEgg then
-            print("[FarmingManager] ✅ Day + Egg:", BestEgg.DisplayName, "|", BestEgg.Location)
-
-            StopAll()
-            task.wait(0.3)
-
-            FlyToSafeZoneAndWait()
-            task.wait(0.5)
-
-            StartTeleportSystem(BestEgg.Uid)
-
-            while WaitingForTeleport and FarmingEnabled do
-                task.wait(0.2)
-            end
-        else
-            if _G.YOKUDO_AFKSystem and not _G.YOKUDO_AFKSystem.IsEnabled() then
-                _G.YOKUDO_AFKSystem.Enable()
-                AFKStarted = true
-            end
-        end
-
-        task.wait(DAY_CHECK_INTERVAL)
-    end
-end
-
--- ==================================================
--- MAIN LOOP
+-- MAIN LOOP (FULL AUTO)
 -- ==================================================
 local function MainLoop()
-    print("[FarmingManager] MainLoop Started")
+    print("[FarmingManager] MainLoop Started (Full Auto)")
 
     while FarmingEnabled do
         local Phase = GetPhase()
         CurrentPhase = Phase
 
-        if Phase == "Day" then
-            DayLoop()
+        -- Check Egg
+        local BestEgg = FindBestEgg()
+
+        if BestEgg then
+            print("[FarmingManager] ✅ Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| Location:", BestEgg.Location)
+            PendingEggUid = BestEgg.Uid
+
+            -- Stop AFK / Teleport ចាស់
+            StopAll()
+            task.wait(0.3)
+
+            -- ទៅ Safe Zone មុន
+            local ReachedSafe = FlyToSafeZoneAndWait()
+            if ReachedSafe and PendingEggUid then
+                task.wait(SAFE_WAIT_AFTER_REACH)
+                -- Start Teleport System
+                StartTeleportSystem(PendingEggUid)
+                PendingEggUid = nil
+
+                -- រង់ចាំ TeleportSystem បញ្ចប់
+                while WaitingForTeleport and FarmingEnabled do
+                    task.wait(0.2)
+                end
+            else
+                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
+                EnableAFK()
+            end
         else
-            NightLoop()
+            print("[FarmingManager] ❌ No Egg → Enable AFK")
+            EnableAFK()
         end
 
-        task.wait(0.05)
+        -- រង់ចាំមុនពេល Loop បន្ត
+        task.wait(LOOP_WAIT_AFTER_AFK)
     end
+
     print("[FarmingManager] MainLoop Stopped")
 end
 
@@ -664,7 +597,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (TeleportSystem)")
+    print("[YOKUDO] FarmingManager: ON (Full Auto Loop)")
 end
 
 local function Disable()
@@ -750,4 +683,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (TeleportSystem Only — No VIPTP)")
+print("✅ FarmingManager Loaded (Full Auto Loop — TeleportSystem Only)")
