@@ -1,13 +1,15 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (WALK + SHOT + LOCK + DROP)
--- ✅ Walk TP: Humanoid:MoveTo() + Safe Speed Mode
--- ✅ ជិតដល់ 30m → Pause Safe Speed Mode
--- ✅ ជិតដល់ 20m → CFrame Instant + Lock + Collect
--- ✅ DropHeldEgg = true (Signal) → Lock Camera → Shot TP → Position 1 (1.2s)
--- ✅ Lock Position 1 → Drop → Unlock Camera → Resume Safe Speed
--- ✅ Walk TP → Collect វិញ → DropHeldEgg = true → Walk TP → Position 2
--- ✅ Check UID Both (Spawn + Workspace) — បើអត់ឃើញ → Stop + Callback
--- ✅ ប្រើសម្រាប់ទាំង Tab Auto Farming + Tab Farming
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v21)
+-- ✅ First Egg → Fly TP + Lock (20m)
+-- ✅ First Egg = true → Stop Collect → Drop First
+-- ✅ Drop First → Push Up Y+70 → Shot TP → Stop + Down → Walk TP Target
+-- ✅ Target Egg → Fly TP + Lock (20m)
+-- ✅ 10 Map + WaitAtTarget តាមចម្ងាយ
+-- ✅ Check Player តែ P1_Top1 និង P2_Top1
+-- ✅ True → Shot TP Top1 (Y+70) → CFrame Instant (Y=70) → Lock + Drop
+-- ✅ Recover → Walk TP → Top2
+-- ✅ AutoStop ពេល Egg បាត់ពី Workspace + Path Spawn
+-- ✅ API ដូចដើម (សម្រាប់ AutoFarm.lua)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -21,21 +23,49 @@ local Container = workspace:WaitForChild("AreaEggSlotsClient")
 -- CONFIG
 -- ==================================================
 local Config = {
-    SafeSpeed = 250,
-    ShotTPTime = 1.2,
+    FirstEggLockDistance = 5,
     ArriveDistance = 2,
-    LockWait = 0.1,
-    NearDistance = 20,
-    SlowDistance = 30,
     LockDistance = 1,
+    WalkSpeed = 200,
+    FlyTPDistance = 20,
+    FlyOffset = 3,
+    FlySpeed = 200,
+    StopShotDistance = 1200,
+    ShotTPTime = 1.25,
+    ShotTPTime2 = 1.25,
+    PushUpOffset = 70,
+    PushUpSpeed = 99999,
+    PlayerCheckDistance = 30,
+    LockWait = 0.1,
+    WaitForFalseTimeout = 10,
+    RecoverDistanceThreshold = 500,
+    MaxRepeatCount = 10,
 
-    Position1 = Vector3.new(598, 70, -330),
-    Position2 = Vector3.new(544, 70, -301),
+    Position1_Top1 = Vector3.new(612, 70, -333),
+    Position1_Top2 = Vector3.new(546, 70, -309),
+    Position2_Top1 = Vector3.new(602, 70, -410),
+    Position2_Top2 = Vector3.new(541, 70, -414),
 
-    WalkTimeout = 1000,
+    WalkTimeout = 30,
     CollectInterval = 0.02,
     MaxCollectAttempts = 10000,
-    UIDCheckInterval = 1,
+    EggGoneCheckInterval = 0.5,
+}
+
+-- ==================================================
+-- MAP POSITIONS (10 Map)
+-- ==================================================
+local MapPositions = {
+    {Pos = Vector3.new(5666, 70, -329), Wait = 9},
+    {Pos = Vector3.new(4798, 70, -333), Wait = 6},
+    {Pos = Vector3.new(4031, 70, -396), Wait = 6},
+    {Pos = Vector3.new(3397, 70, -328), Wait = 4},
+    {Pos = Vector3.new(2815, 70, -398), Wait = 2},
+    {Pos = Vector3.new(2286, 70, -331), Wait = 2},
+    {Pos = Vector3.new(1877, 70, -390), Wait = 2},
+    {Pos = Vector3.new(1488, 70, -318), Wait = 2},
+    {Pos = Vector3.new(1187, 70, -406), Wait = 1},
+    {Pos = Vector3.new(950, 70, -328), Wait = 1},
 }
 
 -- ==================================================
@@ -44,15 +74,8 @@ local Config = {
 local CollectEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggCarry")
 local DropEvent = ReplicatedStorage.Packages.Networking:FindFirstChild("RF/EggWorld/AskFieldEggDrop")
 
-if not CollectEvent then
-    warn("[TeleportSystem] CollectEvent not found")
-    return
-end
-
-if not DropEvent then
-    warn("[TeleportSystem] DropEvent not found")
-    return
-end
+if not CollectEvent then warn("[TeleportSystem] CollectEvent not found") return end
+if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
 
 print("[TeleportSystem] CollectEvent + DropEvent OK")
 
@@ -62,28 +85,33 @@ print("[TeleportSystem] CollectEvent + DropEvent OK")
 local State = {
     Running = false,
     Step = "idle",
+    Method = "TeleportFly",
+    FirstEggUid = nil,
+    FirstEggSlotKey = nil,
     TargetUid = nil,
 
     WalkConnection = nil,
-    ShotConnection = nil,
+    FlyConnection = nil,
     LockConnection = nil,
 
     DropHeldEgg = nil,
     DropHeldEggConnection = nil,
 
+    FirstCollected = false,
     TargetCollected = false,
     CollectedAgain = false,
     DropDone = false,
     CollectAttempts = 0,
-
     SavedWalkSpeed = nil,
-    SafeSpeedMode = false,
-    SafeSpeedPaused = false,
+    FlySequence = 0,
+    FirstDropDone = false,
+    RepeatCount = 0,
+    IsRecoverMode = false,
 
-    CameraLockConnection = nil,
-    LockedCameraCFrame = nil,
-
-    UIDCheckThread = nil,
+    SafePosition = nil,
+    SafeName = nil,
+    CurrentEggUid = nil,
+    EggGoneCheckThread = nil,
 }
 
 -- ==================================================
@@ -110,124 +138,27 @@ local function GetPosition(Object)
     return nil
 end
 
--- ==================================================
--- ✅ SAVE STATS
--- ==================================================
-local function SaveStats()
+local function SavePlayerWalkSpeed()
     local Hum = GetHumanoid()
     if not Hum then return end
     if State.SavedWalkSpeed == nil then
         State.SavedWalkSpeed = Hum.WalkSpeed
-        print("[TeleportSystem] ✅ Saved WalkSpeed ដើម:", State.SavedWalkSpeed)
     end
 end
 
--- ==================================================
--- ✅ GET WALK SPEED (Safe Mode / ដើម)
--- ==================================================
-local function GetWalkSpeed()
-    if State.SafeSpeedMode and not State.SafeSpeedPaused then
-        return Config.SafeSpeed
-    end
-
+local function RestoreStats()
+    local Hum = GetHumanoid()
+    if not Hum then return end
     if State.SavedWalkSpeed ~= nil then
-        return State.SavedWalkSpeed
+        pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
+    else
+        pcall(function() Hum.WalkSpeed = 16 end)
     end
-
-    local Hum = GetHumanoid()
-    if Hum then
-        State.SavedWalkSpeed = Hum.WalkSpeed
-        print("[TeleportSystem] ✅ Auto-Save WalkSpeed ដើម:", State.SavedWalkSpeed)
-        return Hum.WalkSpeed
-    end
-
-    return 16
 end
 
--- ==================================================
--- ✅ SAFE SPEED PAUSE / RESUME
--- ==================================================
-local function PauseSafeSpeed()
-    if not State.SafeSpeedMode then return end
-    if State.SafeSpeedPaused then return end
-
-    State.SafeSpeedPaused = true
-
-    local Hum = GetHumanoid()
-    if Hum then
-        Hum.WalkSpeed = State.SavedWalkSpeed or 16
-    end
-
-    print("[TeleportSystem] ⏸️ Safe Speed PAUSED | Speed:", Hum and Hum.WalkSpeed or "nil")
-end
-
-local function ResumeSafeSpeed()
-    if not State.SafeSpeedMode then return end
-    if not State.SafeSpeedPaused then return end
-
-    State.SafeSpeedPaused = false
-
-    local Hum = GetHumanoid()
-    if Hum then
-        Hum.WalkSpeed = Config.SafeSpeed
-    end
-
-    print("[TeleportSystem] ▶️ Safe Speed RESUMED | Speed:", Config.SafeSpeed)
-end
-
--- ==================================================
--- ✅ CAMERA LOCK
--- ==================================================
-local function LockCamera()
-    local Camera = workspace.CurrentCamera
-    if not Camera then return end
-
-    State.LockedCameraCFrame = Camera.CFrame
-
-    if State.CameraLockConnection then
-        State.CameraLockConnection:Disconnect()
-        State.CameraLockConnection = nil
-    end
-
-    State.CameraLockConnection = RunService.RenderStepped:Connect(function()
-        if not State.LockedCameraCFrame then return end
-        local Cam = workspace.CurrentCamera
-        if Cam then
-            Cam.CFrame = State.LockedCameraCFrame
-            Cam.Focus = State.LockedCameraCFrame
-        end
-    end)
-
-    print("[TeleportSystem] 🔒 Camera Locked")
-end
-
-local function UnlockCamera()
-    if State.CameraLockConnection then
-        State.CameraLockConnection:Disconnect()
-        State.CameraLockConnection = nil
-    end
-    State.LockedCameraCFrame = nil
-
-    local Camera = workspace.CurrentCamera
-    if Camera then
-        local Char = Player.Character
-        if Char then
-            local Hum = Char:FindFirstChildOfClass("Humanoid")
-            if Hum then
-                Camera.CameraSubject = Hum
-            end
-        end
-    end
-
-    print("[TeleportSystem] 🔓 Camera Unlocked")
-end
-
--- ==================================================
--- CLEANUP
--- ==================================================
 local function CleanupMovers()
     if State.WalkConnection then State.WalkConnection:Disconnect() State.WalkConnection = nil end
-    if State.ShotConnection then State.ShotConnection:Disconnect() State.ShotConnection = nil end
+    if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
 
     local Hum, Root = GetHumanoid()
@@ -245,25 +176,154 @@ local function CleanupMovers()
     end
 end
 
+local function IsEggGone(Uid)
+    if not Uid then return true end
+    local InWorkspace = workspace:FindFirstChild(Uid) ~= nil
+    local InContainer = Container and Container:FindFirstChild(Uid) ~= nil
+    if not InWorkspace and not InContainer then return true end
+    return false
+end
+
+local function GetNearestMapWait(EggPos)
+    if not EggPos then return 8 end
+    local NearestMap = nil
+    local NearestDist = math.huge
+    local NearestWait = 8
+    for i, MapData in ipairs(MapPositions) do
+        local Dist = (EggPos - MapData.Pos).Magnitude
+        if Dist < NearestDist then
+            NearestDist = Dist
+            NearestMap = i
+            NearestWait = MapData.Wait
+        end
+    end
+    return NearestWait
+end
+
+-- ✅ Get Safe Position (Check តែ P1_Top1 + P2_Top1)
+local function GetSafePosition()
+    local P1_Top1 = Config.Position1_Top1
+    local P2_Top1 = Config.Position2_Top1
+
+    local P1_Top1_MinDist = math.huge
+    local P2_Top1_MinDist = math.huge
+
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= Player then
+            local otherChar = otherPlayer.Character
+            if otherChar then
+                local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+                if otherRoot then
+                    local pos = otherRoot.Position
+                    local d1 = (pos - P1_Top1).Magnitude
+                    local d2 = (pos - P2_Top1).Magnitude
+                    if d1 < P1_Top1_MinDist then P1_Top1_MinDist = d1 end
+                    if d2 < P2_Top1_MinDist then P2_Top1_MinDist = d2 end
+                end
+            end
+        end
+    end
+
+    local SafePos = P1_Top1
+    local SafeName = "P1_Top1"
+
+    if P1_Top1_MinDist < Config.PlayerCheckDistance and P2_Top1_MinDist >= P1_Top1_MinDist then
+        SafePos = P2_Top1
+        SafeName = "P2_Top1"
+    end
+
+    State.SafePosition = SafePos
+    State.SafeName = SafeName
+    return SafePos, SafeName
+end
+
 -- ==================================================
--- ✅ LOCK
+-- ✅ PUSH UP INSTANT
+-- ==================================================
+local function PushUp(Offset, Callback)
+    CleanupMovers()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        if Callback then Callback() end
+        return
+    end
+
+    local StartPos = Root.Position
+    local TargetPos = StartPos + Vector3.new(0, Offset, 0)
+
+    pcall(function()
+        Hum.PlatformStand = true
+        Root.CFrame = CFrame.new(TargetPos)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    if Callback then Callback() end
+end
+
+-- ==================================================
+-- ✅ CFrame Instant
+-- ==================================================
+local function CFrameInstant(Destination, Callback)
+    CleanupMovers()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+
+    pcall(function()
+        Hum:MoveTo(Root.Position)
+        Hum.WalkSpeed = 0
+        Root.CFrame = CFrame.new(Destination)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    if Callback then Callback() end
+end
+
+-- ==================================================
+-- REMOTES
+-- ==================================================
+local function RemoteCollectFirst()
+    if not CollectEvent or not State.FirstEggSlotKey or not State.FirstEggUid then return false end
+    return pcall(function()
+        return CollectEvent:InvokeServer({
+            FirstAreaSlotKey = State.FirstEggSlotKey,
+            Uid = State.FirstEggUid
+        })
+    end)
+end
+
+local function RemoteCollectTarget()
+    if not CollectEvent or not State.TargetUid then return false end
+    return pcall(function()
+        return CollectEvent:InvokeServer({ Uid = State.TargetUid })
+    end)
+end
+
+local function RemoteDrop()
+    if not DropEvent then return false end
+    local Success, Result = pcall(function()
+        return DropEvent:InvokeServer({ Reason = "PlayerRequest" })
+    end)
+    return Success and Result
+end
+
+-- ==================================================
+-- LOCK
 -- ==================================================
 local function StartLock(TargetPos)
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
-
     local LockedCFrame = CFrame.new(TargetPos + Vector3.new(0, Config.LockDistance, 0))
-
-    print("[TeleportSystem] 🔒 Lock at:", TargetPos)
-
     State.LockConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then
             if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
             return
         end
-
         local _, Root = GetHumanoid()
         if not Root then return end
-
         Root.CFrame = LockedCFrame
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -278,61 +338,125 @@ local function StopLock()
 end
 
 -- ==================================================
--- ✅ CFrame Instant
+-- FLY TP + LOCK
 -- ==================================================
-local function CFrameInstant(Destination, Callback)
+local function FlyTPAndLock(Destination, YOffset, Callback)
     CleanupMovers()
-
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    Hum:MoveTo(Root.Position)
-    Hum.WalkSpeed = 0
+    State.FlySequence = State.FlySequence + 1
+    local Seq = State.FlySequence
+    local LockPos = Destination + Vector3.new(0, YOffset or Config.FlyOffset, 0)
+    Hum.PlatformStand = true
+    local StartTime = tick()
 
-    local TargetCFrame = CFrame.new(Destination)
-    Root.CFrame = TargetCFrame
-    Root.AssemblyLinearVelocity = Vector3.zero
-    Root.AssemblyAngularVelocity = Vector3.zero
-
-    print("[TeleportSystem] ⚡ CFrame Instant →", Destination)
-
-    task.wait(0.02)
-
-    if Callback then Callback() end
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then CleanupMovers() return end
+        if Seq ~= State.FlySequence then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            return
+        end
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        local CurrentPos = Root2.Position
+        local Dir = LockPos - CurrentPos
+        local Dist = Dir.Magnitude
+        if Dist <= 3 then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            CleanupMovers()
+            Root2.CFrame = CFrame.new(LockPos)
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+            StartLock(LockPos)
+            if Callback then Callback() end
+            return
+        end
+        local MoveDir = Dir.Unit
+        local MoveStep = MoveDir * Config.FlySpeed * (1/60)
+        Root2.CFrame = CFrame.new(CurrentPos + MoveStep)
+        Root2.AssemblyLinearVelocity = Vector3.zero
+        Root2.AssemblyAngularVelocity = Vector3.zero
+        if tick() - StartTime > 10 then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            CleanupMovers()
+            Root2.CFrame = CFrame.new(LockPos)
+            StartLock(LockPos)
+            if Callback then Callback() end
+        end
+    end)
 end
 
 -- ==================================================
--- ✅ SHOT TP (1.2s)
+-- SHOT TP
 -- ==================================================
-local function ShotTP(Destination, Callback)
+local function ShotTP(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root or Hum.Health <= 0 then
+        if Callback then Callback() end
+        return
+    end
+    local TargetCFrame = CFrame.new(Destination)
+    local StartPos = Root.Position
+    local StartTime = tick()
+    Hum.PlatformStand = true
+    local ShotStopRequested = false
 
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
+        if not State.Running then CleanupMovers() return end
+        local Hum2, Root2 = GetHumanoid()
+        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        local Elapsed = tick() - StartTime
+        local Alpha = math.clamp(Elapsed / Time, 0, 1)
+        local NewPos = StartPos:Lerp(Destination, Alpha)
+        Root2.CFrame = CFrame.new(NewPos)
+        Root2.AssemblyLinearVelocity = Vector3.zero
+        Root2.AssemblyAngularVelocity = Vector3.zero
+        local Dist = (Root2.Position - Destination).Magnitude
+        if CheckDrop and not ShotStopRequested and Dist <= Config.StopShotDistance then
+            ShotStopRequested = true
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
+            if Hum2 then Hum2.PlatformStand = false end
+            RemoteDrop()
+            if Callback then Callback() end
+            return
+        end
+        if Dist <= Config.ArriveDistance or Alpha >= 1 then
+            CleanupMovers()
+            Root2.CFrame = TargetCFrame
+            Root2.AssemblyLinearVelocity = Vector3.zero
+            Root2.AssemblyAngularVelocity = Vector3.zero
+            if Callback then Callback() end
+        end
+    end)
+end
+
+-- ==================================================
+-- SHOT TP WITH STOP+DROP
+-- ==================================================
+local function ShotTPWithStop(Destination, Time, StopDistance, Callback)
+    CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    local TargetCFrame = CFrame.new(Destination)
     local StartPos = Root.Position
     local StartTime = tick()
-
     Hum.PlatformStand = true
 
-    print(string.format("[TeleportSystem] Shot TP → %s | Time: 1.2s", tostring(Destination)))
-
-    State.ShotConnection = RunService.Heartbeat:Connect(function()
+    State.FlyConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
-
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
 
         local Elapsed = tick() - StartTime
-        local Alpha = math.clamp(Elapsed / Config.ShotTPTime, 0, 1)
-
+        local Alpha = math.clamp(Elapsed / Time, 0, 1)
         local NewPos = StartPos:Lerp(Destination, Alpha)
 
         Root2.CFrame = CFrame.new(NewPos)
@@ -340,95 +464,80 @@ local function ShotTP(Destination, Callback)
         Root2.AssemblyAngularVelocity = Vector3.zero
 
         local Dist = (Root2.Position - Destination).Magnitude
-        if Dist <= Config.ArriveDistance or Alpha >= 1 then
+
+        if Dist <= StopDistance then
+            if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
             CleanupMovers()
-            Root2.CFrame = TargetCFrame
+
+            local DownPos = Vector3.new(Root2.Position.X, 70, Root2.Position.Z)
+            Root2.CFrame = CFrame.new(DownPos)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            print(string.format("[TeleportSystem] ✅ Shot TP Arrived | Dist: %.1f", Dist))
+            if Callback then Callback() end
+            return
+        end
+
+        if Alpha >= 1 then
+            CleanupMovers()
             if Callback then Callback() end
         end
     end)
 end
 
 -- ==================================================
--- ✅ WALK TP
+-- WALK TP
 -- ==================================================
-local function WalkTP(Destination, LockAfterArrive, Callback)
+local function WalkTP(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
-
     local Hum, Root = GetHumanoid()
     if not Hum or not Root or Hum.Health <= 0 then
         if Callback then Callback() end
         return
     end
 
-    SaveStats()
-    ResumeSafeSpeed()
-
-    Hum.WalkSpeed = GetWalkSpeed()
-
+    local WalkSpeed = Config.WalkSpeed
+    Hum.WalkSpeed = WalkSpeed
     local StartTime = tick()
     local LastCheck = 0
-    local ShotDone = false
-    local SlowDone = false
+    local FlyDone = false
+    local DropDone = false
 
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
-
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
-
-        Hum2.WalkSpeed = GetWalkSpeed()
-
+        Hum2.WalkSpeed = WalkSpeed
         local Dist = (Root2.Position - Destination).Magnitude
 
-        -- ✅ ជិតដល់ 30m → Stop Safe Speed
-        if not SlowDone and Dist <= Config.SlowDistance then
-            SlowDone = true
-            PauseSafeSpeed()
-            Hum2.WalkSpeed = GetWalkSpeed()
-        end
-
-        -- ✅ ជិតដល់ 20m → CFrame Instant + Lock
-        if not ShotDone and Dist <= Config.NearDistance then
-            ShotDone = true
-
-            State.WalkConnection:Disconnect()
-            State.WalkConnection = nil
+        if FlyAtDistance and not FlyDone and Dist <= FlyAtDistance then
+            FlyDone = true
+            State.WalkConnection:Disconnect() State.WalkConnection = nil
             Hum2:MoveTo(Root2.Position)
             Hum2.WalkSpeed = 0
-
-            print(string.format("[TeleportSystem] ⚡ ជិតដល់ %.0f studs → CFrame Instant + Lock", Dist))
-
-            CFrameInstant(Destination, function()
-                if LockAfterArrive then
-                    StartLock(Destination)
-                end
+            FlyTPAndLock(Destination, Config.FlyOffset, function()
                 if Callback then Callback() end
             end)
             return
+        end
+
+        if DropAtDistance and not DropDone and Dist <= DropAtDistance then
+            DropDone = true
+            RemoteDrop()
         end
 
         Hum2:MoveTo(Destination)
 
         if tick() - LastCheck > 0.05 then
             LastCheck = tick()
-
             if Dist <= Config.ArriveDistance then
                 CleanupMovers()
                 Hum2:MoveTo(Root2.Position)
                 Hum2.WalkSpeed = 0
-
-                if LockAfterArrive then
-                    StartLock(Destination)
-                end
-
+                if LockAfterArrive then StartLock(Destination) end
                 if Callback then Callback() end
                 return
             end
-
             if tick() - StartTime > Config.WalkTimeout then
                 CleanupMovers()
                 if Callback then Callback() end
@@ -439,383 +548,217 @@ local function WalkTP(Destination, LockAfterArrive, Callback)
 end
 
 -- ==================================================
--- REMOTES
+-- EGG GONE CHECK THREAD
 -- ==================================================
-local function RemoteCollectTarget()
-    if not CollectEvent or not State.TargetUid then return false end
-    local success = pcall(function()
-        return CollectEvent:InvokeServer({ Uid = State.TargetUid })
-    end)
-    return success
-end
-
-local function RemoteDrop()
-    if not DropEvent then return false end
-    local Success, Result = pcall(function()
-        return DropEvent:InvokeServer({ Reason = "PlayerRequest" })
-    end)
-    return Success and Result
-end
-
--- ==================================================
--- ✅ DROPHELDEGG (Signal Listener)
--- ==================================================
-local function SetupDropHeldEgg()
-    local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
-    if not PG then return end
-
-    State.DropHeldEgg = PG:FindFirstChild("DropHeldEgg")
-    if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
-
-    if State.DropHeldEggConnection then
-        State.DropHeldEggConnection:Disconnect()
-        State.DropHeldEggConnection = nil
+local function StartEggGoneCheck()
+    if State.EggGoneCheckThread then
+        pcall(function() task.cancel(State.EggGoneCheckThread) end)
+        State.EggGoneCheckThread = nil
     end
 
-    State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
-        local IsEnabled = State.DropHeldEgg.Enabled == true
-        print("[TeleportSystem] ⚡ DropHeldEgg.Enabled →", IsEnabled, "| Step:", State.Step)
-
-        -- ✅ Step 2 (Collect Target) → Shot TP Position 1
-        if IsEnabled and State.Running and State.Step == "2_collect_target" then
-            print("[TeleportSystem] ✅ DETECTED TRUE → Shot TP Position 1")
-
-            State.TargetCollected = true
-            StopLock()
-
-            task.spawn(function()
-                task.wait(0.02)
-                Step3_ShotToPosition1()
-            end)
-        end
-
-        -- ✅ Step 6 (Collect Again) → Walk TP Position 2
-        if IsEnabled and State.Running and State.Step == "6_collect_again" then
-            print("[TeleportSystem] ✅ Step 6 DETECTED TRUE → Walk TP Position 2")
-
-            State.CollectedAgain = true
-            StopLock()
-
-            task.spawn(function()
-                task.wait(0.2)
-                Step7_WalkToPosition2()
-            end)
-        end
-    end)
-
-    print("[TeleportSystem] ✅ DropHeldEgg Signal Listener Setup")
-end
-
-local function IsTargetCollected()
-    if State.DropHeldEgg then return State.DropHeldEgg.Enabled == true end
-    return false
-end
-
--- ==================================================
--- ✅ CHECK TARGET UID (Spawn + Workspace)
--- ==================================================
-local function CheckTargetUID(TargetUid, Mode)
-    if not TargetUid then return "none" end
-    Mode = Mode or "both"
-
-    -- ✅ ១. Check Spawn Path
-    local InContainer = false
-    if Container then
-        InContainer = Container:FindFirstChild(TargetUid) ~= nil
-    end
-
-    if InContainer then return "spawn" end
-
-    -- ✅ ២. Check Workspace
-    if Mode == "both" then
-        local InWorkspace = workspace:FindFirstChild(TargetUid) ~= nil
-        if InWorkspace then return "workspace" end
-    end
-
-    return "none"
-end
-
-local function IsTargetInContainer()
-    return State.TargetUid and Container and Container:FindFirstChild(State.TargetUid) ~= nil
-end
-
-local function IsTargetInWorkspace()
-    return State.TargetUid and workspace:FindFirstChild(State.TargetUid) ~= nil
-end
-
-local function GetTargetPosition()
-    if IsTargetInContainer() then
-        local Egg = Container:FindFirstChild(State.TargetUid)
-        if Egg then return GetPosition(Egg) end
-    elseif IsTargetInWorkspace() then
-        local Egg = workspace:FindFirstChild(State.TargetUid)
-        if Egg then return GetPosition(Egg) end
-    end
-    return nil
-end
-
--- ==================================================
--- ✅ AUTO STOP (Callback → FarmingManager)
--- ==================================================
-local function AutoStop()
-    StopLock()
-    CleanupMovers()
-    UnlockCamera()
-    ResumeSafeSpeed()
-
-    local Char = Player.Character
-    if Char then
-        local Hum = Char:FindFirstChildOfClass("Humanoid")
-        if Hum then
-            if State.SavedWalkSpeed ~= nil then
-                Hum.WalkSpeed = State.SavedWalkSpeed
-            elseif not State.SafeSpeedMode then
-                Hum.WalkSpeed = 16
-            else
-                Hum.WalkSpeed = Config.SafeSpeed
-            end
-            print("[TeleportSystem] ✅ WalkSpeed Reset:", Hum.WalkSpeed)
-        end
-    end
-
-    State.Running = false
-    State.Step = "done"
-    State.TargetCollected = false
-    State.CollectedAgain = false
-    State.DropDone = false
-    State.CollectAttempts = 0
-
-    print("[TeleportSystem] Auto Stop → Callback")
-
-    task.spawn(function()
-        task.wait(0.2)
-        if _G.YOKUDO_FarmingManager then
-            if type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
-                local Success, Err = pcall(function()
-                    _G.YOKUDO_FarmingManager.OnVIPTPComplete()
-                end)
-                if not Success then
-                    warn("[TeleportSystem] OnVIPTPComplete Error:", Err)
-                end
-            elseif type(_G.YOKUDO_FarmingManager.OnTeleportComplete) == "function" then
-                local Success, Err = pcall(function()
-                    _G.YOKUDO_FarmingManager.OnTeleportComplete()
-                end)
-                if not Success then
-                    warn("[TeleportSystem] OnTeleportComplete Error:", Err)
-                end
-            end
-        end
-    end)
-end
-
--- ==================================================
--- ✅ PERIODIC UID CHECK (រាល់ 1s) — បើអត់ឃើញ → Stop + Callback
--- ==================================================
-local function StartPeriodicUIDCheck()
-    if State.UIDCheckThread then
-        pcall(function() task.cancel(State.UIDCheckThread) end)
-        State.UIDCheckThread = nil
-    end
-
-    State.UIDCheckThread = task.spawn(function()
+    State.EggGoneCheckThread = task.spawn(function()
         while State.Running do
-            task.wait(Config.UIDCheckInterval)
-            if not State.Running then break end
+            task.wait(Config.EggGoneCheckInterval)
 
-            -- ✅ Check UID Both (Spawn + Workspace)
-            local Location = CheckTargetUID(State.TargetUid, "both")
-
-            if Location == "none" then
-                print("[TeleportSystem] ⚠️ UID Gone (Periodic 1s) → Stop + Callback")
-
-                State.Running = false
-                StopLock()
-                CleanupMovers()
-                UnlockCamera()
-                ResumeSafeSpeed()
-
-                -- ✅ Restore WalkSpeed
-                local Char = Player.Character
-                if Char then
-                    local Hum = Char:FindFirstChildOfClass("Humanoid")
-                    if Hum and State.SavedWalkSpeed ~= nil then
-                        Hum.WalkSpeed = State.SavedWalkSpeed
-                    end
-                end
-
-                State.Step = "uid_gone"
-
-                -- ✅ Callback
-                task.spawn(function()
-                    task.wait(0.1)
-                    if _G.YOKUDO_FarmingManager then
-                        if type(_G.YOKUDO_FarmingManager.OnVIPTPComplete) == "function" then
-                            pcall(function()
-                                _G.YOKUDO_FarmingManager.OnVIPTPComplete()
-                            end)
-                        elseif type(_G.YOKUDO_FarmingManager.OnTeleportComplete) == "function" then
-                            pcall(function()
-                                _G.YOKUDO_FarmingManager.OnTeleportComplete()
-                            end)
-                        end
-                    end
-                end)
-                return
-            end
-        end
-    end)
-end
-
--- ==================================================
--- ✅ STEP 1: Walk → Target → Collect
--- ==================================================
-local function Step1_WalkToTarget()
-    State.Step = "1_to_target"
-    State.TargetCollected = false
-    State.CollectAttempts = 0
-
-    -- ✅ Check UID មុន Walk
-    local Location = CheckTargetUID(State.TargetUid, "both")
-    if Location == "none" then
-        print("[TeleportSystem] ❌ UID not found → Stop + Callback")
-        AutoStop()
-        return
-    end
-
-    local TargetPos = GetTargetPosition()
-    if not TargetPos then
-        print("[TeleportSystem] Target Position nil → Stop + Callback")
-        AutoStop()
-        return
-    end
-
-    print("[TeleportSystem] Step 1: Walk → Target | Location:", Location)
-
-    WalkTP(TargetPos, true, function()
-        print("[TeleportSystem] Step 1 Done: At Target + Locked → Collect")
-
-        local NewTargetPos = GetTargetPosition()
-        if NewTargetPos then
-            StartLock(NewTargetPos)
-        end
-
-        State.Step = "2_collect_target"
-        State.TargetCollected = false
-
-        print("[TeleportSystem] ✅ Step 2: collect_target | Signal:", 
-              State.DropHeldEggConnection ~= nil and "Connected" or "NOT Connected")
-
-        task.spawn(function()
-            while State.Running and State.Step == "2_collect_target" do
-                task.wait(Config.CollectInterval)
-                RemoteCollectTarget()
-                State.CollectAttempts = State.CollectAttempts + 1
-                if State.CollectAttempts > Config.MaxCollectAttempts then
-                    print("[TeleportSystem] Max Collect → Stop + Callback")
+            if State.CurrentEggUid then
+                if IsEggGone(State.CurrentEggUid) then
                     AutoStop()
                     return
                 end
             end
-        end)
+
+            if State.TargetUid and not State.DropDone then
+                if IsEggGone(State.TargetUid) then
+                    AutoStop()
+                    return
+                end
+            end
+
+            if State.FirstEggUid and not State.FirstDropDone then
+                if IsEggGone(State.FirstEggUid) then
+                    AutoStop()
+                    return
+                end
+            end
+        end
     end)
 end
 
 -- ==================================================
--- ✅ STEP 3: Lock Camera → Shot TP → Position 1 (1.2s)
+-- DROPHELDEGG
 -- ==================================================
-function Step3_ShotToPosition1()
-    if not State.Running then return end
+local function SetupDropHeldEgg()
+    local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
+    if not PG then return end
+    State.DropHeldEgg = PG:FindFirstChild("DropHeldEgg")
+    if not State.DropHeldEgg then warn("[TeleportSystem] DropHeldEgg not found!") return end
+    if State.DropHeldEggConnection then State.DropHeldEggConnection:Disconnect() State.DropHeldEggConnection = nil end
 
-    State.Step = "3_to_position1"
-    StopLock()
-    LockCamera()
+    State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
+        local IsEnabled = State.DropHeldEgg.Enabled == true
 
-    local Hum = GetHumanoid()
-    if Hum then
-        Hum.WalkSpeed = GetWalkSpeed()
-    end
-
-    print("[TeleportSystem] Step 3: Lock Camera → Shot TP → Position 1 (1.2s)")
-
-    ShotTP(Config.Position1, function()
-        print("[TeleportSystem] Step 3 Done: At Position 1 → Lock + Drop")
-        Step4_LockAndDrop()
-    end)
-end
-
--- ==================================================
--- ✅ STEP 4: Lock Position 1 → Drop → Unlock → Walk Collect វិញ
--- ==================================================
-function Step4_LockAndDrop()
-    if not State.Running then return end
-
-    State.Step = "4_drop_at_p1"
-
-    print("[TeleportSystem] Step 4: Lock Position 1 + Drop")
-
-    StartLock(Config.Position1)
-
-    task.spawn(function()
-        task.wait(Config.LockWait)
-
-        RemoteDrop()
-        print("[TeleportSystem] Step 4 Done: Remote Drop")
-
-        State.DropDone = true
-
-        task.wait(0.2)
-        StopLock()
-
-        UnlockCamera()
-        ResumeSafeSpeed()
-
-        task.spawn(function()
-            task.wait(0.3)
-            Step5_WalkToCollectAgain()
-        end)
-    end)
-end
-
--- ==================================================
--- ✅ STEP 5: Walk → Collect វិញ
--- ==================================================
-function Step5_WalkToCollectAgain()
-    if not State.Running then return end
-
-    State.Step = "5_to_collect_again"
-    State.CollectedAgain = false
-
-    -- ✅ Check UID មុន Walk
-    local Location = CheckTargetUID(State.TargetUid, "both")
-    if Location == "none" then
-        print("[TeleportSystem] ❌ UID not found → Stop + Callback")
-        AutoStop()
-        return
-    end
-
-    local TargetPos = GetTargetPosition()
-    if not TargetPos then
-        print("[TeleportSystem] Target Gone → Stop + Callback")
-        AutoStop()
-        return
-    end
-
-    print("[TeleportSystem] Step 5: Walk → Collect Again | Location:", Location)
-
-    WalkTP(TargetPos, true, function()
-        print("[TeleportSystem] Step 5 Done: At Target + Locked → Collect Again")
-
-        local NewTargetPos = GetTargetPosition()
-        if NewTargetPos then
-            StartLock(NewTargetPos)
+        if IsEnabled and State.Running and State.Step == "2_collect_first" then
+            State.FirstCollected = true
+            State.CurrentEggUid = State.FirstEggUid
+            StopLock()
+            State.Step = "2b_drop_first"
+            task.spawn(function()
+                task.wait(0.05)
+                RemoteDrop()
+                State.FirstDropDone = true
+                State.CurrentEggUid = nil
+                task.wait(0.2)
+                Step3b_AfterDropFirst()
+            end)
         end
 
-        State.Step = "6_collect_again"
-        State.CollectedAgain = false
+        if IsEnabled and State.Running and State.Step == "6_collect_target" then
+            State.TargetCollected = true
+            State.CurrentEggUid = State.TargetUid
+            StopLock()
+            task.spawn(function()
+                task.wait(0.02)
+                Step7_ShotToSafePosition()
+            end)
+        end
 
+        if IsEnabled and State.Running and State.Step == "8b_collect_again" then
+            State.CollectedAgain = true
+            State.CurrentEggUid = State.TargetUid
+            StopLock()
+            task.spawn(function()
+                task.wait(0.2)
+                Step9_WalkToSwapPosition()
+            end)
+        end
+    end)
+end
+
+local function IsTargetCollected()
+    if State.DropHeldEgg then
+        return State.DropHeldEgg.Enabled == true
+    end
+    return false
+end
+
+-- ==================================================
+-- AUTO STOP
+-- ==================================================
+local function AutoStop()
+    StopLock()
+    CleanupMovers()
+    RestoreStats()
+    State.Running = false
+    State.Step = "done"
+    State.FirstCollected = false
+    State.TargetCollected = false
+    State.CollectedAgain = false
+    State.DropDone = false
+    State.CollectAttempts = 0
+    State.FirstDropDone = false
+    State.RepeatCount = 0
+    State.IsRecoverMode = false
+    State.SafePosition = nil
+    State.SafeName = nil
+    State.CurrentEggUid = nil
+
+    if State.DropHeldEggConnection then
+        State.DropHeldEggConnection:Disconnect()
+        State.DropHeldEggConnection = nil
+    end
+    if State.EggGoneCheckThread then
+        pcall(function() task.cancel(State.EggGoneCheckThread) end)
+        State.EggGoneCheckThread = nil
+    end
+
+    print("[TeleportSystem] ✅ Auto Stop")
+end
+
+-- ==================================================
+-- STEP FUNCTIONS (Forward Declarations)
+-- ==================================================
+local Step1_WalkToFirstEgg
+local Step3b_AfterDropFirst
+local Step4_WalkToTargetAndFlyLock
+local Step7_ShotToSafePosition
+local Step8b_WalkToCollectAgain
+local Step8c_CheckDistanceAndRecover
+local Step9_WalkToSwapPosition
+
+-- ==================================================
+-- STEP 1: Walk → First Egg → Fly TP + Lock (20m)
+-- ==================================================
+Step1_WalkToFirstEgg = function()
+    State.Step = "1_to_first"
+    local FirstEgg = Container:FindFirstChild(State.FirstEggUid)
+    if not FirstEgg then AutoStop() return end
+    local FirstPos = GetPosition(FirstEgg)
+    if not FirstPos then AutoStop() return end
+
+    WalkTP(FirstPos, false, Config.FlyTPDistance, false, function()
+        State.Step = "2_collect_first"
+        State.FirstCollected = false
+        State.CurrentEggUid = State.FirstEggUid
         task.spawn(function()
-            while State.Running and State.Step == "6_collect_again" do
+            while State.Running and State.Step == "2_collect_first" do
+                task.wait(Config.CollectInterval)
+                RemoteCollectFirst()
+                State.CollectAttempts = State.CollectAttempts + 1
+                if State.CollectAttempts > Config.MaxCollectAttempts then AutoStop() return end
+            end
+        end)
+    end)
+end
+
+-- ==================================================
+-- STEP 3b: After Drop First → Push Up → Shot TP → Stop + Down → Walk Target
+-- ==================================================
+Step3b_AfterDropFirst = function()
+    if not State.Running then return end
+    State.Step = "3b_after_drop"
+    StopLock()
+
+    PushUp(Config.PushUpOffset, function()
+        local TargetPos
+        if Container:FindFirstChild(State.TargetUid) then
+            TargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
+        elseif workspace:FindFirstChild(State.TargetUid) then
+            TargetPos = GetPosition(workspace:FindFirstChild(State.TargetUid))
+        end
+        if not TargetPos then AutoStop() return end
+
+        ShotTPWithStop(TargetPos, Config.ShotTPTime, Config.StopShotDistance, function()
+            task.wait(0.2)
+            Step4_WalkToTargetAndFlyLock()
+        end)
+    end)
+end
+
+-- ==================================================
+-- STEP 4: Walk → Egg Target → 20m → Fly TP + Lock → Wait (តាម Map)
+-- ==================================================
+Step4_WalkToTargetAndFlyLock = function()
+    if not State.Running then return end
+    State.Step = "4_walk_target"
+
+    local TargetPos
+    if Container:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
+    elseif workspace:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(workspace:FindFirstChild(State.TargetUid))
+    end
+    if not TargetPos then AutoStop() return end
+
+    local WaitTime = GetNearestMapWait(TargetPos)
+
+    WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
+        task.spawn(function()
+            task.wait(WaitTime)
+            if not State.Running then return end
+            State.Step = "6_collect_target"
+            State.TargetCollected = false
+            State.CurrentEggUid = State.TargetUid
+            while State.Running and State.Step == "6_collect_target" do
                 task.wait(Config.CollectInterval)
                 RemoteCollectTarget()
             end
@@ -824,91 +767,180 @@ function Step5_WalkToCollectAgain()
 end
 
 -- ==================================================
--- ✅ STEP 7: Walk → Position 2 → Stop → Callback
+-- STEP 7: Push Up → Shot TP Safe → CFrame Instant → Lock + Drop
 -- ==================================================
-function Step7_WalkToPosition2()
+Step7_ShotToSafePosition = function()
     if not State.Running then return end
+    State.Step = "7_push_up"
+    StopLock()
 
-    State.Step = "7_to_position2"
+    PushUp(Config.PushUpOffset, function()
+        local SafePos, SafeName = GetSafePosition()
+        State.SafeName = SafeName
+        State.SafePosition = SafePos
 
-    print("[TeleportSystem] Step 7: Walk → Position 2")
+        local ShotTarget = SafePos + Vector3.new(0, Config.PushUpOffset, 0)
 
-    WalkTP(Config.Position2, false, function()
-        print("[TeleportSystem] Step 7 Done: At Position 2 → Stop")
+        ShotTP(ShotTarget, Config.ShotTPTime2, false, function()
+            CFrameInstant(SafePos, function()
+                CleanupMovers()
+                StartLock(SafePos)
 
-        State.Step = "8_done"
+                task.spawn(function()
+                    task.wait(Config.LockWait)
+                    RemoteDrop()
+                    State.DropDone = true
+                    State.CurrentEggUid = nil
+                    task.wait(0.2)
+                    StopLock()
+                    task.wait(0.3)
+                    Step8c_CheckDistanceAndRecover()
+                end)
+            end)
+        end)
+    end)
+end
 
+-- ==================================================
+-- STEP 8c: Check Distance → Recover/Repeat
+-- ==================================================
+Step8c_CheckDistanceAndRecover = function()
+    if not State.Running then return end
+    State.Step = "8c_check_distance"
+
+    local TargetPos
+    if Container:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
+    elseif workspace:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(workspace:FindFirstChild(State.TargetUid))
+    end
+
+    if not TargetPos then
+        State.IsRecoverMode = true
+        Step8b_WalkToCollectAgain()
+        return
+    end
+
+    local Hum, Root = GetHumanoid()
+    if not Root then AutoStop() return end
+
+    local Dist = (Root.Position - TargetPos).Magnitude
+    if Dist < Config.RecoverDistanceThreshold then
+        State.IsRecoverMode = true
+        Step8b_WalkToCollectAgain()
+    else
+        State.RepeatCount = State.RepeatCount + 1
+        if State.RepeatCount >= Config.MaxRepeatCount then AutoStop() return end
+        task.wait(0.5)
+        Step1_WalkToFirstEgg()
+    end
+end
+
+-- ==================================================
+-- STEP 8b: Fly TP + Lock ពីលើ Egg Drop → Collect Again
+-- ==================================================
+Step8b_WalkToCollectAgain = function()
+    if not State.Running then return end
+    State.Step = "8b_to_collect_again"
+
+    local TargetPos
+    if Container:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
+    elseif workspace:FindFirstChild(State.TargetUid) then
+        TargetPos = GetPosition(workspace:FindFirstChild(State.TargetUid))
+    end
+    if not TargetPos then Step9_WalkToSwapPosition() return end
+
+    FlyTPAndLock(TargetPos, Config.FlyOffset, function()
+        State.Step = "8b_collect_again"
+        State.CollectedAgain = false
+        State.CurrentEggUid = State.TargetUid
+        task.spawn(function()
+            while State.Running and State.Step == "8b_collect_again" do
+                task.wait(Config.CollectInterval)
+                RemoteCollectTarget()
+            end
+        end)
+    end)
+end
+
+-- ==================================================
+-- STEP 9: Walk TP → Swap Top
+-- ==================================================
+Step9_WalkToSwapPosition = function()
+    if not State.Running then return end
+    State.Step = "9_to_swap"
+
+    local SafeName = State.SafeName or "P1_Top1"
+    local WalkPos = Config.Position1_Top2
+    local WalkName = "P1_Top2"
+
+    if SafeName == "P1_Top1" then
+        WalkPos = Config.Position1_Top2
+        WalkName = "P1_Top2"
+    elseif SafeName == "P2_Top1" then
+        WalkPos = Config.Position2_Top2
+        WalkName = "P2_Top2"
+    end
+
+    WalkTP(WalkPos, false, false, false, function()
+        State.Step = "10_done"
         task.wait(0.2)
         AutoStop()
     end)
 end
 
 -- ==================================================
--- ✅ START PROCESS
+-- START PROCESS
 -- ==================================================
 local function StartProcess()
-    -- ✅ Reset ទាំងអស់មុន
-    if State.DropHeldEggConnection then
-        State.DropHeldEggConnection:Disconnect()
-        State.DropHeldEggConnection = nil
-    end
-    State.DropHeldEgg = nil
+    if State.Running then AutoStop() end
+    task.wait(0.2)
 
-    if State.UIDCheckThread then
-        pcall(function() task.cancel(State.UIDCheckThread) end)
-        State.UIDCheckThread = nil
+    local FirstEggUid = nil
+    local FirstEggSlotKey = nil
+    for _, child in ipairs(Container:GetChildren()) do
+        if string.find(child.Name, "FirstAreaEgg") then
+            FirstEggUid = child.Name
+            local SlotNum = string.match(child.Name, "Slot_(%d+)")
+            if SlotNum then
+                FirstEggSlotKey = "Forest:Slot_" .. SlotNum
+            end
+            break
+        end
     end
+
+    if not FirstEggUid or not FirstEggSlotKey then
+        warn("[TeleportSystem] First Egg not found!")
+        return
+    end
+
+    State.SavedWalkSpeed = nil
+    SavePlayerWalkSpeed()
 
     State.Running = true
     State.Step = "idle"
+    State.FirstEggUid = FirstEggUid
+    State.FirstEggSlotKey = FirstEggSlotKey
+    State.TargetUid = State.TargetUid  -- ✅ រក្សាតម្លៃដែល SetTargetId កំណត់
+    State.FirstCollected = false
     State.TargetCollected = false
     State.CollectedAgain = false
     State.DropDone = false
     State.CollectAttempts = 0
+    State.FirstDropDone = false
+    State.RepeatCount = 0
+    State.IsRecoverMode = false
+    State.SafePosition = nil
+    State.SafeName = nil
+    State.CurrentEggUid = nil
 
     SetupDropHeldEgg()
-    SaveStats()
-
-    print("[TeleportSystem] ========== START ==========")
-    print("[TeleportSystem] Target UID:", State.TargetUid)
-
-    -- ✅ Check UID មុន Start
-    local Location = CheckTargetUID(State.TargetUid, "both")
-    print("[TeleportSystem] Initial UID Location:", Location)
-
-    if Location == "none" then
-        -- ✅ រង់ចាំ 3s → បើអត់ឃើញ → Stop + Callback
-        task.spawn(function()
-            local Waited = 0
-            while State.Running and Waited < 3 do
-                task.wait(0.1)
-                Waited = Waited + 0.1
-
-                local CheckLocation = CheckTargetUID(State.TargetUid, "both")
-                if CheckLocation ~= "none" then
-                    print("[TeleportSystem] ✅ UID Found after", Waited, "s → Start")
-                    break
-                end
-            end
-
-            -- ✅ បើនៅអត់ឃើញ → Stop + Callback
-            if CheckTargetUID(State.TargetUid, "both") == "none" then
-                print("[TeleportSystem] ❌ UID not found 3s → Stop + Callback")
-                AutoStop()
-                return
-            end
-
-            task.wait(0.3)
-            StartPeriodicUIDCheck()
-            Step1_WalkToTarget()
-        end)
-        return
-    end
+    StartEggGoneCheck()
 
     task.spawn(function()
         task.wait(0.3)
-        StartPeriodicUIDCheck()
-        Step1_WalkToTarget()
+        Step1_WalkToFirstEgg()
     end)
 end
 
@@ -918,13 +950,7 @@ end
 local function FullReset()
     StopLock()
     CleanupMovers()
-    UnlockCamera()
-    ResumeSafeSpeed()
-
-    local Hum = GetHumanoid()
-    if Hum and State.SavedWalkSpeed ~= nil then
-        pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
-    end
+    RestoreStats()
 
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
@@ -932,18 +958,23 @@ local function FullReset()
     end
     State.DropHeldEgg = nil
 
-    if State.UIDCheckThread then
-        pcall(function() task.cancel(State.UIDCheckThread) end)
-        State.UIDCheckThread = nil
+    if State.EggGoneCheckThread then
+        pcall(function() task.cancel(State.EggGoneCheckThread) end)
+        State.EggGoneCheckThread = nil
     end
 
     State.Running = false
     State.Step = "idle"
+    State.FirstCollected = false
     State.TargetCollected = false
     State.CollectedAgain = false
     State.DropDone = false
-    State.CollectAttempts = 0
-    State.SafeSpeedPaused = false
+    State.FirstDropDone = false
+    State.RepeatCount = 0
+    State.IsRecoverMode = false
+    State.SafePosition = nil
+    State.SafeName = nil
+    State.CurrentEggUid = nil
 
     print("[TeleportSystem] Full Reset")
 end
@@ -960,7 +991,6 @@ function TeleportSystem.Enable()
     if not State.TargetUid then warn("[TeleportSystem] No Target ID") return end
 
     FullReset()
-    SetupDropHeldEgg()
     StartProcess()
 
     print("[TeleportSystem] ON | Target: " .. tostring(State.TargetUid))
@@ -976,35 +1006,23 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
-function TeleportSystem.SetSafeSpeedMode(Enabled)
-    State.SafeSpeedMode = Enabled == true
-
-    local Hum = GetHumanoid()
-    if Hum and State.SavedWalkSpeed == nil then
-        State.SavedWalkSpeed = Hum.WalkSpeed
-    end
-
-    State.SafeSpeedPaused = false
-
-    if Hum then
-        Hum.WalkSpeed = GetWalkSpeed()
-    end
-
-    print("[TeleportSystem] Safe Speed Mode:", State.SafeSpeedMode, "| Speed:", GetWalkSpeed())
+function TeleportSystem.SetSpeed(Value)
+    Value = math.clamp(Value, 50, 1100)
+    Config.WalkSpeed = Value
+    print("[TeleportSystem] Walk Speed: " .. tostring(Value))
 end
 
-function TeleportSystem.GetSafeSpeedMode()
-    return State.SafeSpeedMode
+function TeleportSystem.SetMethod(Method)
+    State.Method = (Method == "InstantTeleport") and "InstantTeleport" or "TeleportFly"
+    print("[TeleportSystem] Method: " .. State.Method)
 end
 
-function TeleportSystem.GetCurrentSpeed()
-    return GetWalkSpeed()
-end
-
+function TeleportSystem.GetMethod() return State.Method end
+function TeleportSystem.GetSpeed() return Config.WalkSpeed end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Walk + Shot 1.2s + Lock + Drop + UID Check Both + Callback)")
+print("✅ TeleportSystem Loaded (Smart Safe v21)")
