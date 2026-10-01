@@ -6,6 +6,7 @@
 -- ✅ Default: Top1-Top5 Only (Divine, Eternal, Secret, Mythic, Legendary)
 -- ✅ ផ្សេងទៀត User Select ខ្លួនឯង
 -- ✅ Divine = Yellow | Legendary = Red
+-- ✅ Audio 1 ពេលធិក Start (ហៅពី Sound.lua)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -318,7 +319,7 @@ FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- TOGGLE FARM
+-- TOGGLE FARM (កែ — បន្ថែម Audio 1)
 -- ==================================================
 local FarmEnabled = false
 
@@ -344,10 +345,22 @@ local function ToggleFarm()
         _G.YOKUDO_FarmingManager.SetRarities(List)
 
         _G.YOKUDO_FarmingManager.Enable()
+
+        -- ✅ ហៅ Audio 1 ពី Sound.lua
+        if _G.YOKUDO_Sound then
+            _G.YOKUDO_Sound.Play1()
+            print("🔊 Farming: Audio 1 Playing")
+        end
     else
         FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         _G.YOKUDO_FarmingManager.Disable()
+
+        -- ✅ ឈប់ Audio 1 ពី Sound.lua
+        if _G.YOKUDO_Sound then
+            _G.YOKUDO_Sound.Stop1()
+            print("🔇 Farming: Audio 1 Stopped")
+        end
     end
 end
 
@@ -399,6 +412,25 @@ task.spawn(function()
 end)
 
 -- ==================================================
+-- ✅ SYNC LOOP (Backup — Audio 1)
+-- ==================================================
+task.spawn(function()
+    task.wait(2)
+    while true do
+        task.wait(0.5)
+        if _G.YOKUDO_FarmingManager and _G.YOKUDO_Sound then
+            local State = _G.YOKUDO_FarmingManager.IsEnabled()
+            local AudioState = _G.YOKUDO_Sound.IsPlaying1()
+            if State and not AudioState then
+                _G.YOKUDO_Sound.Play1()
+            elseif not State and AudioState then
+                _G.YOKUDO_Sound.Stop1()
+            end
+        end
+    end
+end)
+
+-- ==================================================
 -- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
 -- ==================================================
 _G.YOKUDO_RefreshFarmingUI = function()
@@ -419,4 +451,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded (Default: Top1-Top5 Only | User Select Others)")
+print("✅ Farming Tab Loaded (Default: Top1-Top5 Only | User Select Others | Audio 1)")
