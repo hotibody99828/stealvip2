@@ -4,6 +4,7 @@
 -- ✅ Walk TP (Speed ដើម) → Safe Zone
 -- ✅ Callback → AFK ពេលអស់ Egg
 -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
+-- ✅ បន្ថែម 11 Rarity
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -41,12 +42,38 @@ local Cache = {
     UidCategory = {},
 }
 
-local SelectedRarities = { Divine = true, Eternal = true, Secret = true }
-
+-- ==================================================
+-- RARITY PRIORITY (11 Rarity)
+-- ==================================================
 local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3
+    Titan = 1,
+    Cosmic = 2,
+    Eternal = 3,
+    Divine = 4,
+    Secret = 5,
+    Mythic = 6,
+    Legendary = 7,
+    Epic = 8,
+    Rare = 9,
+    Uncommon = 10,
+    Common = 11
+}
+
+-- ==================================================
+-- SELECTED RARITIES (Default: All)
+-- ==================================================
+local SelectedRarities = {
+    Titan = true,
+    Cosmic = true,
+    Eternal = true,
+    Divine = true,
+    Secret = true,
+    Mythic = true,
+    Legendary = true,
+    Epic = true,
+    Rare = true,
+    Uncommon = true,
+    Common = true
 }
 
 -- ==================================================
@@ -398,7 +425,6 @@ local function StopAll()
         end
     end
 
-    -- ✅ ប្រើ TeleportSystem ជំនួស VIPTP
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
         print("[FarmingManager] ✅ TeleportSystem Stopped")
@@ -700,8 +726,8 @@ _G.YOKUDO_FarmingManager = {
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     WALK_TIMEOUT = WALK_TIMEOUT,
-    OnVIPTPComplete = OnTeleportComplete,  -- ✅ Callback Name ដូចដើម
-    OnTeleportComplete = OnTeleportComplete,  -- ✅ Alias ថ្មី
+    OnVIPTPComplete = OnTeleportComplete,
+    OnTeleportComplete = OnTeleportComplete,
     WalkTP = WalkTP,
 }
 
