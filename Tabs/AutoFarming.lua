@@ -2,6 +2,7 @@
 -- YOKUDO HUB | TAB | Auto Farming (FAST)
 -- ✅ ភ្ជាប់ជាមួយ AutoFarm + TeleportSystem v21
 -- ✅ User ធិក Check Egg → Select Egg → ធិក Start
+-- ✅ Audio 2 ពេលធិក Start (ហៅពី Sound.lua)
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -116,6 +117,7 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
+-- ✅ TOGGLE GET EGG (កែ — បន្ថែម Audio 2)
 local function ToggleGetEgg()
     GetEggEnabled = not GetEggEnabled
     GetEggCheck.Visible = GetEggEnabled
@@ -127,6 +129,12 @@ local function ToggleGetEgg()
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
+
+        -- ✅ ហៅ Audio 2 ពី Sound.lua
+        if _G.YOKUDO_Sound then
+            _G.YOKUDO_Sound.Play2()
+            print("🔊 Auto Farming: Audio 2 Playing")
+        end
     else
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         GetEggCheckButton.BackgroundTransparency = 0.85
@@ -134,6 +142,12 @@ local function ToggleGetEgg()
 
         if _G.YOKUDO_AutoFarm then
             _G.YOKUDO_AutoFarm.StopTeleport()
+        end
+
+        -- ✅ ឈប់ Audio 2 ពី Sound.lua
+        if _G.YOKUDO_Sound then
+            _G.YOKUDO_Sound.Stop2()
+            print("🔇 Auto Farming: Audio 2 Stopped")
         end
     end
 end
@@ -412,4 +426,23 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21)")
+--==================================================
+-- ✅ SYNC LOOP (Backup — Audio 2)
+--==================================================
+task.spawn(function()
+    task.wait(2)
+    while true do
+        task.wait(0.5)
+        if _G.YOKUDO_AutoFarm and _G.YOKUDO_Sound then
+            local State = _G.YOKUDO_AutoFarm.IsEnabled()
+            local AudioState = _G.YOKUDO_Sound.IsPlaying2()
+            if State and not AudioState then
+                _G.YOKUDO_Sound.Play2()
+            elseif not State and AudioState then
+                _G.YOKUDO_Sound.Stop2()
+            end
+        end
+    end
+end)
+
+print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21 + Audio 2)")
