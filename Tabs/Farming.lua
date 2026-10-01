@@ -1,6 +1,6 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
--- ✅ ភ្ជាប់ជាមួយ FarmingManager
+-- ✅ ភ្ជាប់ជាមួយ FarmingManager (Full Auto Loop)
 -- ✅ Dropdown Select Rarity (Scroll បាន)
 -- ✅ Checkbox Auto AFK Farming
 -- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
