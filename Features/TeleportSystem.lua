@@ -25,8 +25,8 @@ local Config = {
     FlyOffset = 3,
     FlySpeed = 200,
     StopShotDistance = 1200,
-    ShotTPTime = 1.25,
-    ShotTPTime2 = 1.25,
+    ShotTPTime = 1.30,
+    ShotTPTime2 = 1.30,
     PushUpOffset = 70,
     PlayerCheckDistance = 30,
     LockWait = 0.1,
@@ -48,7 +48,7 @@ local Config = {
 -- MAP POSITIONS
 -- ==================================================
 local MapPositions = {
-    {Pos = Vector3.new(5666, 70, -329), Wait = 9},
+    {Pos = Vector3.new(5666, 70, -329), Wait = 8},
     {Pos = Vector3.new(4798, 70, -333), Wait = 6},
     {Pos = Vector3.new(4031, 70, -396), Wait = 6},
     {Pos = Vector3.new(3397, 70, -328), Wait = 4},
