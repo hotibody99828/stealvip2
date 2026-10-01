@@ -1,5 +1,9 @@
 -- ==================================================
 -- YOKUDO HUB | NEW PROJECT | UI
+-- ✅ Toggle Icon DisplayOrder = 9999 (ខ្ពស់បំផុត)
+-- ✅ Main UI DisplayOrder = 999 (ខ្ពស់)
+-- ✅ Background DisplayOrder = 1 (ទាប)
+-- ✅ Icon + UI ឃើញលើ Background ខ្មៅ
 -- ==================================================
 
 local Services = {
@@ -35,7 +39,7 @@ pcall(function()
 end)
 
 -- ==================================================
--- TOGGLE (Y icon)
+-- ✅ TOGGLE (Y icon) — DisplayOrder = 9999
 -- ==================================================
 local ASSET_ID = Settings.AssetID
 Services.ContentProvider:PreloadAsync({ASSET_ID})
@@ -45,6 +49,7 @@ ToggleScreenGui.Name = "ToggleGUI"
 ToggleScreenGui.ResetOnSpawn = false
 ToggleScreenGui.IgnoreGuiInset = true
 ToggleScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ToggleScreenGui.DisplayOrder = 9999  -- ✅ ខ្ពស់បំផុត (ឃើញលើ BG)
 ToggleScreenGui.Parent = GuiParent
 
 local Toggle = Instance.new("ImageButton")
@@ -69,14 +74,14 @@ ToggleStroke.Transparency = 0.2
 ToggleStroke.Parent = Toggle
 
 -- ==================================================
--- MAIN UI
+-- ✅ MAIN UI — DisplayOrder = 999
 -- ==================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "YOKUDO_HUB"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder = 999
+ScreenGui.DisplayOrder = 999  -- ✅ ខ្ពស់ (ឃើញលើ BG)
 ScreenGui.Parent = GuiParent
 
 local Main = Instance.new("Frame")
@@ -224,6 +229,7 @@ _G.YOKUDO_TabScroll = TabScroll
 _G.YOKUDO_Content = Content
 _G.YOKUDO_ScreenGui = ScreenGui
 _G.YOKUDO_Toggle = Toggle
+_G.YOKUDO_ToggleScreenGui = ToggleScreenGui  -- ✅ Export សម្រាប់ការពារ
 _G.YOKUDO_GuiParent = GuiParent
 
 -- ==================================================
@@ -394,4 +400,4 @@ Toggle.MouseButton1Click:Connect(function()
     }):Play()
 end)
 
-print("✅ UI Loaded")
+print("✅ UI Loaded (Toggle=9999 | Main=999)")
