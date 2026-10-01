@@ -1,8 +1,9 @@
 --==================================================
--- YOKUDO HUB | TAB | Auto Farming (FAST)
--- ✅ ភ្ជាប់ជាមួយ AutoFarm + TeleportSystem v21
--- ✅ User ធិក Check Egg → Select Egg → ធិក Start
--- ✅ Audio 2 ពេលធិក Start (ហៅពី Sound.lua)
+-- YOKUDO HUB | TAB | Auto Farming (កែថ្មី)
+-- ✅ Check Egg → គ្មាន Audio/Background
+-- ✅ Select Egg → គ្មាន Audio/Background
+-- ✅ Start (ធិក Get Egg) → StartGetEgg() (Audio 2 + BG)
+-- ✅ ដកធិក → StopGetEgg() (ឈប់ + លុប BG)
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -10,13 +11,10 @@ local TweenService = game:GetService("TweenService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
---==================================================
--- CONTENT
---==================================================
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
 --==================================================
--- FEATURE 1: Click Get Egg
+-- FEATURE 1: Click Get Egg (UI ដើម)
 --==================================================
 local GetEggBox = Instance.new("Frame")
 GetEggBox.Size = UDim2.new(1, 0, 0, 60)
@@ -117,10 +115,16 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ TOGGLE GET EGG (កែ — បន្ថែម Audio 2)
+-- ✅ TOGGLE GET EGG (កែ — ហៅ StartGetEgg / StopGetEgg)
 local function ToggleGetEgg()
+    if not GetEggEnabled and not SelectedEggId then
+        warn("[YOKUDO] សូម Select Egg មុននឹង Start!")
+        return
+    end
+
     GetEggEnabled = not GetEggEnabled
     GetEggCheck.Visible = GetEggEnabled
+
     if GetEggEnabled then
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         GetEggCheckButton.BackgroundTransparency = 0
@@ -130,10 +134,9 @@ local function ToggleGetEgg()
             _G.YOKUDO_AutoFarm.StartTeleport()
         end
 
-        -- ✅ ហៅ Audio 2 ពី Sound.lua
+        -- ✅ ហៅ Audio 2 + Background ពី Sound.lua
         if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.Play2()
-            print("🔊 Auto Farming: Audio 2 Playing")
+            _G.YOKUDO_Sound.StartGetEgg()
         end
     else
         GetEggCheckButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -144,10 +147,9 @@ local function ToggleGetEgg()
             _G.YOKUDO_AutoFarm.StopTeleport()
         end
 
-        -- ✅ ឈប់ Audio 2 ពី Sound.lua
+        -- ✅ ឈប់ Audio 2 + លុប Background ពី Sound.lua
         if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.Stop2()
-            print("🔇 Auto Farming: Audio 2 Stopped")
+            _G.YOKUDO_Sound.StopGetEgg()
         end
     end
 end
@@ -157,7 +159,7 @@ GetEggCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 2: Start Check Egg
+-- FEATURE 2: Start Check Egg (គ្មាន Audio)
 --==================================================
 local CheckEggHolder = Instance.new("Frame")
 CheckEggHolder.Size = UDim2.new(1, 0, 0, 44)
@@ -342,7 +344,6 @@ local function RefreshEggList()
     CheckEggCount.Text = "Egg: " .. #Eggs
 end
 
--- ✅ Debounce Refresh
 local RefreshPending = false
 
 local function QueueRefresh()
@@ -359,6 +360,7 @@ task.spawn(function()
     end
 end)
 
+-- ✅ TOGGLE CHECK EGG (គ្មាន Audio — រក្សាដើម)
 local function ToggleCheckEgg()
     CheckEggEnabled = not CheckEggEnabled
     CheckEggCheck.Visible = CheckEggEnabled
@@ -426,23 +428,4 @@ task.spawn(function()
     end
 end)
 
---==================================================
--- ✅ SYNC LOOP (Backup — Audio 2)
---==================================================
-task.spawn(function()
-    task.wait(2)
-    while true do
-        task.wait(0.5)
-        if _G.YOKUDO_AutoFarm and _G.YOKUDO_Sound then
-            local State = _G.YOKUDO_AutoFarm.IsEnabled()
-            local AudioState = _G.YOKUDO_Sound.IsPlaying2()
-            if State and not AudioState then
-                _G.YOKUDO_Sound.Play2()
-            elseif not State and AudioState then
-                _G.YOKUDO_Sound.Stop2()
-            end
-        end
-    end
-end)
-
-print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21 + Audio 2)")
+print("✅ Auto Farming Tab Loaded (StartGetEgg / StopGetEgg)")
