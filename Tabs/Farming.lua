@@ -1,9 +1,8 @@
 -- ==================================================
 -- YOKUDO HUB | TAB | Farming
 -- ✅ ភ្ជាប់ជាមួយ FarmingManager
--- ✅ Dropdown Select Rarity
+-- ✅ Dropdown Select Rarity (11 Rarity)
 -- ✅ Checkbox Auto AFK Farming
--- ✅ ដក EggCheckPremium ចេញ (បញ្ចូលក្នុង FarmingManager រួចហើយ)
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -15,6 +14,28 @@ local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 -- CONTENT
 -- ==================================================
 CreateSectionTitle(FarmingPage, "Farming", 1)
+
+-- ==================================================
+-- RARITY COLORS
+-- ==================================================
+local RarityColors = {
+    Titan = Color3.fromRGB(255, 0, 0),
+    Cosmic = Color3.fromRGB(150, 0, 255),
+    Eternal = Color3.fromRGB(0, 255, 255),
+    Divine = Color3.fromRGB(255, 255, 255),
+    Secret = Color3.fromRGB(255, 50, 200),
+    Mythic = Color3.fromRGB(255, 100, 100),
+    Legendary = Color3.fromRGB(255, 200, 50),
+    Epic = Color3.fromRGB(200, 100, 255),
+    Rare = Color3.fromRGB(100, 150, 255),
+    Uncommon = Color3.fromRGB(100, 255, 100),
+    Common = Color3.fromRGB(200, 200, 200)
+}
+
+local RarityOrder = {
+    "Titan", "Cosmic", "Eternal", "Divine", "Secret",
+    "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+}
 
 -- ==================================================
 -- SELECT EGG TYPE (DROPDOWN)
@@ -51,16 +72,30 @@ RarityTitle.Font = Enum.Font.Gotham
 RarityTitle.ZIndex = 101
 RarityTitle.Parent = RarityHolder
 
--- Selected Rarities
-local SelectedRarities = { Secret = true, Eternal = true, Divine = true }
+-- Selected Rarities (Default: All)
+local SelectedRarities = {
+    Titan = true,
+    Cosmic = true,
+    Eternal = true,
+    Divine = true,
+    Secret = true,
+    Mythic = true,
+    Legendary = true,
+    Epic = true,
+    Rare = true,
+    Uncommon = true,
+    Common = true
+}
 
 local function GetSelectedText()
     local List = {}
-    if SelectedRarities.Secret then table.insert(List, "Secret") end
-    if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-    if SelectedRarities.Divine then table.insert(List, "Divine") end
+    for _, rarity in ipairs(RarityOrder) do
+        if SelectedRarities[rarity] then
+            table.insert(List, rarity)
+        end
+    end
     if #List == 0 then return "None" end
-    if #List == 3 then return "All" end
+    if #List == 11 then return "All" end
     return table.concat(List, ", ")
 end
 
@@ -90,7 +125,7 @@ DdStroke.Parent = DropdownBtn
 
 -- Dropdown List
 local DropdownList = Instance.new("Frame")
-DropdownList.Size = UDim2.new(0, 120, 0, 80)
+DropdownList.Size = UDim2.new(0, 120, 0, 280)
 DropdownList.Position = UDim2.new(1, -120, 1, 2)
 DropdownList.BackgroundColor3 = Color3.fromRGB(25, 26, 38)
 DropdownList.BorderSizePixel = 0
@@ -132,9 +167,11 @@ local function UpdateOptionVisual(Name)
     if SelectedRarities[Name] then
         Option.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         Option.Text = "✓ " .. Name
+        Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
     else
         Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
         Option.Text = Name
+        Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
     end
 end
 
@@ -144,7 +181,7 @@ local function CreateDropdownOption(Name, Order)
     Option.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
     Option.BorderSizePixel = 0
     Option.Text = Name
-    Option.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Option.TextColor3 = RarityColors[Name] or Color3.fromRGB(255, 255, 255)
     Option.TextSize = 11
     Option.Font = Enum.Font.GothamMedium
     Option.AutoButtonColor = false
@@ -163,12 +200,14 @@ local function CreateDropdownOption(Name, Order)
         UpdateOptionVisual(Name)
         DropdownBtn.Text = GetSelectedText() .. " ▼"
 
-        -- ✅ Update FarmingManager (តែម្នាក់ឯង — គ្មាន EggCheckPremium)
+        -- Update FarmingManager
         if _G.YOKUDO_FarmingManager then
             local List = {}
-            if SelectedRarities.Secret then table.insert(List, "Secret") end
-            if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-            if SelectedRarities.Divine then table.insert(List, "Divine") end
+            for _, rarity in ipairs(RarityOrder) do
+                if SelectedRarities[rarity] then
+                    table.insert(List, rarity)
+                end
+            end
             _G.YOKUDO_FarmingManager.SetRarities(List)
         end
 
@@ -190,9 +229,10 @@ local function CreateDropdownOption(Name, Order)
     UpdateOptionVisual(Name)
 end
 
-CreateDropdownOption("Secret", 1)
-CreateDropdownOption("Eternal", 2)
-CreateDropdownOption("Divine", 3)
+-- Create all 11 options
+for i, rarity in ipairs(RarityOrder) do
+    CreateDropdownOption(rarity, i)
+end
 
 DropdownBtn.MouseButton1Click:Connect(function()
     DropdownList.Visible = not DropdownList.Visible
@@ -223,7 +263,7 @@ local FarmSub = Instance.new("TextLabel")
 FarmSub.Size = UDim2.new(1, -50, 0, 18)
 FarmSub.Position = UDim2.new(0, 0, 0, 24)
 FarmSub.BackgroundTransparency = 1
-FarmSub.Text = "No farm egg noob2"
+FarmSub.Text = "Auto farm selected rarity"
 FarmSub.TextColor3 = Color3.fromRGB(150, 150, 170)
 FarmSub.TextSize = 10
 FarmSub.TextXAlignment = Enum.TextXAlignment.Left
@@ -276,11 +316,13 @@ local function ToggleFarm()
         FarmButton.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
         FarmStroke.Color = Color3.fromRGB(135, 120, 225)
 
-        -- ✅ Set Rarities ទៅ FarmingManager
+        -- Set Rarities to FarmingManager
         local List = {}
-        if SelectedRarities.Secret then table.insert(List, "Secret") end
-        if SelectedRarities.Eternal then table.insert(List, "Eternal") end
-        if SelectedRarities.Divine then table.insert(List, "Divine") end
+        for _, rarity in ipairs(RarityOrder) do
+            if SelectedRarities[rarity] then
+                table.insert(List, rarity)
+            end
+        end
         _G.YOKUDO_FarmingManager.SetRarities(List)
 
         _G.YOKUDO_FarmingManager.Enable()
@@ -359,4 +401,4 @@ _G.YOKUDO_RefreshFarmingUI = function()
     end
 end
 
-print("✅ Farming Tab Loaded (No EggCheckPremium)")
+print("✅ Farming Tab Loaded (11 Rarity)")
