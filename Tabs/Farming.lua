@@ -1,7 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Farming (កែថ្មី)
--- ✅ ហៅ _G.YOKUDO_Sound.StartFarming() / StopFarming()
--- ✅ Background + Audio 1 គ្រប់គ្រងដោយ Sound.lua
+-- YOKUDO HUB | TAB | Farming
+-- ✅ ភ្ជាប់ជាមួយ FarmingManager (Full Auto Loop)
+-- ✅ Dropdown Select Rarity (Scroll បាន)
+-- ✅ Checkbox Auto AFK Farming
+-- ✅ Default: Top1-Top5 Only (Divine, Eternal, Secret, Mythic, Legendary)
+-- ✅ ផ្សេងទៀត User Select ខ្លួនឯង
+-- ✅ Divine = Yellow | Legendary = Red
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -15,27 +19,38 @@ local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
--- RARITY COLORS
+-- RARITY COLORS (ដក Titan)
+-- Divine = Yellow | Legendary = Red
 -- ==================================================
 local RarityColors = {
-    Divine = Color3.fromRGB(255, 215, 0),
-    Eternal = Color3.fromRGB(0, 255, 255),
-    Secret = Color3.fromRGB(255, 50, 200),
-    Mythic = Color3.fromRGB(255, 100, 100),
-    Legendary = Color3.fromRGB(255, 0, 0),
-    Epic = Color3.fromRGB(200, 100, 255),
-    Rare = Color3.fromRGB(100, 150, 255),
-    Uncommon = Color3.fromRGB(100, 255, 100),
-    Common = Color3.fromRGB(200, 200, 200)
-}
-
-local RarityOrder = {
-    "Divine", "Eternal", "Secret", "Mythic", "Legendary",
-    "Epic", "Rare", "Uncommon", "Common"
+    Divine = Color3.fromRGB(255, 215, 0),      -- លឿង (Yellow)
+    Eternal = Color3.fromRGB(0, 255, 255),     -- ខៀវភ្លឺ (Cyan)
+    Secret = Color3.fromRGB(255, 50, 200),     -- ផ្កាឈូក (Pink)
+    Mythic = Color3.fromRGB(255, 100, 100),    -- ក្រហមស្រាល (Light Red)
+    Legendary = Color3.fromRGB(255, 0, 0),     -- ក្រហម (Red)
+    Epic = Color3.fromRGB(200, 100, 255),      -- ស្វាយ (Purple)
+    Rare = Color3.fromRGB(100, 150, 255),      -- ខៀវ (Blue)
+    Uncommon = Color3.fromRGB(100, 255, 100),  -- បៃតង (Green)
+    Common = Color3.fromRGB(200, 200, 200)     -- ស (Gray)
 }
 
 -- ==================================================
--- DROPDOWN (រក្សាដើម)
+-- RARITY ORDER (ដក Titan)
+-- ==================================================
+local RarityOrder = {
+    "Divine",
+    "Eternal",
+    "Secret",
+    "Mythic",
+    "Legendary",
+    "Epic",
+    "Rare",
+    "Uncommon",
+    "Common"
+}
+
+-- ==================================================
+-- SELECT EGG TYPE (DROPDOWN)
 -- ==================================================
 local RarityHolder = Instance.new("Frame")
 RarityHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -52,6 +67,7 @@ RarityLabel.Text = "Select Egg Type"
 RarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 RarityLabel.TextSize = 13
 RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+RarityLabel.TextYAlignment = Enum.TextYAlignment.Center
 RarityLabel.Font = Enum.Font.GothamBold
 RarityLabel.ZIndex = 101
 RarityLabel.Parent = RarityHolder
@@ -68,10 +84,19 @@ RarityTitle.Font = Enum.Font.Gotham
 RarityTitle.ZIndex = 101
 RarityTitle.Parent = RarityHolder
 
+-- ==================================================
+-- SELECTED RARITIES (Default: Top1-Top5 Only)
+-- ==================================================
 local SelectedRarities = {
-    Divine = true, Eternal = true, Secret = true,
-    Mythic = true, Legendary = true,
-    Epic = false, Rare = false, Uncommon = false, Common = false
+    Divine = true,
+    Eternal = true,
+    Secret = true,
+    Mythic = true,
+    Legendary = true,
+    Epic = false,
+    Rare = false,
+    Uncommon = false,
+    Common = false
 }
 
 local function GetSelectedText()
@@ -86,6 +111,7 @@ local function GetSelectedText()
     return table.concat(List, ", ")
 end
 
+-- Dropdown Button
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 120, 0, 28)
 DropdownBtn.Position = UDim2.new(1, -120, 0.5, -14)
@@ -109,6 +135,9 @@ DdStroke.Thickness = 1
 DdStroke.Transparency = 0.3
 DdStroke.Parent = DropdownBtn
 
+-- ==================================================
+-- DROPDOWN LIST (SCROLLABLE)
+-- ==================================================
 local DropdownScroll = Instance.new("ScrollingFrame")
 DropdownScroll.Size = UDim2.new(0, 120, 0, 200)
 DropdownScroll.Position = UDim2.new(1, -120, 1, 2)
@@ -143,6 +172,9 @@ DlPadding.PaddingLeft = UDim.new(0, 4)
 DlPadding.PaddingRight = UDim.new(0, 4)
 DlPadding.Parent = DropdownScroll
 
+-- ==================================================
+-- CREATE DROPDOWN OPTION
+-- ==================================================
 local OptionButtons = {}
 
 local function UpdateOptionVisual(Name)
@@ -198,6 +230,8 @@ local function CreateDropdownOption(Name, Order)
             end
             _G.YOKUDO_FarmingManager.SetRarities(List)
         end
+
+        print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
     Option.MouseEnter:Connect(function()
@@ -240,6 +274,7 @@ FarmLabel.Text = "Auto AFK Farming Egg"
 FarmLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 FarmLabel.TextSize = 13
 FarmLabel.TextXAlignment = Enum.TextXAlignment.Left
+FarmLabel.TextYAlignment = Enum.TextYAlignment.Center
 FarmLabel.Font = Enum.Font.GothamBold
 FarmLabel.Parent = FarmHolder
 
@@ -283,7 +318,7 @@ FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- ✅ TOGGLE FARM (កែ — ហៅ StartFarming / StopFarming)
+-- TOGGLE FARM
 -- ==================================================
 local FarmEnabled = false
 
@@ -307,21 +342,12 @@ local function ToggleFarm()
             end
         end
         _G.YOKUDO_FarmingManager.SetRarities(List)
-        _G.YOKUDO_FarmingManager.Enable()
 
-        -- ✅ ហៅ Audio 1 + Background ពី Sound.lua
-        if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.StartFarming()
-        end
+        _G.YOKUDO_FarmingManager.Enable()
     else
         FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         _G.YOKUDO_FarmingManager.Disable()
-
-        -- ✅ ឈប់ Audio 1 + លុប Background ពី Sound.lua
-        if _G.YOKUDO_Sound then
-            _G.YOKUDO_Sound.StopFarming()
-        end
     end
 end
 
@@ -365,13 +391,15 @@ task.spawn(function()
                     FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
                     FarmStroke.Color = Color3.fromRGB(200, 200, 220)
                 end
+
+                print("[YOKUDO] Farming UI Sync | State: " .. tostring(CurrentState))
             end
         end
     end
 end)
 
 -- ==================================================
--- REFRESH FUNCTION
+-- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
 -- ==================================================
 _G.YOKUDO_RefreshFarmingUI = function()
     if _G.YOKUDO_FarmingManager then
@@ -386,7 +414,9 @@ _G.YOKUDO_RefreshFarmingUI = function()
             FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
             FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         end
+
+        print("[YOKUDO] Farming Tab UI Refreshed | State: " .. tostring(State))
     end
 end
 
-print("✅ Farming Tab Loaded (StartFarming / StopFarming)")
+print("✅ Farming Tab Loaded (Default: Top1-Top5 Only | User Select Others)")
