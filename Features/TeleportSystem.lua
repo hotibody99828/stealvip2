@@ -1,9 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v27)
--- ✅ ដក WalkSpeed ថេរ — ប្រើ WalkSpeed ផ្ទាល់ពី Player
--- ✅ Save/Restore WalkSpeed Real
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v28)
+-- ✅ ប្រើ WalkSpeed ផ្ទាល់ពី Player (ដក 200)
+-- ✅ DropHeldEgg = True → Short TP → 1200m → Drop → Walk TP
 -- ✅ Callback ទៅ FarmingManager
--- ✅ Drop First Egg ពេលជិត 1200m
 -- ✅ MapSettings Integration
 -- ==================================================
 
@@ -15,12 +14,11 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG (ដក WalkSpeed ចេញ)
+-- CONFIG
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
     LockDistance = 1,
-    -- ❌ ដក WalkSpeed = 200 ចេញ
     FlyTPDistance = 20,
     FlyOffset = 3,
     FlySpeed = 200,
@@ -172,9 +170,6 @@ GetPosition = function(Object)
     return nil
 end
 
--- ==================================================
--- ✅ SAVE PLAYER STATS (Save WalkSpeed ផ្ទាល់)
--- ==================================================
 SavePlayerStats = function()
     local Hum = GetHumanoid()
     if not Hum then return end
@@ -236,9 +231,6 @@ IsEggGone = function(Uid)
     return false
 end
 
--- ==================================================
--- GET NEAREST MAP WAIT
--- ==================================================
 GetNearestMapWait = function(EggPos)
     if not EggPos then return 8 end
     
@@ -442,9 +434,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP (Drop First Egg ពេល 1200m)
--- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -470,15 +459,12 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
         Root2.AssemblyAngularVelocity = Vector3.zero
         local Dist = (Root2.Position - Destination).Magnitude
         
-        -- ✅ ជិត 1200m → Drop First Egg + Stop
         if CheckDrop and not ShotStopRequested and Dist <= Config.StopShotDistance then
             ShotStopRequested = true
             if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
             if Hum2 then Hum2.PlatformStand = false end
-            
             RemoteDrop()
             print(string.format("[TeleportSystem] 🥚 First Egg Dropped (Dist: %.1f)", Dist))
-            
             if Callback then Callback() end
             return
         end
@@ -493,6 +479,9 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
+-- ==================================================
+-- ✅ SHOT TP WITH STOP (Stop ពេល 1200m)
+-- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -529,6 +518,8 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
+            print(string.format("[TeleportSystem] ✅ Short TP Stopped | Dist: %.1f", Dist))
+            
             if Callback then Callback() end
             return
         end
@@ -551,17 +542,15 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
         return
     end
 
-    -- ✅ Save WalkSpeed ផ្ទាល់
     if not State.SavedWalkSpeed then
         State.SavedWalkSpeed = Hum.WalkSpeed
         print(string.format("[TeleportSystem] 💾 Saved WalkSpeed: %.1f", State.SavedWalkSpeed))
     end
 
-    -- ✅ ប្រើ WalkSpeed ផ្ទាល់
     local PlayerWalkSpeed = State.SavedWalkSpeed
     Hum.WalkSpeed = PlayerWalkSpeed
     
-    print(string.format("[TeleportSystem] 🚶 WalkTP → %s | Speed: %.1f", tostring(Destination), PlayerWalkSpeed))
+    print(string.format("[TeleportSystem] 🚶 WalkTP | Speed: %.1f", PlayerWalkSpeed))
 
     local StartTime = tick()
     local LastCheck = 0
@@ -573,7 +562,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
         
-        -- ✅ ប្រើ WalkSpeed ផ្ទាល់
         Hum2.WalkSpeed = PlayerWalkSpeed
         
         local Dist = (Root2.Position - Destination).Magnitude
@@ -684,6 +672,9 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 3B (Short TP → 1200m → Drop → Walk TP → Target)
+-- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -698,9 +689,37 @@ Step3b_AfterDropFirst = function()
         end
         if not TargetPos then AutoStop() return end
 
+        print("[TeleportSystem] ⚡ Short TP → Target")
+
+        -- ✅ Step 1: Short TP ទៅ Target
         ShotTPWithStop(TargetPos, Config.ShotTPTime, Config.StopShotDistance, function()
-            task.wait(0.2)
-            Step4_WalkToTargetAndFlyLock()
+            -- ✅ Step 2: ជិត 1200m → Stop
+            print("[TeleportSystem] ✅ Short TP Stopped (1200m)")
+
+            -- ✅ Step 3: Drop First Egg
+            RemoteDrop()
+            State.FirstDropDone = true
+            print("[TeleportSystem] 🥚 First Egg Dropped")
+
+            task.wait(0.3)
+
+            -- ✅ Step 4: Walk TP ទៅ Target
+            print("[TeleportSystem] 🚶 Walk TP → Target")
+            WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
+                task.spawn(function()
+                    local WaitTime = GetNearestMapWait(TargetPos)
+                    task.wait(WaitTime)
+                    if not State.Running then return end
+                    
+                    State.Step = "6_collect_target"
+                    State.TargetCollected = false
+                    State.CurrentEggUid = State.TargetUid
+                    while State.Running and State.Step == "6_collect_target" do
+                        task.wait(Config.CollectInterval)
+                        RemoteCollectTarget()
+                    end
+                end)
+            end)
         end)
     end)
 end
@@ -877,6 +896,9 @@ StartEggGoneCheck = function()
     end)
 end
 
+-- ==================================================
+-- ✅ SETUP DROP HELD EGG (ដក Auto Drop)
+-- ==================================================
 SetupDropHeldEgg = function()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
     if not PG then return end
@@ -887,6 +909,7 @@ SetupDropHeldEgg = function()
     State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
         local IsEnabled = State.DropHeldEgg.Enabled == true
 
+        -- ✅ Step 2: First Egg Collect → Short TP ទៅ Target
         if IsEnabled and State.Running and State.Step == "2_collect_first" then
             State.FirstCollected = true
             State.CurrentEggUid = State.FirstEggUid
@@ -894,7 +917,6 @@ SetupDropHeldEgg = function()
             State.Step = "2b_drop_first"
             task.spawn(function()
                 task.wait(0.05)
-                RemoteDrop()
                 State.FirstDropDone = true
                 State.CurrentEggUid = nil
                 task.wait(0.2)
@@ -902,6 +924,7 @@ SetupDropHeldEgg = function()
             end)
         end
 
+        -- ✅ Step 6: Target Collect → Step 7
         if IsEnabled and State.Running and State.Step == "6_collect_target" then
             State.TargetCollected = true
             State.CurrentEggUid = State.TargetUid
@@ -912,6 +935,7 @@ SetupDropHeldEgg = function()
             end)
         end
 
+        -- ✅ Step 8b: Collect Again → Step 9
         if IsEnabled and State.Running and State.Step == "8b_collect_again" then
             State.CollectedAgain = true
             State.CurrentEggUid = State.TargetUid
@@ -1077,7 +1101,6 @@ end
 
 function TeleportSystem.GetSavedWalkSpeed() return State.SavedWalkSpeed end
 
--- ✅ GET WALK SPEED (Return WalkSpeed ផ្ទាល់)
 function TeleportSystem.GetWalkSpeed()
     if State.SavedWalkSpeed then
         return State.SavedWalkSpeed
@@ -1097,4 +1120,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v27 — WalkSpeed Real Player)")
+print("✅ TeleportSystem Loaded (v28 — Short TP → 1200m → Drop → Walk TP)")
