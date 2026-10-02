@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v23)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v24)
 -- ✅ WalkSpeed ថេរ
 -- ✅ Save/Restore WalkSpeed Real ពី Player
 -- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
--- ✅ ភ្ជាប់ជាមួយ MapSettings (អានតម្លៃថ្មី)
+-- ✅ ភ្ជាប់ជាមួយ Tabs/MapSettings (All In One)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -233,7 +233,7 @@ IsEggGone = function(Uid)
 end
 
 -- ==================================================
--- ✅ GET NEAREST MAP WAIT (អានតម្លៃថ្មីពី MapSettings)
+-- ✅ GET NEAREST MAP WAIT (អានតម្លៃថ្មីពី Tabs/MapSettings)
 -- ==================================================
 GetNearestMapWait = function(EggPos)
     if not EggPos then return 8 end
@@ -251,7 +251,7 @@ GetNearestMapWait = function(EggPos)
         end
     end
     
-    -- ✅ អានតម្លៃថ្មីពី MapSettings
+    -- ✅ អានតម្លៃថ្មីពី _G.YOKUDO_MapSettings
     local Wait = 8  -- Fallback
     
     if _G.YOKUDO_MapSettings then
@@ -1022,4 +1022,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v23 - MapSettings Integration)")
+print("✅ TeleportSystem Loaded (Smart Safe v24 - MapSettings Integration)")
