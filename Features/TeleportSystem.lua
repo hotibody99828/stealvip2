@@ -1,9 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v32)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v33)
 -- ✅ ដក WalkSpeed + FlySpeed — ប្រើ Player Speed
 -- ✅ ដក WalkTimeout — No Limit
 -- ✅ Short TP → 1200m → Stop → Drop → Walk TP → Target
 -- ✅ Collect Target Timeout 25s
+-- ✅ Find Nearest First Egg ពេល Start
+-- ✅ Reset First Egg ពេល Complete
 -- ✅ Character Respawn → Restart
 -- ✅ Callback ទៅ FarmingManager
 -- ✅ MapSettings Integration
@@ -17,7 +19,7 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG (ដក WalkTimeout)
+-- CONFIG
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
@@ -25,7 +27,7 @@ local Config = {
     FlyTPDistance = 20,
     FlyOffset = 3,
     StopShotDistance = 1200,
-    ShotTPTime = 1.40,
+    ShotTPTime = 1.30,
     ShotTPTime2 = 1.30,
     PushUpOffset = 50,
     PlayerCheckDistance = 30,
@@ -35,8 +37,6 @@ local Config = {
 
     -- ✅ Collect Target Timeout
     CollectTargetTimeout = 25,
-
-    -- ❌ ដក WalkTimeout = 30
 
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
@@ -128,6 +128,7 @@ local IsEggGone
 local GetNearestMapWait
 local GetSafePosition
 local GetPlayerSpeed
+local FindNearestFirstEgg
 local PushUp
 local CFrameInstant
 local RemoteCollectFirst
@@ -188,6 +189,42 @@ GetPlayerSpeed = function()
     end
     
     return 16
+end
+
+-- ==================================================
+-- ✅ FIND NEAREST FIRST EGG
+-- ==================================================
+FindNearestFirstEgg = function()
+    local Hum, Root = GetHumanoid()
+    if not Root then return nil, nil end
+    
+    local PlayerPos = Root.Position
+    local NearestEggUid = nil
+    local NearestSlotKey = nil
+    local NearestDist = math.huge
+    
+    for _, child in ipairs(Container:GetChildren()) do
+        if string.find(child.Name, "FirstAreaEgg") then
+            local EggPos = GetPosition(child)
+            if EggPos then
+                local Dist = (EggPos - PlayerPos).Magnitude
+                if Dist < NearestDist then
+                    NearestDist = Dist
+                    NearestEggUid = child.Name
+                    local SlotNum = string.match(child.Name, "Slot_(%d+)")
+                    if SlotNum then
+                        NearestSlotKey = "Forest:Slot_" .. SlotNum
+                    end
+                end
+            end
+        end
+    end
+    
+    if NearestEggUid then
+        print(string.format("[TeleportSystem] 🥚 Nearest First Egg: %s | Dist: %.1f", NearestEggUid, NearestDist))
+    end
+    
+    return NearestEggUid, NearestSlotKey
 end
 
 SavePlayerStats = function()
@@ -558,9 +595,6 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
--- ==================================================
--- ✅ WALK TP (No Limit — ដក Timeout)
--- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -615,7 +649,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
                 if Callback then Callback() end
                 return
             end
-            -- ✅ ដក Timeout Check ចេញ — No Limit
         end
     end)
 end
@@ -632,6 +665,9 @@ NotifyComplete = function()
     end
 end
 
+-- ==================================================
+-- ✅ AUTO STOP (Reset First Egg)
+-- ==================================================
 AutoStop = function()
     StopLock()
     CleanupMovers()
@@ -649,6 +685,10 @@ AutoStop = function()
     State.SafePosition = nil
     State.SafeName = nil
     State.CurrentEggUid = nil
+    
+    -- ✅ Reset First Egg
+    State.FirstEggUid = nil
+    State.FirstEggSlotKey = nil
 
     if State.DropHeldEggConnection then
         State.DropHeldEggConnection:Disconnect()
@@ -659,7 +699,7 @@ AutoStop = function()
         State.EggGoneCheckThread = nil
     end
 
-    print("[TeleportSystem] ✅ Auto Stop + Restored WalkSpeed")
+    print("[TeleportSystem] ✅ Auto Stop + Reset First Egg")
 
     NotifyComplete()
 end
@@ -986,22 +1026,14 @@ SetupDropHeldEgg = function()
     end)
 end
 
+-- ==================================================
+-- ✅ START PROCESS (Find Nearest First Egg)
+-- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
 
-    local FirstEggUid = nil
-    local FirstEggSlotKey = nil
-    for _, child in ipairs(Container:GetChildren()) do
-        if string.find(child.Name, "FirstAreaEgg") then
-            FirstEggUid = child.Name
-            local SlotNum = string.match(child.Name, "Slot_(%d+)")
-            if SlotNum then
-                FirstEggSlotKey = "Forest:Slot_" .. SlotNum
-            end
-            break
-        end
-    end
+    local FirstEggUid, FirstEggSlotKey = FindNearestFirstEgg()
 
     if not FirstEggUid or not FirstEggSlotKey then
         warn("[TeleportSystem] First Egg not found!")
@@ -1072,6 +1104,9 @@ StartProcess = function()
     end)
 end
 
+-- ==================================================
+-- ✅ FULL RESET (Reset First Egg)
+-- ==================================================
 FullReset = function()
     StopLock()
     CleanupMovers()
@@ -1100,8 +1135,12 @@ FullReset = function()
     State.SafePosition = nil
     State.SafeName = nil
     State.CurrentEggUid = nil
+    
+    -- ✅ Reset First Egg
+    State.FirstEggUid = nil
+    State.FirstEggSlotKey = nil
 
-    print("[TeleportSystem] Full Reset")
+    print("[TeleportSystem] Full Reset + Reset First Egg")
 end
 
 -- ==================================================
@@ -1164,4 +1203,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v32 — No WalkTimeout + Timeout 25s + Respawn)")
+print("✅ TeleportSystem Loaded (v33 — Nearest First Egg + Reset + Respawn)")
