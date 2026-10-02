@@ -53,8 +53,8 @@ local MapPositions = {
     {Pos = Vector3.new(3397, 70, -328), Wait = 5},
     {Pos = Vector3.new(2815, 70, -398), Wait = 4},
     {Pos = Vector3.new(2286, 70, -331), Wait = 4},
-    {Pos = Vector3.new(1877, 70, -390), Wait = 2},
-    {Pos = Vector3.new(1488, 70, -318), Wait = 2},
+    {Pos = Vector3.new(1877, 70, -390), Wait = 1},
+    {Pos = Vector3.new(1488, 70, -318), Wait = 1},
     {Pos = Vector3.new(1187, 70, -406), Wait = 1},
     {Pos = Vector3.new(950, 70, -328), Wait = 1},
 }
