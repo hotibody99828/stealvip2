@@ -1,14 +1,15 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v7)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v8)
 -- ✅ TeleportSystem (Tab Auto Farming + Tab Farming)
 -- ✅ SafeSpeedMode Feature
 -- ✅ AutoEventNew + ManagerDrone
 -- ✅ CollectEggNew + ESP Tabs
 -- ✅ FarmingManager (TeleportSystem) + AFKSystem (Walk TP)
--- ✅ AntiGuard.lua (បន្ថែមវិញ)
--- ✅ DropEgg.lua (បន្ថែមវិញ)
--- ❌ គ្មាន VIPTP (ប្រើ TeleportSystem ជំនួស)
+-- ✅ AntiGuard.lua + DropEgg.lua
+-- ✅ SpeedLock.lua (ក្រោយគេ — Check តែម្តង)
+-- ❌ គ្មាន VIPTP
 -- ❌ គ្មាន AntiRagdoll
+-- ❌ គ្មាន Sound/Audio
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -191,12 +192,9 @@ loadstring(GetScript("Features/WalkSpeed.lua"))()
 Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
 
--- ❌ ដក AntiRagdoll
-
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportSystem (Lock Camera + Drop)
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -206,17 +204,12 @@ loadstring(GetScript("Features/AutoFarm.lua"))()
 Loading.Update(45)
 loadstring(GetScript("Features/AutoAttack.lua"))()
 
--- ✅ AFKSystem (Walk TP Only — No Fly/Shot)
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
--- ✅ FarmingManager (ប្រើ TeleportSystem)
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
--- ❌ ដក VIPTP ចេញទាំងស្រុង
-
--- ✅ AutoEventNew
 Loading.Update(56)
 loadstring(GetScript("Features/AutoEventNew.lua"))()
 
@@ -226,15 +219,12 @@ loadstring(GetScript("Features/ManagerDrone.lua"))()
 Loading.Update(60)
 loadstring(GetScript("Features/ManualFastClick.lua"))()
 
--- ✅ DropEgg (បន្ថែមវិញ)
 Loading.Update(61)
 loadstring(GetScript("Features/DropEgg.lua"))()
 
--- ✅ AntiGuard (បន្ថែមវិញ)
 Loading.Update(62)
 loadstring(GetScript("Features/AntiGuard.lua"))()
 
--- ✅ ConfigSystem
 Loading.Update(63)
 loadstring(GetScript("Features/ConfigSystem.lua"))()
 
@@ -253,7 +243,6 @@ loadstring(GetScript("Tabs/Combat.lua"))()
 Loading.Update(73)
 loadstring(GetScript("Tabs/AutoFarming.lua"))()
 
--- ✅ Event Tab (AutoEventNew + Stop All)
 Loading.Update(76)
 loadstring(GetScript("Tabs/Event.lua"))()
 
@@ -263,11 +252,9 @@ loadstring(GetScript("Tabs/HopServer.lua"))()
 Loading.Update(85)
 loadstring(GetScript("Tabs/Setting.lua"))()
 
--- ✅ Collect Egg new Tab
 Loading.Update(88)
 loadstring(GetScript("Tabs/CollectEggNew.lua"))()
 
--- ✅ ESP Tab (Name + Distance + Box)
 Loading.Update(90)
 loadstring(GetScript("Tabs/ESP.lua"))()
 
@@ -284,15 +271,54 @@ Loading.Update(95)
 -- ==================================================
 -- LOAD ANTI CHEAT
 -- ==================================================
-Loading.Update(98)
+Loading.Update(96)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 -- ==================================================
--- ✅ WAIT 2 SECONDS THEN APPLY CONFIG
+-- ✅ LOAD SPEED LOCK (ក្រោយគេ — Check តែម្តង)
 -- ==================================================
-print("⏳ Waiting 2s before applying config...")
+Loading.Update(97)
+loadstring(GetScript("Features/SpeedLock.lua"))()
+
+-- ==================================================
+-- ✅ WAIT & RUN SPEED CHECK (តែម្តង)
+-- ==================================================
+Loading.Update(98)
+print("⏳ Waiting 2s before checking Speed...")
 task.wait(2)
 
+if _G.YOKUDO_SpeedLock then
+    print("🔍 Running Speed Check...")
+    
+    -- ✅ Register Lockable Buttons
+    task.spawn(function()
+        task.wait(0.5)
+        
+        -- ✅ Register Farm Button
+        if _G.YOKUDO_FarmButton then
+            _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_FarmButton, "Farm")
+            print("✅ Registered FarmButton")
+        else
+            warn("⚠️ _G.YOKUDO_FarmButton not found!")
+        end
+        
+        -- ✅ Register Get Egg Button
+        if _G.YOKUDO_GetEggCheckButton then
+            _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_GetEggCheckButton, "GetEgg")
+            print("✅ Registered GetEggCheckButton")
+        else
+            warn("⚠️ _G.YOKUDO_GetEggCheckButton not found!")
+        end
+        
+        -- ✅ Run Check (តែម្តង)
+        task.wait(0.3)
+        _G.YOKUDO_SpeedLock.RunCheck()
+    end)
+end
+
+-- ==================================================
+-- ✅ APPLY CONFIG (បើមាន)
+-- ==================================================
 if _G.YOKUDO_ConfigSystem then
     print("🔧 Applying Config...")
     _G.YOKUDO_ConfigSystem.Load()
