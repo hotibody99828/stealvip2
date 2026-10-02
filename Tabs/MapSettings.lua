@@ -1,10 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Map Settings (v2 FINAL)
+-- YOKUDO HUB | TAB | Map Settings (v3 FINAL)
+-- ✅ Data Only — No Feature
 -- ✅ Map Name + TextBox
 -- ✅ User Input Value
--- ✅ Default Value
 -- ✅ Reset Button
--- ✅ Save/Load Config
+-- ✅ Save/Load Custom Values
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -225,9 +225,9 @@ ResetBtn.MouseButton1Click:Connect(function()
             data.TextBox.Text = tostring(MapData[data.MapId].DefaultWait)
         end
     end
-    print("[MapSettings] 🔄 All Maps Reset to Default")
+    print("[MapSettings] 🔄 All Maps Reset")
 
-    -- ✅ Green Flash Reset Button
+    -- Green Flash
     TweenService:Create(ResetStroke, TweenInfo.new(0.2), {
         Color = Color3.fromRGB(80, 255, 80)
     }):Play()
@@ -238,7 +238,7 @@ ResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- REFRESH FUNCTION (សម្រាប់ ConfigSystem)
+-- REFRESH FUNCTION
 -- ==================================================
 _G.YOKUDO_RefreshMapSettingsUI = function()
     for _, data in ipairs(CreatedEntries) do
@@ -249,4 +249,4 @@ _G.YOKUDO_RefreshMapSettingsUI = function()
     print("[MapSettings] 🔄 UI Refreshed")
 end
 
-print("✅ Map Settings Tab Loaded (v2 FINAL)")
+print("✅ Map Settings Tab Loaded (v3 FINAL)")
