@@ -1,7 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v30)
--- ✅ ដក WalkSpeed + FlySpeed ថេរ — ប្រើ Player Speed
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v31)
+-- ✅ ដក WalkSpeed + FlySpeed — ប្រើ Player Speed
 -- ✅ Short TP → 1200m → Stop → Drop → Walk TP → Target
+-- ✅ Collect Target Timeout 25s
 -- ✅ Character Respawn → Restart
 -- ✅ Callback ទៅ FarmingManager
 -- ✅ MapSettings Integration
@@ -23,13 +24,16 @@ local Config = {
     FlyTPDistance = 20,
     FlyOffset = 3,
     StopShotDistance = 1200,
-    ShotTPTime = 1.20,
-    ShotTPTime2 = 1.20,
+    ShotTPTime = 1.40,
+    ShotTPTime2 = 1.40,
     PushUpOffset = 50,
     PlayerCheckDistance = 30,
     LockWait = 0.1,
     RecoverDistanceThreshold = 500,
     MaxRepeatCount = 10,
+
+    -- ✅ Collect Target Timeout
+    CollectTargetTimeout = 25,
 
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
@@ -171,9 +175,6 @@ GetPosition = function(Object)
     return nil
 end
 
--- ==================================================
--- ✅ GET PLAYER SPEED
--- ==================================================
 GetPlayerSpeed = function()
     if State.SavedWalkSpeed and State.SavedWalkSpeed > 0 then
         return State.SavedWalkSpeed
@@ -685,6 +686,9 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 3B (Timeout 25s)
+-- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -720,9 +724,23 @@ Step3b_AfterDropFirst = function()
                     State.Step = "6_collect_target"
                     State.TargetCollected = false
                     State.CurrentEggUid = State.TargetUid
+                    
+                    -- ✅ Start Timeout
+                    local CollectStartTime = tick()
+                    
                     while State.Running and State.Step == "6_collect_target" do
                         task.wait(Config.CollectInterval)
                         RemoteCollectTarget()
+                        
+                        -- ✅ Check Timeout 25s
+                        if tick() - CollectStartTime >= Config.CollectTargetTimeout then
+                            warn(string.format("[TeleportSystem] ⏱️ Collect Target Timeout (%ds) → Skip", Config.CollectTargetTimeout))
+                            
+                            State.Step = "6b_timeout"
+                            task.wait(0.3)
+                            Step7_ShotToSafePosition()
+                            return
+                        end
                     end
                 end)
             end)
@@ -730,6 +748,9 @@ Step3b_AfterDropFirst = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 4 (Timeout 25s)
+-- ==================================================
 Step4_WalkToTargetAndFlyLock = function()
     if not State.Running then return end
     State.Step = "4_walk_target"
@@ -748,12 +769,27 @@ Step4_WalkToTargetAndFlyLock = function()
         task.spawn(function()
             task.wait(WaitTime)
             if not State.Running then return end
+            
             State.Step = "6_collect_target"
             State.TargetCollected = false
             State.CurrentEggUid = State.TargetUid
+            
+            -- ✅ Start Timeout
+            local CollectStartTime = tick()
+            
             while State.Running and State.Step == "6_collect_target" do
                 task.wait(Config.CollectInterval)
                 RemoteCollectTarget()
+                
+                -- ✅ Check Timeout 25s
+                if tick() - CollectStartTime >= Config.CollectTargetTimeout then
+                    warn(string.format("[TeleportSystem] ⏱️ Collect Target Timeout (%ds) → Skip", Config.CollectTargetTimeout))
+                    
+                    State.Step = "6b_timeout"
+                    task.wait(0.3)
+                    Step7_ShotToSafePosition()
+                    return
+                end
             end
         end)
     end)
@@ -823,6 +859,9 @@ Step8c_CheckDistanceAndRecover = function()
     end
 end
 
+-- ==================================================
+-- ✅ STEP 8B (Timeout 25s)
+-- ==================================================
 Step8b_WalkToCollectAgain = function()
     if not State.Running then return end
     State.Step = "8b_to_collect_again"
@@ -839,10 +878,24 @@ Step8b_WalkToCollectAgain = function()
         State.Step = "8b_collect_again"
         State.CollectedAgain = false
         State.CurrentEggUid = State.TargetUid
+        
         task.spawn(function()
+            -- ✅ Start Timeout
+            local CollectStartTime = tick()
+            
             while State.Running and State.Step == "8b_collect_again" do
                 task.wait(Config.CollectInterval)
                 RemoteCollectTarget()
+                
+                -- ✅ Check Timeout 25s
+                if tick() - CollectStartTime >= Config.CollectTargetTimeout then
+                    warn(string.format("[TeleportSystem] ⏱️ Collect Again Timeout (%ds) → Skip", Config.CollectTargetTimeout))
+                    
+                    State.Step = "8b_timeout"
+                    task.wait(0.3)
+                    Step9_WalkToSwapPosition()
+                    return
+                end
             end
         end)
     end)
@@ -1005,6 +1058,7 @@ StartProcess = function()
 
     print(string.format("[TeleportSystem] 🥚 First Egg: %s", FirstEggUid))
     print(string.format("[TeleportSystem] 🎯 Target Egg: %s", State.TargetUid))
+    print(string.format("[TeleportSystem] ⏱️ Collect Target Timeout: %ds", Config.CollectTargetTimeout))
 
     SavePlayerStats()
 
@@ -1125,4 +1179,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v30 — Player Speed + Respawn Restart)")
+print("✅ TeleportSystem Loaded (v31 — Player Speed + Timeout 25s + Respawn)")
