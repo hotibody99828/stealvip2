@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v36)
--- ✅ រក First Egg ជិត Player បំផុត
--- ✅ Walk TP → First Egg → Collect
--- ✅ Short TP → Target → Drop → Walk TP
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v38)
+-- ✅ គ្មាន Check Destination
+-- ✅ Nearest First Egg — ជិត Player បំផុត
 -- ✅ Collect Timeout 20s
+-- ✅ Short TP → 1200m → Drop → Walk TP
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -403,6 +403,9 @@ StopLock = function()
     end
 end
 
+-- ==================================================
+-- FLY TP AND LOCK (គ្មាន Check Destination)
+-- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -455,6 +458,9 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
+-- ==================================================
+-- SHOT TP (គ្មាន Check Destination)
+-- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -504,6 +510,9 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
+-- ==================================================
+-- SHOT TP WITH STOP (គ្មាន Check Destination)
+-- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -556,6 +565,9 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
+-- ==================================================
+-- WALK TP (គ្មាន Check Destination)
+-- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -621,6 +633,9 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     end)
 end
 
+-- ==================================================
+-- COLLECT TIMEOUT (20s)
+-- ==================================================
 StartCollectTimeout = function(EggUid, Callback)
     State.CollectStartTime = tick()
     
@@ -695,7 +710,7 @@ AutoStop = function()
 end
 
 -- ==================================================
--- ✅ STEP 1 — រក First Egg ជិត Player បំផុត
+-- STEP 1 (រក First Egg ជិត Player បំផុត → Walk TP → Collect)
 -- ==================================================
 Step1_WalkToFirstEgg = function()
     State.Step = "1_to_first"
@@ -764,7 +779,7 @@ Step1_WalkToFirstEgg = function()
 end
 
 -- ==================================================
--- ✅ STEP 3B — Short TP → Target → Drop → Walk TP
+-- STEP 3B (Short TP → 1200m → Drop → Walk TP → Target)
 -- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
@@ -832,6 +847,9 @@ Step3b_AfterDropFirst = function()
     end)
 end
 
+-- ==================================================
+-- STEP 7 (Shot TP → Safe Position)
+-- ==================================================
 Step7_ShotToSafePosition = function()
     if not State.Running then return end
     State.Step = "7_push_up"
@@ -1027,9 +1045,6 @@ SetupDropHeldEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ START PROCESS
--- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
@@ -1196,4 +1211,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v36 — Check First Egg ជិត Player)")
+print("✅ TeleportSystem Loaded (v38 — SIMPLE)")
