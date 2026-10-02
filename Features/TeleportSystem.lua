@@ -1,6 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v30)
--- ✅ Fix: Walk TP Target ជាន់កាល់ដាច់ → Safe Check
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v31)
+-- ✅ Fix: Line 213 Error — Safe Check GetHumanoid
+-- ✅ Fix: Walk TP Target ជាន់កាល់ដាច់
 -- ✅ Fix: Collect Timeout 15s
 -- ✅ Fix: Dead → Respawn → FullReset + Restart
 -- ✅ Fix: Egg Complete → AFK → Check Distance
@@ -30,9 +31,8 @@ local Config = {
     RecoverDistanceThreshold = 500,
     MaxRepeatCount = 10,
 
-    -- ✅ NEW: Collect Timeout
-    CollectTimeout = 15,           -- ✅ Timeout 15s បន្ទាប់ពី Collect Start
-    CollectCheckInterval = 0.5,    -- ✅ Check រាល់ 0.5s
+    CollectTimeout = 15,
+    CollectCheckInterval = 0.5,
 
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
@@ -94,7 +94,7 @@ local State = {
     CollectedAgain = false,
     DropDone = false,
     CollectAttempts = 0,
-    CollectStartTime = nil,  -- ✅ NEW: Collect Start Time
+    CollectStartTime = nil,
 
     SavedWalkSpeed = nil,
     SavedJumpPower = nil,
@@ -146,19 +146,40 @@ local Step8b_WalkToCollectAgain
 local Step8c_CheckDistanceAndRecover
 local Step9_WalkToSwapPosition
 local StartEggGoneCheck
-local StartCollectTimeout  -- ✅ NEW
+local StartCollectTimeout
 local SetupDropHeldEgg
 local StartProcess
 local FullReset
 local NotifyComplete
 
 -- ==================================================
--- UTILS
+-- ✅ GET HUMANOID (Safe Check — Fix Line 213)
 -- ==================================================
 GetHumanoid = function()
+    -- ✅ Check Player
+    local Player = Players.LocalPlayer
+    if not Player then return nil, nil end
+    
+    -- ✅ Check Character
     local Char = Player.Character
     if not Char then return nil, nil end
-    return Char:FindFirstChildOfClass("Humanoid"), Char:FindFirstChild("HumanoidRootPart")
+    
+    -- ✅ Check Parent (Character ត្រូវ Parent ទៅ Workspace)
+    if not Char.Parent then return nil, nil end
+    
+    -- ✅ Check Humanoid
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    if not Hum then return nil, nil end
+    
+    -- ✅ Check RootPart
+    local Root = Char:FindFirstChild("HumanoidRootPart")
+    if not Root then return nil, nil end
+    
+    -- ✅ Check Health
+    if Hum.Health <= 0 then return nil, nil end
+    
+    -- ✅ All OK → Return
+    return Hum, Root
 end
 
 GetPosition = function(Object)
@@ -187,9 +208,15 @@ GetPlayerSpeed = function()
     return 16
 end
 
+-- ==================================================
+-- ✅ SAVE PLAYER STATS (Safe Check)
+-- ==================================================
 SavePlayerStats = function()
-    local Hum = GetHumanoid()
-    if not Hum then return end
+    local Hum, Root = GetHumanoid()
+    if not Hum then 
+        print("[TeleportSystem] ⚠️ SavePlayerStats: Humanoid not found")
+        return 
+    end
 
     State.SavedWalkSpeed = Hum.WalkSpeed
     State.SavedJumpPower = Hum.JumpPower
@@ -200,9 +227,15 @@ SavePlayerStats = function()
         State.SavedWalkSpeed, State.SavedJumpPower))
 end
 
+-- ==================================================
+-- ✅ RESTORE STATS (Safe Check)
+-- ==================================================
 RestoreStats = function()
-    local Hum = GetHumanoid()
-    if not Hum then return end
+    local Hum, Root = GetHumanoid()
+    if not Hum then 
+        print("[TeleportSystem] ⚠️ RestoreStats: Humanoid not found → Skip")
+        return 
+    end
 
     if State.SavedWalkSpeed ~= nil then
         pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
@@ -220,24 +253,26 @@ RestoreStats = function()
     end
 end
 
+-- ==================================================
+-- ✅ CLEANUP MOVERS (Safe Check)
+-- ==================================================
 CleanupMovers = function()
     if State.WalkConnection then State.WalkConnection:Disconnect() State.WalkConnection = nil end
     if State.FlyConnection then State.FlyConnection:Disconnect() State.FlyConnection = nil end
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
 
+    -- ✅ Safe Check
     local Hum, Root = GetHumanoid()
-    if Hum then
-        pcall(function()
-            Hum.PlatformStand = false
-            Hum.Sit = false
-        end)
-    end
-    if Root then
-        pcall(function()
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
+    if not Hum or not Root then return end
+    
+    pcall(function()
+        Hum.PlatformStand = false
+        Hum.Sit = false
+    end)
+    pcall(function()
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
 end
 
 IsEggGone = function(Uid)
@@ -338,7 +373,7 @@ end
 CFrameInstant = function(Destination, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
         if Callback then Callback() end
         return
     end
@@ -402,17 +437,14 @@ StopLock = function()
     end
 end
 
--- ==================================================
--- ✅ FLY TP AND LOCK (Safe Check + Retry)
--- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
         print("[TeleportSystem] ⚠️ FlyTPAndLock: Humanoid not found → Retry")
         task.wait(0.5)
         Hum, Root = GetHumanoid()
-        if not Hum or not Root or Hum.Health <= 0 then
+        if not Hum or not Root then
             if Callback then Callback() end
             return
         end
@@ -434,7 +466,7 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
             return
         end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then 
+        if not Hum2 or not Root2 then 
             CleanupMovers() 
             return 
         end
@@ -468,7 +500,7 @@ end
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
         if Callback then Callback() end
         return
     end
@@ -485,7 +517,7 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     State.FlyConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        if not Hum2 or not Root2 then CleanupMovers() return end
         local Elapsed = tick() - StartTime
         local Alpha = math.clamp(Elapsed / Time, 0, 1)
         local NewPos = StartPos:Lerp(Destination, Alpha)
@@ -514,17 +546,14 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP WITH STOP (Safe Check)
--- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
         print("[TeleportSystem] ⚠️ ShotTPWithStop: Humanoid not found → Retry")
         task.wait(0.5)
         Hum, Root = GetHumanoid()
-        if not Hum or not Root or Hum.Health <= 0 then
+        if not Hum or not Root then
             if Callback then Callback() end
             return
         end
@@ -540,7 +569,7 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     State.FlyConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        if not Hum2 or not Root2 then CleanupMovers() return end
 
         local Elapsed = tick() - StartTime
         local Alpha = math.clamp(Elapsed / Time, 0, 1)
@@ -574,17 +603,14 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
--- ==================================================
--- ✅ WALK TP (Safe Check + Retry)
--- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
-    if not Hum or not Root or Hum.Health <= 0 then
+    if not Hum or not Root then
         print("[TeleportSystem] ⚠️ WalkTP: Humanoid not found → Retry")
         task.wait(0.5)
         Hum, Root = GetHumanoid()
-        if not Hum or not Root or Hum.Health <= 0 then
+        if not Hum or not Root then
             if Callback then Callback() end
             return
         end
@@ -603,7 +629,7 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     State.WalkConnection = RunService.Heartbeat:Connect(function()
         if not State.Running then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
-        if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
+        if not Hum2 or not Root2 then CleanupMovers() return end
         
         Hum2.WalkSpeed = PlayerSpeed
         
@@ -647,9 +673,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     end)
 end
 
--- ==================================================
--- ✅ COLLECT TIMEOUT (15s)
--- ==================================================
 StartCollectTimeout = function(EggUid, Callback)
     State.CollectStartTime = tick()
     
@@ -659,7 +682,6 @@ StartCollectTimeout = function(EggUid, Callback)
             
             if not State.Running then break end
             
-            -- ✅ Check Timeout
             local Elapsed = tick() - State.CollectStartTime
             if Elapsed >= Config.CollectTimeout then
                 print(string.format("[TeleportSystem] ⚠️ Collect Timeout (%.1fs) → Auto Stop", Elapsed))
@@ -670,7 +692,6 @@ StartCollectTimeout = function(EggUid, Callback)
                 return
             end
             
-            -- ✅ Check Egg Gone
             if EggUid and IsEggGone(EggUid) then
                 print("[TeleportSystem] ✅ Collect Done (Egg Gone)")
                 State.CollectStartTime = nil
@@ -680,9 +701,6 @@ StartCollectTimeout = function(EggUid, Callback)
     end)
 end
 
--- ==================================================
--- NOTIFY COMPLETE
--- ==================================================
 NotifyComplete = function()
     print("[TeleportSystem] ✅ NotifyComplete → Call FarmingManager")
 
@@ -706,7 +724,7 @@ AutoStop = function()
     State.CollectedAgain = false
     State.DropDone = false
     State.CollectAttempts = 0
-    State.CollectStartTime = nil  -- ✅ Reset Collect Time
+    State.CollectStartTime = nil
     State.FirstDropDone = false
     State.RepeatCount = 0
     State.IsRecoverMode = false
@@ -728,13 +746,9 @@ AutoStop = function()
     NotifyComplete()
 end
 
--- ==================================================
--- ✅ STEP 1 (Walk TP ទៅ First Egg)
--- ==================================================
 Step1_WalkToFirstEgg = function()
     State.Step = "1_to_first"
     
-    -- ✅ Check Humanoid
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
         warn("[TeleportSystem] ⚠️ Step1: No Humanoid → Wait 1s")
@@ -757,7 +771,6 @@ Step1_WalkToFirstEgg = function()
         State.FirstCollected = false
         State.CurrentEggUid = State.FirstEggUid
         
-        -- ✅ Start Collect Timeout (15s)
         StartCollectTimeout(State.FirstEggUid)
         
         task.spawn(function()
@@ -771,9 +784,6 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 3B (Short TP → 1200m → Drop → Walk TP → Target)
--- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -810,7 +820,6 @@ Step3b_AfterDropFirst = function()
                     State.TargetCollected = false
                     State.CurrentEggUid = State.TargetUid
                     
-                    -- ✅ Start Collect Timeout (15s)
                     StartCollectTimeout(State.TargetUid)
                     
                     while State.Running and State.Step == "6_collect_target" do
@@ -845,7 +854,6 @@ Step4_WalkToTargetAndFlyLock = function()
             State.TargetCollected = false
             State.CurrentEggUid = State.TargetUid
             
-            -- ✅ Start Collect Timeout (15s)
             StartCollectTimeout(State.TargetUid)
             
             while State.Running and State.Step == "6_collect_target" do
@@ -888,9 +896,6 @@ Step7_ShotToSafePosition = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 8C (Check Distance + Recover)
--- ==================================================
 Step8c_CheckDistanceAndRecover = function()
     if not State.Running then return end
     State.Step = "8c_check_distance"
@@ -921,7 +926,9 @@ Step8c_CheckDistanceAndRecover = function()
         task.wait(0.5)
         Step1_WalkToFirstEgg()
     end
-endStep8b_WalkToCollectAgain = function()
+end
+
+Step8b_WalkToCollectAgain = function()
     if not State.Running then return end
     State.Step = "8b_to_collect_again"
 
@@ -938,7 +945,6 @@ endStep8b_WalkToCollectAgain = function()
         State.CollectedAgain = false
         State.CurrentEggUid = State.TargetUid
         
-        -- ✅ Start Collect Timeout (15s)
         StartCollectTimeout(State.TargetUid)
         
         task.spawn(function()
@@ -1017,7 +1023,7 @@ SetupDropHeldEgg = function()
         if IsEnabled and State.Running and State.Step == "2_collect_first" then
             State.FirstCollected = true
             State.CurrentEggUid = State.FirstEggUid
-            State.CollectStartTime = nil  -- ✅ Reset Collect Time
+            State.CollectStartTime = nil
             StopLock()
             State.Step = "2b_drop_first"
             task.spawn(function()
@@ -1032,7 +1038,7 @@ SetupDropHeldEgg = function()
         if IsEnabled and State.Running and State.Step == "6_collect_target" then
             State.TargetCollected = true
             State.CurrentEggUid = State.TargetUid
-            State.CollectStartTime = nil  -- ✅ Reset Collect Time
+            State.CollectStartTime = nil
             StopLock()
             task.spawn(function()
                 task.wait(0.02)
@@ -1043,7 +1049,7 @@ SetupDropHeldEgg = function()
         if IsEnabled and State.Running and State.Step == "8b_collect_again" then
             State.CollectedAgain = true
             State.CurrentEggUid = State.TargetUid
-            State.CollectStartTime = nil  -- ✅ Reset Collect Time
+            State.CollectStartTime = nil
             StopLock()
             task.spawn(function()
                 task.wait(0.2)
@@ -1053,9 +1059,6 @@ SetupDropHeldEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ START PROCESS
--- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
@@ -1125,7 +1128,7 @@ StartProcess = function()
     State.CollectedAgain = false
     State.DropDone = false
     State.CollectAttempts = 0
-    State.CollectStartTime = nil  -- ✅ Reset
+    State.CollectStartTime = nil
     State.FirstDropDone = false
     State.RepeatCount = 0
     State.IsRecoverMode = false
@@ -1170,34 +1173,28 @@ FullReset = function()
     State.SafePosition = nil
     State.SafeName = nil
     State.CurrentEggUid = nil
-    State.CollectStartTime = nil  -- ✅ Reset
+    State.CollectStartTime = nil
 
     print("[TeleportSystem] Full Reset")
 end
 
--- ==================================================
--- ✅ CHARACTER ADDED (Respawn → FullReset + Restart)
--- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not State.Running then return end
     
     print("[TeleportSystem] 🔄 Character Added → FullReset + Restart")
     
-    task.wait(3)  -- រង់ចាំ BypassAntiCheat
+    task.wait(3)
     
-    -- ✅ Check បើ TargetUid នៅ
     if not State.TargetUid then
         print("[TeleportSystem] ⚠️ No TargetUid → Stop")
         FullReset()
         return
     end
     
-    -- ✅ Restart
     FullReset()
     
     task.wait(0.5)
     
-    -- ✅ Check Target មាន
     local TargetInContainer = Container:FindFirstChild(State.TargetUid)
     local TargetInWorkspace = workspace:FindFirstChild(State.TargetUid)
     
@@ -1210,9 +1207,6 @@ Player.CharacterAdded:Connect(function(Char)
     StartProcess()
 end)
 
--- ==================================================
--- PUBLIC API
--- ==================================================
 local TeleportSystem = {}
 
 function TeleportSystem.Enable()
@@ -1246,7 +1240,6 @@ function TeleportSystem.GetWalkSpeed() return GetPlayerSpeed() end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
--- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v30 — Fix 4 Issues)")
+print("✅ TeleportSystem Loaded (v31 — Fix Line 213)")
