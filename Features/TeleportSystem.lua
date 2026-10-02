@@ -1,10 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v25)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v24)
 -- ✅ WalkSpeed ថេរ
 -- ✅ Save/Restore WalkSpeed Real ពី Player
 -- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
 -- ✅ ភ្ជាប់ជាមួយ Tabs/MapSettings (All In One)
--- ✅ Check Target ≠ First Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -121,7 +120,6 @@ local SavePlayerStats
 local RestoreStats
 local CleanupMovers
 local IsEggGone
-local IsFirstEgg
 local GetNearestMapWait
 local GetSafePosition
 local PushUp
@@ -171,14 +169,6 @@ GetPosition = function(Object)
         return Object.Position
     end
     return nil
-end
-
--- ==================================================
--- ✅ IS FIRST EGG
--- ==================================================
-IsFirstEgg = function(Name)
-    if not Name then return false end
-    return string.find(Name, "FirstAreaEgg") ~= nil
 end
 
 SavePlayerStats = function()
@@ -248,6 +238,7 @@ end
 GetNearestMapWait = function(EggPos)
     if not EggPos then return 8 end
     
+    -- ✅ Find Nearest Map
     local NearestDist = math.huge
     local NearestMapId = 1
     local NearestMapName = "Unknown"
@@ -260,17 +251,21 @@ GetNearestMapWait = function(EggPos)
         end
     end
     
-    local Wait = 8
+    -- ✅ អានតម្លៃថ្មីពី _G.YOKUDO_MapSettings
+    local Wait = 8  -- Fallback
     
     if _G.YOKUDO_MapSettings then
+        -- ✅ Custom ឬ Default
         Wait = _G.YOKUDO_MapSettings.GetMapWait(NearestMapId)
         
+        -- ✅ Get Map Info
         local MapInfo = _G.YOKUDO_MapSettings.GetMapData(NearestMapId)
         if MapInfo then
             NearestMapName = MapInfo.Name
         end
     end
     
+    -- ✅ Print Info
     print(string.format("[TeleportSystem] 🗺️ %s (Map %d) | Wait: %d | Dist: %.1f",
         NearestMapName, NearestMapId, Wait, NearestDist))
     
@@ -699,6 +694,7 @@ Step4_WalkToTargetAndFlyLock = function()
     end
     if not TargetPos then AutoStop() return end
 
+    -- ✅ អាន Wait ពី MapSettings
     local WaitTime = GetNearestMapWait(TargetPos)
 
     WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
@@ -906,18 +902,14 @@ SetupDropHeldEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ START PROCESS (Check Target ≠ First Egg)
--- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
 
-    -- ✅ រក First Egg
     local FirstEggUid = nil
     local FirstEggSlotKey = nil
     for _, child in ipairs(Container:GetChildren()) do
-        if IsFirstEgg(child.Name) then
+        if string.find(child.Name, "FirstAreaEgg") then
             FirstEggUid = child.Name
             local SlotNum = string.match(child.Name, "Slot_(%d+)")
             if SlotNum then
@@ -931,20 +923,6 @@ StartProcess = function()
         warn("[TeleportSystem] First Egg not found!")
         return
     end
-
-    -- ✅ Check: Target មិនមែន First Egg
-    if not State.TargetUid then
-        warn("[TeleportSystem] No Target ID")
-        return
-    end
-    
-    if IsFirstEgg(State.TargetUid) then
-        warn("[TeleportSystem] ⚠️ Target ជា First Egg! សូមជ្រើសរើស Egg ផ្សេង")
-        return
-    end
-
-    print(string.format("[TeleportSystem] 🥚 First Egg: %s", FirstEggUid))
-    print(string.format("[TeleportSystem] 🎯 Target Egg: %s", State.TargetUid))
 
     SavePlayerStats()
 
@@ -1016,12 +994,6 @@ function TeleportSystem.Enable()
     if not DropEvent then warn("[TeleportSystem] DropEvent not found") return end
     if not State.TargetUid then warn("[TeleportSystem] No Target ID") return end
 
-    -- ✅ Check Target ≠ First Egg
-    if IsFirstEgg(State.TargetUid) then
-        warn("[TeleportSystem] ⚠️ Target ជា First Egg! សូមជ្រើសរើស Egg ផ្សេង")
-        return
-    end
-
     FullReset()
     StartProcess()
 
@@ -1034,12 +1006,6 @@ function TeleportSystem.Disable()
 end
 
 function TeleportSystem.SetTargetId(Id)
-    -- ✅ Check Target ≠ First Egg
-    if IsFirstEgg(Id) then
-        warn("[TeleportSystem] ⚠️ Cannot Set Target as First Egg!")
-        return
-    end
-    
     State.TargetUid = Id
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
@@ -1052,9 +1018,8 @@ function TeleportSystem.GetSavedWalkSpeed() return State.SavedWalkSpeed end
 function TeleportSystem.GetWalkSpeed() return Config.WalkSpeed end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
-function TeleportSystem.IsFirstEgg = IsFirstEgg
 
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v25 — Skip First Egg)")
+print("✅ TeleportSystem Loaded (Smart Safe v24 - MapSettings Integration)")
