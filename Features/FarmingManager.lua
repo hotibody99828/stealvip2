@@ -1,15 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (FULL AUTO LOOP)
+-- YOKUDO HUB | FEATURE | Farming Manager (v2 FULL)
+-- ✅ Filter Character + Player
+-- ✅ Skip First Egg
+-- ✅ Prevent Loop Reset
 -- ✅ Spawn Path First → Workspace Backup
--- ✅ Walk TP (Speed ដើម) → Safe Zone
--- ✅ Start → Check Egg → TeleportSystem
--- ✅ TeleportSystem Done → Call Manager → Check New ID
--- ✅ No Egg → AFKSystem
--- ✅ Loop រហូត (មិនឈប់)
--- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
--- ✅ Default: Top1-Top5 Only | User Select Others
--- ✅ តម្រៀប: Top1 → Top2 → Top3 → Top4 → Top5
--- ✅ Skip First Egg (មិនយកជា Target)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -28,7 +22,7 @@ pcall(function()
 end)
 
 -- ==================================================
--- SETTINGS (WALK TP)
+-- SETTINGS
 -- ==================================================
 local NIGHT_CHECK_INTERVAL = 0.03
 local DAY_CHECK_INTERVAL = 0.05
@@ -49,34 +43,70 @@ local Cache = {
 }
 
 -- ==================================================
--- RARITY PRIORITY (Top1-Top5)
+-- RARITY PRIORITY
 -- ==================================================
 local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3,
-    Mythic = 3,
-    Legendary = 4,
-    Epic = 5,
-    Rare = 5,
-    Uncommon = 5,
-    Common = 5
+    Divine = 1, Eternal = 2, Secret = 3, Mythic = 3,
+    Legendary = 4, Epic = 5, Rare = 5, Uncommon = 5, Common = 5
 }
 
 -- ==================================================
 -- SELECTED RARITIES (Default: Top1-Top5 Only)
 -- ==================================================
 local SelectedRarities = {
-    Divine = true,
-    Eternal = true,
-    Secret = true,
-    Mythic = true,
-    Legendary = true,
-    Epic = false,
-    Rare = false,
-    Uncommon = false,
-    Common = false
+    Divine = true, Eternal = true, Secret = true,
+    Mythic = true, Legendary = true,
+    Epic = false, Rare = false, Uncommon = false, Common = false
 }
+
+-- ==================================================
+-- ✅ FILTER FUNCTIONS
+-- ==================================================
+-- ✅ Check: Player Character
+local function IsPlayerCharacter(Obj)
+    if not Obj then return false end
+    
+    -- ✅ Method 1: Humanoid
+    if Obj:FindFirstChildOfClass("Humanoid") then return true end
+    
+    -- ✅ Method 2: HumanoidRootPart
+    if Obj:FindFirstChild("HumanoidRootPart") then return true end
+    
+    -- ✅ Method 3: Player Name
+    for _, P in ipairs(Players:GetPlayers()) do
+        if P.Name == Obj.Name or P.DisplayName == Obj.Name then
+            return true
+        end
+    end
+    
+    -- ✅ Method 4: Player.Character
+    for _, P in ipairs(Players:GetPlayers()) do
+        if P.Character == Obj then return true end
+    end
+    
+    return false
+end
+
+-- ✅ Check: Valid Egg
+local function IsValidEgg(Obj)
+    if not Obj then return false end
+    if not Obj:IsA("Model") then return false end
+    
+    -- ✅ Skip First Egg
+    if string.find(Obj.Name, "FirstAreaEgg") then return false end
+    
+    -- ✅ Skip Player Character
+    if IsPlayerCharacter(Obj) then return false end
+    
+    -- ✅ Skip Player Name
+    for _, P in ipairs(Players:GetPlayers()) do
+        if P.Name == Obj.Name or P.DisplayName == Obj.Name then
+            return false
+        end
+    end
+    
+    return true
+end
 
 -- ==================================================
 -- BUILD MESHID MAP
@@ -113,7 +143,7 @@ local function BuildMeshIdMap()
     end
 
     Cache.MeshIdMapBuilt = true
-    print("[FarmingManager] MeshId Map Built (Cache)")
+    print("[FarmingManager] MeshId Map Built")
 end
 
 -- ==================================================
@@ -121,10 +151,7 @@ end
 -- ==================================================
 local function GetPetData(AssetCategory)
     if not AssetCategory then return nil end
-
-    if Cache.PetData[AssetCategory] then
-        return Cache.PetData[AssetCategory]
-    end
+    if Cache.PetData[AssetCategory] then return Cache.PetData[AssetCategory] end
 
     local Assets = ReplicatedStorage:FindFirstChild("Data")
     if not Assets then return nil end
@@ -156,26 +183,18 @@ local function FindAssetCategory(EggModel)
     if not EggModel then return nil end
 
     local Uid = EggModel.Name
-    if Cache.UidCategory[Uid] then
-        return Cache.UidCategory[Uid]
-    end
+    if Cache.UidCategory[Uid] then return Cache.UidCategory[Uid] end
 
     if not Cache.MeshIdMapBuilt then BuildMeshIdMap() end
 
     for _, Desc in ipairs(EggModel:GetDescendants()) do
         if Desc:IsA("MeshPart") and Desc.MeshId ~= "" then
             local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
+            if Cat then Cache.UidCategory[Uid] = Cat return Cat end
         end
         if Desc:IsA("SpecialMesh") and Desc.MeshId ~= "" then
             local Cat = Cache.MeshIdMap[Desc.MeshId]
-            if Cat then
-                Cache.UidCategory[Uid] = Cat
-                return Cat
-            end
+            if Cat then Cache.UidCategory[Uid] = Cat return Cat end
         end
     end
 
@@ -183,7 +202,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGGS (Top1 → Top5)
+-- SORT EGGS
 -- ==================================================
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
@@ -195,7 +214,7 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- ✅ FIND BEST EGG (Skip First Egg)
+-- ✅ FIND BEST EGG (Filter Character + First Egg)
 -- ==================================================
 local function FindBestEgg()
     local EggList = {}
@@ -204,8 +223,8 @@ local function FindBestEgg()
     if Container then
         for _, Slot in ipairs(Container:GetChildren()) do
             if Slot:IsA("Model") then
-                -- ✅ Skip First Egg
-                if string.find(Slot.Name, "FirstAreaEgg") then
+                -- ✅ Check Valid Egg
+                if not IsValidEgg(Slot) then
                     continue
                 end
                 
@@ -232,11 +251,11 @@ local function FindBestEgg()
         return EggList[1]
     end
 
-    -- ✅ Workspace Backup (Skip First Egg)
+    -- ✅ Workspace Backup (Filter Character + First Egg)
     for _, Obj in ipairs(workspace:GetChildren()) do
         if Obj:IsA("Model") then
-            -- ✅ Skip First Egg
-            if string.find(Obj.Name, "FirstAreaEgg") then
+            -- ✅ Check Valid Egg
+            if not IsValidEgg(Obj) then
                 continue
             end
             
@@ -283,23 +302,18 @@ local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
 local WaitingForTeleport = false
-local LoopRunning = false
-
+local LastTargetUid = nil  -- ✅ Prevent Loop
 local WalkConnection = nil
 
 -- ==================================================
 -- GET CHAR / ROOT / HUM
 -- ==================================================
-local function GetChar()
-    return Player.Character
-end
-
+local function GetChar() return Player.Character end
 local function GetRoot()
     local Char = GetChar()
     if not Char then return nil end
     return Char:FindFirstChild("HumanoidRootPart")
 end
-
 local function GetHum()
     local Char = GetChar()
     if not Char then return nil end
@@ -353,21 +367,12 @@ local function WalkTP(Destination, Callback)
     local LastCheck = 0
 
     WalkConnection = RunService.Heartbeat:Connect(function()
-        if not FarmingEnabled then
-            CleanupWalk()
-            return
-        end
+        if not FarmingEnabled then CleanupWalk() return end
 
         local Hum2 = GetHum()
         local Root2 = GetRoot()
-        if not Hum2 or not Root2 then
-            CleanupWalk()
-            return
-        end
-        if Hum2.Health <= 0 then
-            CleanupWalk()
-            return
-        end
+        if not Hum2 or not Root2 then CleanupWalk() return end
+        if Hum2.Health <= 0 then CleanupWalk() return end
 
         Hum2:MoveTo(Destination)
 
@@ -441,23 +446,20 @@ local function StopAll()
 
     if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
         _G.YOKUDO_TeleportSystem.Disable()
-        print("[FarmingManager] ✅ TeleportSystem Stopped")
     end
 
     CleanupWalk()
 end
 
 -- ==================================================
--- FLY TO SAFE ZONE AND WAIT
+-- FLY TO SAFE ZONE
 -- ==================================================
 local function FlyToSafeZoneAndWait()
     local Root = GetRoot()
     if not Root then return false end
 
     local DistToSafe = (Root.Position - SAFE_ZONE).Magnitude
-    if DistToSafe <= SAFE_ZONE_DIST then
-        return true
-    end
+    if DistToSafe <= SAFE_ZONE_DIST then return true end
 
     WalkTP(SAFE_ZONE)
 
@@ -504,17 +506,11 @@ local function EnableAFK()
 end
 
 -- ==================================================
--- CALLBACK ពី TELEPORT SYSTEM
+-- ON TELEPORT COMPLETE (Prevent Loop)
 -- ==================================================
 local function OnTeleportComplete()
-    if not FarmingEnabled then
-        print("[FarmingManager] OnTeleportComplete: Farming not enabled → Skip")
-        return
-    end
-    if not WaitingForTeleport then
-        print("[FarmingManager] OnTeleportComplete: Not waiting → Skip")
-        return
-    end
+    if not FarmingEnabled then return end
+    if not WaitingForTeleport then return end
 
     WaitingForTeleport = false
     AFKStarted = false
@@ -523,6 +519,15 @@ local function OnTeleportComplete()
     local BestEgg = FindBestEgg()
 
     if BestEgg then
+        -- ✅ Check Same Target → Skip Loop
+        if BestEgg.Uid == LastTargetUid then
+            warn("[FarmingManager] ⚠️ Same Target → Skip Loop")
+            task.wait(1)
+            EnableAFK()
+            return
+        end
+        
+        LastTargetUid = BestEgg.Uid
         print("[FarmingManager] New Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| Location:", BestEgg.Location)
         PendingEggUid = BestEgg.Uid
 
@@ -533,7 +538,6 @@ local function OnTeleportComplete()
                 StartTeleportSystem(PendingEggUid)
                 PendingEggUid = nil
             else
-                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
                 EnableAFK()
             end
         end)
@@ -544,7 +548,7 @@ local function OnTeleportComplete()
 end
 
 -- ==================================================
--- MAIN LOOP (FULL AUTO)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started (Full Auto)")
@@ -558,6 +562,7 @@ local function MainLoop()
         if BestEgg then
             print("[FarmingManager] ✅ Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| $/s:", BestEgg.EarningRate, "| Location:", BestEgg.Location)
             PendingEggUid = BestEgg.Uid
+            LastTargetUid = BestEgg.Uid
 
             StopAll()
             task.wait(0.3)
@@ -596,6 +601,7 @@ local function Enable()
     AFKStarted = false
     PendingEggUid = nil
     WaitingForTeleport = false
+    LastTargetUid = nil
 
     if FarmingThread then
         pcall(function() task.cancel(FarmingThread) end)
@@ -603,7 +609,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (Full Auto Loop + Skip First Egg)")
+    print("[YOKUDO] FarmingManager: ON (Full Auto Loop)")
 end
 
 local function Disable()
@@ -620,6 +626,7 @@ local function Disable()
     AFKStarted = false
     PendingEggUid = nil
     WaitingForTeleport = false
+    LastTargetUid = nil
     CurrentState = "IDLE"
     CurrentPhase = "UNKNOWN"
     print("[YOKUDO] FarmingManager: OFF")
@@ -679,9 +686,6 @@ task.spawn(function()
     print("[FarmingManager] Cache Ready")
 end)
 
--- ==================================================
--- PERIODIC CACHE CLEANUP (រាល់ 30s)
--- ==================================================
 task.spawn(function()
     while task.wait(30) do
         Cache.UidCategory = {}
@@ -689,4 +693,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (Full Auto Loop — Skip First Egg)")
+print("✅ FarmingManager Loaded (v2 FULL — Filter Character + Player)")
