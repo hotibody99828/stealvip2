@@ -1,12 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (v4 FULL)
+-- YOKUDO HUB | FEATURE | Farming Manager (v3 FULL)
 -- ✅ Divine Priority (Force Divine មុន)
--- ✅ Filter Character + Player
--- ✅ Skip First Egg
--- ✅ Prevent Loop Reset
+-- ✅ Filter Character + Player + First Egg
+-- ✅ Prevent Loop Reset (LastTargetUid)
 -- ✅ Spawn Path First → Workspace Backup
--- ✅ Fix: check Distance មុន Walk TP (AFK)
--- ✅ Fix: Safe Check + Timeout
+-- ✅ Full Auto Loop
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,7 +32,6 @@ local SAFE_ZONE_DIST = 5
 local SAFE_WAIT_AFTER_REACH = 1
 local WALK_TIMEOUT = 30
 local LOOP_WAIT_AFTER_AFK = 2
-local MIN_WALK_DISTANCE = 10  -- ✅ បន្ថែម: បើជិតជាង 10 → មិន Walk TP
 
 -- ==================================================
 -- CACHE SYSTEM
@@ -202,7 +199,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- ✅ SORT EGGS (Rarity Priority + EarningRate)
+-- SORT EGGS (Rarity Priority + EarningRate)
 -- ==================================================
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
@@ -388,7 +385,7 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- ✅ WALK TP (Safe Check + Distance Check)
+-- WALK TP
 -- ==================================================
 local function WalkTP(Destination, Callback)
     CleanupWalk()
@@ -403,17 +400,10 @@ local function WalkTP(Destination, Callback)
         if Callback then Callback() end
         return
     end
-    
-    -- ✅ Distance Check — បើជិតជាង 10 → មិន Walk TP
-    local Distance = (Root.Position - Destination).Magnitude
-    if Distance <= MIN_WALK_DISTANCE then
-        print(string.format("[FarmingManager] ⏭️ Already Close (Dist: %.1f) → Skip Walk TP", Distance))
-        if Callback then Callback() end
-        return
-    end
 
-    print(string.format("[FarmingManager] 🚶 Walk TP → %s | Dist: %.1f | Speed: %d", 
-        tostring(Destination), Distance, Hum.WalkSpeed))
+    -- ✅ ប្រើ WalkSpeed ផ្ទាល់
+    local PlayerSpeed = Hum.WalkSpeed
+    print(string.format("[FarmingManager] 🚶 Walk TP → %s | Speed: %.1f", tostring(Destination), PlayerSpeed))
 
     local StartTime = tick()
     local LastCheck = 0
@@ -441,7 +431,7 @@ local function WalkTP(Destination, Callback)
 
             if tick() - StartTime > WALK_TIMEOUT then
                 CleanupWalk()
-                print("[FarmingManager] ⚠️ Walk TP Timeout")
+                print("[FarmingManager] Walk TP Timeout")
                 if Callback then Callback() end
                 return
             end
@@ -558,7 +548,7 @@ local function EnableAFK()
 end
 
 -- ==================================================
--- ✅ ON TELEPORT COMPLETE (Prevent Loop + Distance Check)
+-- ON TELEPORT COMPLETE (Prevent Loop)
 -- ==================================================
 local function OnTeleportComplete()
     if not FarmingEnabled then return end
@@ -571,7 +561,6 @@ local function OnTeleportComplete()
     local BestEgg = FindBestEgg()
 
     if BestEgg then
-        -- ✅ Check Same Target
         if BestEgg.Uid == LastTargetUid then
             warn("[FarmingManager] ⚠️ Same Target → Skip Loop")
             task.wait(1)
@@ -600,7 +589,7 @@ local function OnTeleportComplete()
 end
 
 -- ==================================================
--- MAIN LOOP (Distance Check)
+-- MAIN LOOP
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started (Full Auto)")
@@ -612,29 +601,6 @@ local function MainLoop()
         local BestEgg = FindBestEgg()
 
         if BestEgg then
-            -- ✅ Check Distance — បើជិតជាង 10 → Enable AFK
-            local Root = GetRoot()
-            if Root then
-                local EggPos = nil
-                if BestEgg.Slot then
-                    EggPos = BestEgg.Slot.PrimaryPart and BestEgg.Slot.PrimaryPart.Position
-                    if not EggPos then
-                        local Part = BestEgg.Slot:FindFirstChildWhichIsA("BasePart")
-                        if Part then EggPos = Part.Position end
-                    end
-                end
-                
-                if EggPos then
-                    local Dist = (Root.Position - EggPos).Magnitude
-                    if Dist <= MIN_WALK_DISTANCE then
-                        print(string.format("[FarmingManager] ⏭️ Egg Already Close (Dist: %.1f) → AFK", Dist))
-                        EnableAFK()
-                        task.wait(LOOP_WAIT_AFTER_AFK)
-                        continue
-                    end
-                end
-            end
-            
             print("[FarmingManager] ✅ Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| $/s:", BestEgg.EarningRate, "| Location:", BestEgg.Location)
             PendingEggUid = BestEgg.Uid
             LastTargetUid = BestEgg.Uid
@@ -747,7 +713,6 @@ _G.YOKUDO_FarmingManager = {
     NIGHT_CHECK_INTERVAL = NIGHT_CHECK_INTERVAL,
     DAY_CHECK_INTERVAL = DAY_CHECK_INTERVAL,
     WALK_TIMEOUT = WALK_TIMEOUT,
-    MIN_WALK_DISTANCE = MIN_WALK_DISTANCE,
     OnVIPTPComplete = OnTeleportComplete,
     OnTeleportComplete = OnTeleportComplete,
     WalkTP = WalkTP,
@@ -769,4 +734,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (v4 FULL — Divine Priority + Distance Check)")
+print("✅ FarmingManager Loaded (v3 — Divine Priority + Filter)")
