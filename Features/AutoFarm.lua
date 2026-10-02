@@ -2,6 +2,7 @@
 -- YOKUDO HUB | FEATURE | Auto Farm (FAST)
 -- ✅ Cache PetData + UidCategory → លឿន
 -- ✅ ភ្ជាប់ជាមួយ TeleportSystem ថ្មី (Smart Safe v21)
+-- ✅ Skip First Egg (មិនយកជា Target)
 -- ✅ Disable VIPTP ពេល StartTeleport (ការពារជាន់គ្នា)
 -- ==================================================
 
@@ -41,7 +42,15 @@ pcall(function()
 end)
 
 --==================================================
--- BUILD MESHID MAP (ម្ដងគត់)
+-- ✅ IS FIRST EGG
+--==================================================
+local function IsFirstEgg(Name)
+    if not Name then return false end
+    return string.find(Name, "FirstAreaEgg") ~= nil
+end
+
+--==================================================
+-- BUILD MESHID MAP
 --==================================================
 local function BuildMeshIdMap()
     if Cache.MeshIdMapBuilt then return end
@@ -125,7 +134,7 @@ local function FormatMoney(Amount)
 end
 
 --==================================================
--- CALCULATE REAL RATE (CACHE MUTATIONS)
+-- CALCULATE REAL RATE
 --==================================================
 local function CalculateRatePerSecond(EarningRate, Scale, Mutations)
     local PayoutFactor
@@ -149,7 +158,7 @@ local function CalculateRatePerSecond(EarningRate, Scale, Mutations)
 end
 
 --==================================================
--- FIND ASSET CATEGORY (CACHE Uid)
+-- FIND ASSET CATEGORY
 --==================================================
 local function FindAssetCategory(EggModel)
     if not EggModel then return nil end
@@ -179,13 +188,18 @@ local function FindAssetCategory(EggModel)
 end
 
 --==================================================
--- SCAN EGGS (FAST)
+-- ✅ SCAN EGGS (Skip First Egg)
 --==================================================
 local function ScanEggs()
     EggList = {}
 
     for _, child in ipairs(Container:GetChildren()) do
         if child:IsA("Model") then
+            -- ✅ Skip First Egg
+            if IsFirstEgg(child.Name) then
+                continue
+            end
+            
             local AssetCategory = FindAssetCategory(child)
             if AssetCategory then
                 local Data = GetPetData(AssetCategory)
@@ -231,12 +245,18 @@ end
 -- SELECT EGG
 --==================================================
 local function SelectEgg(EggData)
+    -- ✅ Skip First Egg
+    if IsFirstEgg(EggData.Id) then
+        warn("[AutoFarm] ⚠️ Cannot Select First Egg!")
+        return
+    end
+    
     SelectedEgg = EggData
     print("[YOKUDO] Selected Egg: " .. EggData.DisplayName .. " ($" .. FormatMoney(EggData.EarningRate) .. "/s)")
 end
 
 --==================================================
--- START TELEPORT (Disable VIPTP មុន)
+-- START TELEPORT
 --==================================================
 local function StartTeleport()
     if not SelectedEgg then
@@ -244,12 +264,17 @@ local function StartTeleport()
         return
     end
 
-    -- ✅ Disable VIPTP (Tab Farming) មុន
+    -- ✅ Skip First Egg
+    if IsFirstEgg(SelectedEgg.Id) then
+        warn("[YOKUDO] ⚠️ Cannot Start with First Egg!")
+        return
+    end
+
     if _G.YOKUDO_VIPTP and _G.YOKUDO_VIPTP.IsEnabled() then
         pcall(function()
             _G.YOKUDO_VIPTP.Disable()
         end)
-        print("[AutoFarm] ✅ Disabled VIPTP (Prevent Conflict)")
+        print("[AutoFarm] ✅ Disabled VIPTP")
     end
 
     print("[YOKUDO] Start Teleport | Target: " .. SelectedEgg.Id)
@@ -287,6 +312,7 @@ _G.YOKUDO_AutoFarm = {
     StopTeleport = StopTeleport,
     GetSelectedEgg = function() return SelectedEgg end,
     FormatMoney = FormatMoney,
+    IsFirstEgg = IsFirstEgg,
 
     ClearCache = function()
         Cache.UidCategory = {}
@@ -316,4 +342,4 @@ if _G.YOKUDO_CharacterSystem then
     })
 end
 
-print("✅ AutoFarm Feature Loaded (FAST + CACHE + TeleportSystem v21)")
+print("✅ AutoFarm Feature Loaded (FAST + Skip First Egg)")
