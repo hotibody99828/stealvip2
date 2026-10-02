@@ -1,8 +1,12 @@
 --==================================================
--- YOKUDO HUB | TAB | Setting (UPDATED v2)
--- ✅ Safe Speed Mode
+-- YOKUDO HUB | TAB | Setting (UPDATED v3)
+-- ✅ Anti Trap
+-- ✅ God Mode
+-- ✅ Manual Fast Click
+-- ✅ Anti AFK
+-- ❌ គ្មាន Safe Speed Mode (REMOVED)
 -- ❌ គ្មាន Method/Speed TextBox/AntiRagdoll
--- ❌ គ្មាន Walk Speed (REMOVED)
+-- ❌ គ្មាន Walk Speed
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -16,103 +20,12 @@ local SettingTab, SettingPage = TabsManager:RegisterTab("Setting", 7, "SETTING")
 CreateSectionTitle(SettingPage, "Settings", 1)
 
 --==================================================
--- ✅ FEATURE 1: SAFE SPEED MODE
---==================================================
-local SafeSpeedHolder = Instance.new("Frame")
-SafeSpeedHolder.Size = UDim2.new(1, 0, 0, 52)
-SafeSpeedHolder.BackgroundTransparency = 1
-SafeSpeedHolder.LayoutOrder = 2
-SafeSpeedHolder.Parent = SettingPage
-
-local SafeSpeedLabel = Instance.new("TextLabel")
-SafeSpeedLabel.Size = UDim2.new(1, -50, 0, 20)
-SafeSpeedLabel.Position = UDim2.new(0, 0, 0, 2)
-SafeSpeedLabel.BackgroundTransparency = 1
-SafeSpeedLabel.Text = "Safe Speed Mode"
-SafeSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-SafeSpeedLabel.TextSize = 13
-SafeSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SafeSpeedLabel.TextYAlignment = Enum.TextYAlignment.Center
-SafeSpeedLabel.Font = Enum.Font.GothamBold
-SafeSpeedLabel.Parent = SafeSpeedHolder
-
-local SafeSpeedSub = Instance.new("TextLabel")
-SafeSpeedSub.Size = UDim2.new(1, -50, 0, 18)
-SafeSpeedSub.Position = UDim2.new(0, 0, 0, 24)
-SafeSpeedSub.BackgroundTransparency = 1
-SafeSpeedSub.Text = "ON: Speed 265 | OFF: Player Speed"
-SafeSpeedSub.TextColor3 = Color3.fromRGB(180, 180, 180)
-SafeSpeedSub.TextSize = 10
-SafeSpeedSub.TextXAlignment = Enum.TextXAlignment.Left
-SafeSpeedSub.Font = Enum.Font.Gotham
-SafeSpeedSub.Parent = SafeSpeedHolder
-
-local SafeSpeedBtn = Instance.new("TextButton")
-SafeSpeedBtn.Size = UDim2.new(0, 26, 0, 26)
-SafeSpeedBtn.Position = UDim2.new(1, -26, 0.5, -13)
-SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-SafeSpeedBtn.BorderSizePixel = 0
-SafeSpeedBtn.Text = ""
-SafeSpeedBtn.AutoButtonColor = false
-SafeSpeedBtn.Parent = SafeSpeedHolder
-
-local SafeSpeedCorner = Instance.new("UICorner")
-SafeSpeedCorner.CornerRadius = UDim.new(0, 6)
-SafeSpeedCorner.Parent = SafeSpeedBtn
-
-local SafeSpeedStroke = Instance.new("UIStroke")
-SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-SafeSpeedStroke.Thickness = 1.5
-SafeSpeedStroke.Parent = SafeSpeedBtn
-
-local SafeSpeedCheck = Instance.new("TextLabel")
-SafeSpeedCheck.Size = UDim2.new(1, 0, 1, 0)
-SafeSpeedCheck.BackgroundTransparency = 1
-SafeSpeedCheck.Text = "✓"
-SafeSpeedCheck.TextColor3 = Color3.fromRGB(255, 255, 255)
-SafeSpeedCheck.TextSize = 18
-SafeSpeedCheck.Font = Enum.Font.GothamBold
-SafeSpeedCheck.Visible = false
-SafeSpeedCheck.Parent = SafeSpeedBtn
-
-local SafeSpeedEnabled = false
-
-local function ToggleSafeSpeed()
-    SafeSpeedEnabled = not SafeSpeedEnabled
-    SafeSpeedCheck.Visible = SafeSpeedEnabled
-
-    if SafeSpeedEnabled then
-        SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-        SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-    else
-        SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-        SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-    end
-
-    if _G.YOKUDO_TeleportSystem then
-        _G.YOKUDO_TeleportSystem.SetSafeSpeedMode(SafeSpeedEnabled)
-    end
-
-    _G.YOKUDO_SafeSpeedMode = SafeSpeedEnabled
-
-    if _G.YOKUDO_ConfigSystem then
-        _G.YOKUDO_ConfigSystem.Save()
-    end
-
-    print("[Setting] Safe Speed Mode:", SafeSpeedEnabled)
-end
-
-SafeSpeedBtn.MouseButton1Click:Connect(function()
-    ToggleSafeSpeed()
-end)
-
---==================================================
--- FEATURE 2: ANTI TRAP
+-- FEATURE 1: ANTI TRAP
 --==================================================
 local AntiTrapHolder = Instance.new("Frame")
 AntiTrapHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiTrapHolder.BackgroundTransparency = 1
-AntiTrapHolder.LayoutOrder = 3
+AntiTrapHolder.LayoutOrder = 2
 AntiTrapHolder.Parent = SettingPage
 
 local AntiTrapLabel = Instance.new("TextLabel")
@@ -191,12 +104,12 @@ AntiTrapCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 3: GOD MODE
+-- FEATURE 2: GOD MODE
 --==================================================
 local GodModeHolder = Instance.new("Frame")
 GodModeHolder.Size = UDim2.new(1, 0, 0, 52)
 GodModeHolder.BackgroundTransparency = 1
-GodModeHolder.LayoutOrder = 4
+GodModeHolder.LayoutOrder = 3
 GodModeHolder.Parent = SettingPage
 
 local GodModeLabel = Instance.new("TextLabel")
@@ -341,12 +254,12 @@ GodModeButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- FEATURE 4: MANUAL FAST CLICK
+-- FEATURE 3: MANUAL FAST CLICK
 --==================================================
 local FastClickHolder = Instance.new("Frame")
 FastClickHolder.Size = UDim2.new(1, 0, 0, 52)
 FastClickHolder.BackgroundTransparency = 1
-FastClickHolder.LayoutOrder = 5
+FastClickHolder.LayoutOrder = 4
 FastClickHolder.Parent = SettingPage
 
 local FastClickLabel = Instance.new("TextLabel")
@@ -448,12 +361,12 @@ task.spawn(function()
 end)
 
 --==================================================
--- FEATURE 5: ANTI AFK
+-- FEATURE 4: ANTI AFK
 --==================================================
 local AntiAFKHolder = Instance.new("Frame")
 AntiAFKHolder.Size = UDim2.new(1, 0, 0, 52)
 AntiAFKHolder.BackgroundTransparency = 1
-AntiAFKHolder.LayoutOrder = 6
+AntiAFKHolder.LayoutOrder = 5
 AntiAFKHolder.Parent = SettingPage
 
 local AntiAFKLabel = Instance.new("TextLabel")
@@ -532,20 +445,10 @@ AntiAFKCheckButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- ✅ SYNC ON LOAD
+-- SYNC ON LOAD
 --==================================================
 task.spawn(function()
     task.wait(0.5)
-
-    if _G.YOKUDO_TeleportSystem then
-        local SafeState = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
-        if SafeState then
-            SafeSpeedEnabled = true
-            SafeSpeedCheck.Visible = true
-            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-        end
-    end
 
     if _G.YOKUDO_AntiAFK then
         if _G.YOKUDO_AntiAFK.IsEnabled() then
@@ -557,25 +460,4 @@ task.spawn(function()
     end
 end)
 
---==================================================
--- ✅ REFRESH FUNCTION
---==================================================
-_G.YOKUDO_RefreshSettingUI = function()
-    if _G.YOKUDO_TeleportSystem then
-        local State = _G.YOKUDO_TeleportSystem.GetSafeSpeedMode and _G.YOKUDO_TeleportSystem.GetSafeSpeedMode()
-        SafeSpeedEnabled = State or false
-        SafeSpeedCheck.Visible = SafeSpeedEnabled
-
-        if SafeSpeedEnabled then
-            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(105, 90, 190)
-            SafeSpeedStroke.Color = Color3.fromRGB(135, 120, 225)
-        else
-            SafeSpeedBtn.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
-            SafeSpeedStroke.Color = Color3.fromRGB(200, 200, 220)
-        end
-
-        print("[YOKUDO] Setting UI Refreshed | SafeSpeed:", SafeSpeedEnabled)
-    end
-end
-
-print("✅ Setting Tab Loaded (No Walk Speed)")
+print("✅ Setting Tab Loaded (v3 — No Safe Speed Mode)")
