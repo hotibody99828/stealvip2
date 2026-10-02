@@ -1,5 +1,6 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (v2 FULL)
+-- YOKUDO HUB | FEATURE | Farming Manager (v3 FULL)
+-- ✅ Divine Priority (Force Divine មុន)
 -- ✅ Filter Character + Player
 -- ✅ Skip First Egg
 -- ✅ Prevent Loop Reset
@@ -46,8 +47,15 @@ local Cache = {
 -- RARITY PRIORITY
 -- ==================================================
 local RARITY_PRIORITY = {
-    Divine = 1, Eternal = 2, Secret = 3, Mythic = 3,
-    Legendary = 4, Epic = 5, Rare = 5, Uncommon = 5, Common = 5
+    Divine = 1,
+    Eternal = 2,
+    Secret = 3,
+    Mythic = 3,
+    Legendary = 4,
+    Epic = 5,
+    Rare = 5,
+    Uncommon = 5,
+    Common = 5
 }
 
 -- ==================================================
@@ -62,24 +70,18 @@ local SelectedRarities = {
 -- ==================================================
 -- ✅ FILTER FUNCTIONS
 -- ==================================================
--- ✅ Check: Player Character
 local function IsPlayerCharacter(Obj)
     if not Obj then return false end
     
-    -- ✅ Method 1: Humanoid
     if Obj:FindFirstChildOfClass("Humanoid") then return true end
-    
-    -- ✅ Method 2: HumanoidRootPart
     if Obj:FindFirstChild("HumanoidRootPart") then return true end
     
-    -- ✅ Method 3: Player Name
     for _, P in ipairs(Players:GetPlayers()) do
         if P.Name == Obj.Name or P.DisplayName == Obj.Name then
             return true
         end
     end
     
-    -- ✅ Method 4: Player.Character
     for _, P in ipairs(Players:GetPlayers()) do
         if P.Character == Obj then return true end
     end
@@ -87,18 +89,13 @@ local function IsPlayerCharacter(Obj)
     return false
 end
 
--- ✅ Check: Valid Egg
 local function IsValidEgg(Obj)
     if not Obj then return false end
     if not Obj:IsA("Model") then return false end
     
-    -- ✅ Skip First Egg
     if string.find(Obj.Name, "FirstAreaEgg") then return false end
-    
-    -- ✅ Skip Player Character
     if IsPlayerCharacter(Obj) then return false end
     
-    -- ✅ Skip Player Name
     for _, P in ipairs(Players:GetPlayers()) do
         if P.Name == Obj.Name or P.DisplayName == Obj.Name then
             return false
@@ -202,7 +199,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGGS
+-- ✅ SORT EGGS (Rarity Priority + EarningRate)
 -- ==================================================
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
@@ -214,24 +211,40 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- ✅ FIND BEST EGG (Filter Character + First Egg)
+-- ✅ FIND BEST EGG (Divine Priority)
 -- ==================================================
 local function FindBestEgg()
     local EggList = {}
+
+    -- ✅ Divine Priority
+    local DivineEgg = nil
+    local DivineEarningRate = 0
 
     local Container = workspace:FindFirstChild("AreaEggSlotsClient")
     if Container then
         for _, Slot in ipairs(Container:GetChildren()) do
             if Slot:IsA("Model") then
-                -- ✅ Check Valid Egg
-                if not IsValidEgg(Slot) then
-                    continue
-                end
+                if not IsValidEgg(Slot) then continue end
                 
                 local Category = FindAssetCategory(Slot)
                 if Category then
                     local Data = GetPetData(Category)
                     if Data and SelectedRarities[Data.Rarity] then
+                        -- ✅ Divine Priority
+                        if Data.Rarity == "Divine" then
+                            if Data.EarningRate > DivineEarningRate then
+                                DivineEarningRate = Data.EarningRate
+                                DivineEgg = {
+                                    Slot = Slot,
+                                    Uid = Slot.Name,
+                                    Rarity = "Divine",
+                                    EarningRate = Data.EarningRate,
+                                    DisplayName = Data.DisplayName,
+                                    Location = "spawn"
+                                }
+                            end
+                        end
+                        
                         table.insert(EggList, {
                             Slot = Slot,
                             Uid = Slot.Name,
@@ -246,23 +259,44 @@ local function FindBestEgg()
         end
     end
 
+    -- ✅ Divine Found → Return ភ្លាម
+    if DivineEgg then
+        print("[FarmingManager] ✨ Divine Egg (Priority):", DivineEgg.DisplayName)
+        return DivineEgg
+    end
+
     if #EggList > 0 then
         SortEggs(EggList)
         return EggList[1]
     end
 
-    -- ✅ Workspace Backup (Filter Character + First Egg)
+    -- ✅ Workspace Backup (Divine Priority)
+    local WsDivineEgg = nil
+    local WsDivineEarningRate = 0
+
     for _, Obj in ipairs(workspace:GetChildren()) do
         if Obj:IsA("Model") then
-            -- ✅ Check Valid Egg
-            if not IsValidEgg(Obj) then
-                continue
-            end
+            if not IsValidEgg(Obj) then continue end
             
             local Category = FindAssetCategory(Obj)
             if Category then
                 local Data = GetPetData(Category)
                 if Data and SelectedRarities[Data.Rarity] then
+                    -- ✅ Divine Priority
+                    if Data.Rarity == "Divine" then
+                        if Data.EarningRate > WsDivineEarningRate then
+                            WsDivineEarningRate = Data.EarningRate
+                            WsDivineEgg = {
+                                Slot = Obj,
+                                Uid = Obj.Name,
+                                Rarity = "Divine",
+                                EarningRate = Data.EarningRate,
+                                DisplayName = Data.DisplayName,
+                                Location = "workspace"
+                            }
+                        end
+                    end
+                    
                     table.insert(EggList, {
                         Slot = Obj,
                         Uid = Obj.Name,
@@ -274,6 +308,12 @@ local function FindBestEgg()
                 end
             end
         end
+    end
+
+    -- ✅ Divine Found → Return ភ្លាម
+    if WsDivineEgg then
+        print("[FarmingManager] ✨ Divine Egg (Workspace):", WsDivineEgg.DisplayName)
+        return WsDivineEgg
     end
 
     if #EggList == 0 then return nil end
@@ -302,7 +342,7 @@ local FarmingThread = nil
 local AFKStarted = false
 local PendingEggUid = nil
 local WaitingForTeleport = false
-local LastTargetUid = nil  -- ✅ Prevent Loop
+local LastTargetUid = nil
 local WalkConnection = nil
 
 -- ==================================================
@@ -519,7 +559,6 @@ local function OnTeleportComplete()
     local BestEgg = FindBestEgg()
 
     if BestEgg then
-        -- ✅ Check Same Target → Skip Loop
         if BestEgg.Uid == LastTargetUid then
             warn("[FarmingManager] ⚠️ Same Target → Skip Loop")
             task.wait(1)
@@ -693,4 +732,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (v2 FULL — Filter Character + Player)")
+print("✅ FarmingManager Loaded (v3 FULL — Divine Priority)")
