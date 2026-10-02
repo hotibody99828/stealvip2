@@ -1,10 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Speed Lock System (v5 FINAL)
--- ✅ Lock Icon បង្ហាញពេល Speed < 1B
--- ✅ Check Inside Toggle Functions
--- ✅ Show Message ពេល User ចុច
--- ✅ Safe Call (pcall)
--- ✅ Fix Syntax Error
+-- YOKUDO HUB | FEATURE | Speed Lock System (v6 FINAL)
+-- ✅ Emoji 🔒 លើ Button ពេល Speed < 1B
+-- ✅ ដក 🔒 ចេញ ពេល Speed ≥ 1B
+-- ✅ Show Message
+-- ✅ Safe Call
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -27,6 +26,7 @@ local CONFIG = {
 local IsUnlocked = false
 local SpeedValue = nil
 local LockedButtons = {}
+local OriginalButtonData = {}  -- ✅ Store Original Data
 
 -- ==================================================
 -- SAFE CALL
@@ -106,7 +106,7 @@ local function CheckSpeed()
 end
 
 -- ==================================================
--- SHOW MESSAGE (Top Center)
+-- SHOW MESSAGE
 -- ==================================================
 local function ShowMessage(Text, Duration)
     pcall(function()
@@ -184,56 +184,21 @@ local function ShowMessage(Text, Duration)
 end
 
 -- ==================================================
--- CREATE LOCK ICON
--- ==================================================
-local function CreateLockIcon(Parent, Size)
-    local OldLock = Parent:FindFirstChild("SpeedLockIcon")
-    if OldLock then OldLock:Destroy() end
-    
-    local LockIcon = Instance.new("ImageLabel")
-    LockIcon.Name = "SpeedLockIcon"
-    LockIcon.Size = Size or UDim2.new(1, 0, 1, 0)
-    LockIcon.Position = UDim2.new(0, 0, 0, 0)
-    LockIcon.BackgroundTransparency = 1
-    LockIcon.Image = "rbxassetid://6031090990"
-    LockIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-    LockIcon.ImageTransparency = 0.2
-    LockIcon.ZIndex = 100
-    LockIcon.Parent = Parent
-    
-    local Overlay = Instance.new("Frame")
-    Overlay.Name = "LockOverlay"
-    Overlay.Size = UDim2.new(1, 0, 1, 0)
-    Overlay.Position = UDim2.new(0, 0, 0, 0)
-    Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Overlay.BackgroundTransparency = 0.5
-    Overlay.BorderSizePixel = 0
-    Overlay.ZIndex = 99
-    Overlay.Parent = Parent
-    
-    local OverlayCorner = Instance.new("UICorner")
-    OverlayCorner.CornerRadius = UDim.new(0, 6)
-    OverlayCorner.Parent = Overlay
-    
-    return LockIcon, Overlay
-end
-
--- ==================================================
--- REMOVE LOCK ICON
--- ==================================================
-local function RemoveLockIcon(Parent)
-    local LockIcon = Parent:FindFirstChild("SpeedLockIcon")
-    if LockIcon then LockIcon:Destroy() end
-    
-    local Overlay = Parent:FindFirstChild("LockOverlay")
-    if Overlay then Overlay:Destroy() end
-end
-
--- ==================================================
 -- REGISTER LOCKABLE BUTTON
 -- ==================================================
 local function RegisterLockableButton(Button, Name)
     if not Button then return end
+    
+    -- ✅ Store Original Data
+    table.insert(OriginalButtonData, {
+        Button = Button,
+        OriginalText = Button.Text,
+        OriginalTextSize = Button.TextSize,
+        OriginalTextColor3 = Button.TextColor3,
+        OriginalFont = Button.Font,
+        OriginalBackgroundColor3 = Button.BackgroundColor3,
+        OriginalBackgroundTransparency = Button.BackgroundTransparency,
+    })
     
     table.insert(LockedButtons, {
         Button = Button,
@@ -244,13 +209,31 @@ local function RegisterLockableButton(Button, Name)
 end
 
 -- ==================================================
--- APPLY LOCK
+-- ✅ APPLY LOCK (ដាក់ Emoji 🔒)
 -- ==================================================
 local function ApplyLockToAll()
     for _, data in ipairs(LockedButtons) do
         local Button = data.Button
         if Button and Button.Parent then
-            CreateLockIcon(Button, UDim2.new(0, 26, 0, 26))
+            -- ✅ ដាក់ Emoji 🔒 លើ Button
+            Button.Text = "🔒"
+            Button.TextSize = 20
+            Button.TextColor3 = Color3.fromRGB(255, 80, 80)
+            Button.Font = Enum.Font.GothamBold
+            
+            -- ✅ Background ក្រហមស្រាល
+            Button.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
+            Button.BackgroundTransparency = 0.3
+            
+            -- ✅ Stroke ក្រហម
+            local Stroke = Button:FindFirstChildOfClass("UIStroke")
+            if Stroke then
+                Stroke.Color = Color3.fromRGB(255, 80, 80)
+                Stroke.Thickness = 2
+                Stroke.Transparency = 0.2
+            end
+            
+            -- ✅ Disable Button
             Button.Active = false
             Button.Selectable = false
         end
@@ -260,13 +243,29 @@ local function ApplyLockToAll()
 end
 
 -- ==================================================
--- REMOVE LOCK
+-- ✅ REMOVE LOCK (ដក Emoji 🔒 ចេញ)
 -- ==================================================
 local function RemoveLockFromAll()
-    for _, data in ipairs(LockedButtons) do
+    -- ✅ Restore Original Data
+    for _, data in ipairs(OriginalButtonData) do
         local Button = data.Button
         if Button and Button.Parent then
-            RemoveLockIcon(Button)
+            Button.Text = data.OriginalText or ""
+            Button.TextSize = data.OriginalTextSize or 14
+            Button.TextColor3 = data.OriginalTextColor3 or Color3.fromRGB(255, 255, 255)
+            Button.Font = data.OriginalFont or Enum.Font.GothamBold
+            
+            Button.BackgroundColor3 = data.OriginalBackgroundColor3 or Color3.fromRGB(28, 29, 39)
+            Button.BackgroundTransparency = data.OriginalBackgroundTransparency or 0
+            
+            -- ✅ Stroke ត្រលប់ដើម
+            local Stroke = Button:FindFirstChildOfClass("UIStroke")
+            if Stroke then
+                Stroke.Color = Color3.fromRGB(200, 200, 220)
+                Stroke.Thickness = 1.5
+                Stroke.Transparency = 0
+            end
+            
             Button.Active = true
             Button.Selectable = true
         end
@@ -310,7 +309,6 @@ SpeedLock.GetRequiredSpeed = function() return CONFIG.RequiredSpeed end
 SpeedLock.FormatNumber = function(num) return FormatNumber(num) end
 SpeedLock.ShowMessage = ShowMessage
 
--- ✅ Syntax Fix
 SpeedLock.RegisterLockable = RegisterLockableButton
 SpeedLock.RunCheck = RunCheck
 SpeedLock.ApplyLock = ApplyLockToAll
@@ -321,4 +319,4 @@ SpeedLock.RemoveLock = RemoveLockFromAll
 -- ==================================================
 _G.YOKUDO_SpeedLock = SpeedLock
 
-print("✅ Speed Lock System Loaded (v5 FINAL)")
+print("✅ Speed Lock System Loaded (v6 — Emoji 🔒)")
