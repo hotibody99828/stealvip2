@@ -1,12 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Farming
--- ✅ ភ្ជាប់ជាមួយ FarmingManager (Full Auto Loop)
--- ✅ Dropdown Select Rarity (Scroll បាន)
--- ✅ Checkbox Auto AFK Farming
--- ✅ Default: Top1-Top5 Only (Divine, Eternal, Secret, Mythic, Legendary)
--- ✅ ផ្សេងទៀត User Select ខ្លួនឯង
--- ✅ Divine = Yellow | Legendary = Red
--- ✅ Export Button សម្រាប់ SpeedLock
+-- YOKUDO HUB | TAB | Farming (v2 — Lock Support)
+-- ✅ Check SpeedLock Inside ToggleFarm
+-- ✅ Lock Icon
+-- ✅ Show Message
+-- ✅ Export Button
 -- ✅ គ្មាន Audio
 -- ==================================================
 
@@ -15,13 +12,10 @@ local TweenService = game:GetService("TweenService")
 
 local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 
--- ==================================================
--- CONTENT
--- ==================================================
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
--- RARITY COLORS (ដក Titan)
+-- RARITY COLORS
 -- ==================================================
 local RarityColors = {
     Divine = Color3.fromRGB(255, 215, 0),
@@ -41,7 +35,7 @@ local RarityOrder = {
 }
 
 -- ==================================================
--- SELECT EGG TYPE (DROPDOWN)
+-- DROPDOWN
 -- ==================================================
 local RarityHolder = Instance.new("Frame")
 RarityHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -58,7 +52,6 @@ RarityLabel.Text = "Select Egg Type"
 RarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 RarityLabel.TextSize = 13
 RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-RarityLabel.TextYAlignment = Enum.TextYAlignment.Center
 RarityLabel.Font = Enum.Font.GothamBold
 RarityLabel.ZIndex = 101
 RarityLabel.Parent = RarityHolder
@@ -291,11 +284,20 @@ FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- TOGGLE FARM (គ្មាន Audio)
+-- ✅ TOGGLE FARM (កែ — Check SpeedLock Inside)
 -- ==================================================
 local FarmEnabled = false
 
 local function ToggleFarm()
+    -- ✅ Check SpeedLock ខាងក្នុង
+    if _G.YOKUDO_SpeedLock and not _G.YOKUDO_SpeedLock.IsUnlocked() then
+        _G.YOKUDO_SpeedLock.ShowMessage(
+            "🔒 To Get Speed 1B UP\nWhen 1B Done, Please Exit Game and Join Again",
+            5
+        )
+        return
+    end
+    
     if not _G.YOKUDO_FarmingManager then
         warn("[YOKUDO] FarmingManager not loaded!")
         return
@@ -316,14 +318,10 @@ local function ToggleFarm()
         end
         _G.YOKUDO_FarmingManager.SetRarities(List)
         _G.YOKUDO_FarmingManager.Enable()
-
-        -- ❌ គ្មាន Audio
     else
         FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
         FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         _G.YOKUDO_FarmingManager.Disable()
-
-        -- ❌ គ្មាន Audio
     end
 end
 
@@ -348,7 +346,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- PERIODIC SYNC (រាល់ 1s)
+-- PERIODIC SYNC
 -- ==================================================
 task.spawn(function()
     while task.wait(1) do
@@ -392,8 +390,8 @@ _G.YOKUDO_RefreshFarmingUI = function()
 end
 
 -- ==================================================
--- ✅ EXPORT BUTTONS (សម្រាប់ SpeedLock)
+-- ✅ EXPORT BUTTON
 -- ==================================================
 _G.YOKUDO_FarmButton = FarmButton
 
-print("✅ Farming Tab Loaded (Export Button + No Audio)")
+print("✅ Farming Tab Loaded (v2 — Lock Support)")
