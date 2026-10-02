@@ -1,13 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v9)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v10)
 -- ✅ SpeedLock Check លូតមុនគេ
--- ✅ TeleportSystem + FarmingManager + AFKSystem
--- ✅ AutoEventNew + ManagerDrone
--- ✅ CollectEggNew + ESP Tabs
--- ✅ AntiGuard.lua + DropEgg.lua
--- ❌ គ្មាន VIPTP
--- ❌ គ្មាន AntiRagdoll
--- ❌ គ្មាន Sound/Audio
+-- ✅ Load Features + Tabs
+-- ✅ Register + RunCheck
+-- ✅ គ្មាន Sound/Audio
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -173,30 +169,21 @@ Loading.Update(12)
 loadstring(GetScript("Components.lua"))()
 
 -- ==================================================
--- ✅ LOAD SPEED LOCK (លូតមុនគេ — មុន Features + Tabs)
+-- ✅ LOAD SPEED LOCK (លូតមុនគេ)
 -- ==================================================
 Loading.Update(15)
 loadstring(GetScript("Features/SpeedLock.lua"))()
 
 -- ==================================================
--- ✅ RUN SPEED CHECK (ភ្លាមៗ — តែម្តង)
+-- ✅ RUN SPEED CHECK (ភ្លាមៗ)
 -- ==================================================
 Loading.Update(18)
-print("🔍 Running Speed Check (First)...")
-task.wait(1.5)  -- រង់ចាំ leaderstats Load
+print("🔍 Running Speed Check...")
+task.wait(1.5)
 
 if _G.YOKUDO_SpeedLock then
-    -- ✅ Run Check ភ្លាម
     _G.YOKUDO_SpeedLock.RunCheck()
-    
-    -- ✅ Store Result
     _G.YOKUDO_IsSpeedUnlocked = _G.YOKUDO_SpeedLock.IsUnlocked()
-    
-    if _G.YOKUDO_IsSpeedUnlocked then
-        print("🎉 Speed Unlocked → Features Available")
-    else
-        print("🔒 Speed Locked → Features Disabled")
-    end
 end
 
 -- ==================================================
@@ -284,14 +271,13 @@ Loading.Update(90)
 loadstring(GetScript("Tabs/ESP.lua"))()
 
 -- ==================================================
--- ✅ REGISTER LOCKABLE BUTTONS (ក្រោយ Tabs Load)
+-- ✅ REGISTER LOCKABLE BUTTONS
 -- ==================================================
 Loading.Update(91)
 task.spawn(function()
     task.wait(0.5)
     
     if _G.YOKUDO_SpeedLock then
-        -- ✅ Register Farm Button
         if _G.YOKUDO_FarmButton then
             _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_FarmButton, "Farm")
             print("✅ Registered FarmButton")
@@ -299,7 +285,6 @@ task.spawn(function()
             warn("⚠️ _G.YOKUDO_FarmButton not found!")
         end
         
-        -- ✅ Register Get Egg Button
         if _G.YOKUDO_GetEggCheckButton then
             _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_GetEggCheckButton, "GetEgg")
             print("✅ Registered GetEggCheckButton")
@@ -307,10 +292,11 @@ task.spawn(function()
             warn("⚠️ _G.YOKUDO_GetEggCheckButton not found!")
         end
         
-        -- ✅ Re-apply Lock (បើ Lock)
+        -- ✅ Re-apply Lock
+        task.wait(0.3)
         if not _G.YOKUDO_SpeedLock.IsUnlocked() then
             _G.YOKUDO_SpeedLock.ApplyLock()
-            print("🔒 Re-applied Lock to Registered Buttons")
+            print("🔒 Re-applied Lock")
         end
     end
 end)
@@ -332,11 +318,10 @@ Loading.Update(96)
 loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 -- ==================================================
--- ✅ APPLY CONFIG (បើមាន)
+-- APPLY CONFIG
 -- ==================================================
 Loading.Update(98)
 if _G.YOKUDO_ConfigSystem then
-    print("🔧 Applying Config...")
     _G.YOKUDO_ConfigSystem.Load()
 end
 
@@ -346,4 +331,4 @@ task.wait(0.3)
 Loading.Destroy()
 print("✅ Loading Screen Closed!")
 print("🚀 YOKUDO HUB | Ready!")
-print("🎯 Speed Unlock:", _G.YOKUDO_IsSpeedUnlocked and "✅ UNLOCKED" or "🔒 LOCKED")
+print("🎯 Speed:", _G.YOKUDO_IsSpeedUnlocked and "✅ UNLOCKED" or "🔒 LOCKED")
