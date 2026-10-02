@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Farming (v3 — Lock Support)
--- ✅ Check SpeedLock Inside ToggleFarm
--- ✅ Lock Icon
--- ✅ Show Message
--- ✅ Export Button
+-- YOKUDO HUB | TAB | Farming (v3 FINAL)
+-- ✅ Rarity Dropdown
+-- ✅ Auto AFK Farming Egg (FarmingManager)
+-- ✅ SpeedLock Integration
+-- ✅ Export _G.YOKUDO_FarmButton
 -- ✅ គ្មាន Audio
 -- ==================================================
 
@@ -12,6 +12,9 @@ local TweenService = game:GetService("TweenService")
 
 local FarmingTab, FarmingPage = TabsManager:RegisterTab("Farming", 2, "FARMING")
 
+-- ==================================================
+-- CONTENT
+-- ==================================================
 CreateSectionTitle(FarmingPage, "Farming", 1)
 
 -- ==================================================
@@ -35,7 +38,7 @@ local RarityOrder = {
 }
 
 -- ==================================================
--- DROPDOWN
+-- SELECT EGG TYPE (DROPDOWN)
 -- ==================================================
 local RarityHolder = Instance.new("Frame")
 RarityHolder.Size = UDim2.new(1, 0, 0, 52)
@@ -52,6 +55,7 @@ RarityLabel.Text = "Select Egg Type"
 RarityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 RarityLabel.TextSize = 13
 RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+RarityLabel.TextYAlignment = Enum.TextYAlignment.Center
 RarityLabel.Font = Enum.Font.GothamBold
 RarityLabel.ZIndex = 101
 RarityLabel.Parent = RarityHolder
@@ -68,10 +72,19 @@ RarityTitle.Font = Enum.Font.Gotham
 RarityTitle.ZIndex = 101
 RarityTitle.Parent = RarityHolder
 
+-- ==================================================
+-- SELECTED RARITIES (Default: Top1-Top5 Only)
+-- ==================================================
 local SelectedRarities = {
-    Divine = true, Eternal = true, Secret = true,
-    Mythic = true, Legendary = true,
-    Epic = false, Rare = false, Uncommon = false, Common = false
+    Divine = true,
+    Eternal = true,
+    Secret = true,
+    Mythic = true,
+    Legendary = true,
+    Epic = false,
+    Rare = false,
+    Uncommon = false,
+    Common = false
 }
 
 local function GetSelectedText()
@@ -86,6 +99,7 @@ local function GetSelectedText()
     return table.concat(List, ", ")
 end
 
+-- Dropdown Button
 local DropdownBtn = Instance.new("TextButton")
 DropdownBtn.Size = UDim2.new(0, 120, 0, 28)
 DropdownBtn.Position = UDim2.new(1, -120, 0.5, -14)
@@ -109,6 +123,9 @@ DdStroke.Thickness = 1
 DdStroke.Transparency = 0.3
 DdStroke.Parent = DropdownBtn
 
+-- ==================================================
+-- DROPDOWN LIST (SCROLLABLE)
+-- ==================================================
 local DropdownScroll = Instance.new("ScrollingFrame")
 DropdownScroll.Size = UDim2.new(0, 120, 0, 200)
 DropdownScroll.Position = UDim2.new(1, -120, 1, 2)
@@ -143,6 +160,9 @@ DlPadding.PaddingLeft = UDim.new(0, 4)
 DlPadding.PaddingRight = UDim.new(0, 4)
 DlPadding.Parent = DropdownScroll
 
+-- ==================================================
+-- CREATE DROPDOWN OPTION
+-- ==================================================
 local OptionButtons = {}
 
 local function UpdateOptionVisual(Name)
@@ -198,6 +218,8 @@ local function CreateDropdownOption(Name, Order)
             end
             _G.YOKUDO_FarmingManager.SetRarities(List)
         end
+
+        print("[Farming] Rarity Toggled: " .. Name .. " = " .. tostring(SelectedRarities[Name]))
     end)
 
     Option.MouseEnter:Connect(function()
@@ -284,7 +306,7 @@ FarmCheck.Visible = false
 FarmCheck.Parent = FarmButton
 
 -- ==================================================
--- TOGGLE FARM (Check SpeedLock)
+-- ✅ TOGGLE FARM (SpeedLock Check)
 -- ==================================================
 local FarmEnabled = false
 
@@ -346,7 +368,7 @@ task.spawn(function()
 end)
 
 -- ==================================================
--- PERIODIC SYNC
+-- PERIODIC SYNC (រាល់ 1s)
 -- ==================================================
 task.spawn(function()
     while task.wait(1) do
@@ -365,6 +387,8 @@ task.spawn(function()
                     FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
                     FarmStroke.Color = Color3.fromRGB(200, 200, 220)
                 end
+
+                print("[YOKUDO] Farming UI Sync | State: " .. tostring(CurrentState))
             end
         end
     end
@@ -386,12 +410,14 @@ _G.YOKUDO_RefreshFarmingUI = function()
             FarmButton.BackgroundColor3 = Color3.fromRGB(28, 29, 39)
             FarmStroke.Color = Color3.fromRGB(200, 200, 220)
         end
+
+        print("[YOKUDO] Farming Tab UI Refreshed | State: " .. tostring(State))
     end
 end
 
 -- ==================================================
--- EXPORT BUTTON
+-- ✅ EXPORT BUTTON (សម្រាប់ SpeedLock)
 -- ==================================================
 _G.YOKUDO_FarmButton = FarmButton
 
-print("✅ Farming Tab Loaded (v3 — Lock Support)")
+print("✅ Farming Tab Loaded (v3 FINAL — SpeedLock + No Audio)")
