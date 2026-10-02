@@ -1,12 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (v7 FINAL)
+-- YOKUDO HUB | FEATURE | AFK System (v8 FINAL)
 -- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
 -- ✅ Save / Restore WalkSpeed
 -- ✅ Reset PlatformStand ពេល Arrived
 -- ✅ Check Grounded ពេល Arrived
 -- ✅ Character Respawn → Resume
--- ✅ Check Y Position ពេលទៅដល់ Treadmill
--- ✅ Y = 70 → Dead → Teleport ទៅ Dead Position
+-- ✅ Auto Check រាល់ 10s (Distance < 5)
+-- ✅ Y = 70 → Dead → Teleport (570, 107, -490)
 -- ✅ Y ≥ 71 → AFK ធម្មតា
 -- ==================================================
 
@@ -29,14 +29,13 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local GROUND_CHECK_DISTANCE = 10
 
 -- ==================================================
--- ✅ Y CHECK SETTINGS
+-- ✅ AUTO CHECK SETTINGS
 -- ==================================================
-local Y_CHECK_DISTANCE = 4          -- ✅ ជិត 4 distance
-local Y_CHECK_DURATION = 10         -- ✅ រយៈពេល 10s
-local Y_CHECK_INTERVAL = 0.5        -- ✅ Check រាល់ 0.5s
-local Y_DEAD_VALUE = 70             -- ✅ Y = 70 → Dead
-local Y_AFK_VALUE = 71              -- ✅ Y ≥ 71 → AFK ធម្មតា
-local DEAD_POSITION = Vector3.new(554, 140, -479)  -- ✅ Dead Position
+local AUTO_CHECK_INTERVAL = 10       -- ✅ Check រាល់ 10s
+local AUTO_CHECK_DISTANCE = 5        -- ✅ Distance < 5
+local Y_DEAD_VALUE = 70              -- ✅ Y = 70 → Dead
+local Y_AFK_VALUE = 71               -- ✅ Y ≥ 71 → AFK
+local DEAD_POSITION = Vector3.new(570, 107, -490)  -- ✅ Dead Position ថ្មី
 
 -- ==================================================
 -- STATE
@@ -47,7 +46,7 @@ local MyTreadmill = nil
 local MyTreadmillPos = nil
 local WalkConnection = nil
 local DistCheckThread = nil
-local YCheckThread = nil
+local AutoCheckThread = nil
 local SavedWalkSpeed = nil
 
 -- ==================================================
@@ -76,7 +75,6 @@ local function RestoreWalkSpeed()
     local Hum = GetHumanoid()
     if Hum and SavedWalkSpeed then
         Hum.WalkSpeed = SavedWalkSpeed
-        print("[AFK] ✅ Restored WalkSpeed:", SavedWalkSpeed)
     end
 end
 
@@ -130,9 +128,7 @@ local function CleanupMovers()
 
     local Hum, Root = GetHumanoid()
     if Hum and Root then
-        pcall(function()
-            Hum:MoveTo(Root.Position)
-        end)
+        pcall(function() Hum:MoveTo(Root.Position) end)
     end
     if Root then
         pcall(function()
@@ -165,57 +161,60 @@ local function TeleportToDeadPosition()
 end
 
 -- ==================================================
--- ✅ CHECK Y POSITION (រយៈពេល 10s)
+-- ✅ CHECK Y POSITION (ម្តង)
 -- ==================================================
-local function CheckYPosition(Callback)
-    if YCheckThread then
-        pcall(function() task.cancel(YCheckThread) end)
-        YCheckThread = nil
+local function CheckYOnce()
+    local Hum, Root = GetHumanoid()
+    if not Root then return false end
+    
+    local CurrentY = math.floor(Root.Position.Y)
+    
+    print(string.format("[AFK] 🔍 Y Check: %d", CurrentY))
+    
+    if CurrentY <= Y_DEAD_VALUE then
+        -- ✅ Y = 70 → Dead
+        print(string.format("[AFK] 🔒 Character Dead (Y=%d) → Teleport", CurrentY))
+        TeleportToDeadPosition()
+        return true
+    else
+        -- ✅ Y ≥ 71 → AFK ធម្មតា
+        print(string.format("[AFK] ✅ AFK OK (Y=%d)", CurrentY))
+        return false
+    end
+end
+
+-- ==================================================
+-- ✅ AUTO CHECK LOOP (រាល់ 10s — Distance < 5)
+-- ==================================================
+local function StartAutoCheck()
+    if AutoCheckThread then
+        pcall(function() task.cancel(AutoCheckThread) end)
+        AutoCheckThread = nil
     end
     
-    YCheckThread = task.spawn(function()
-        local StartTime = tick()
-        local DeadCount = 0
-        local TotalCount = 0
+    AutoCheckThread = task.spawn(function()
+        print("[AFK] 🔄 Auto Check Started (Every 10s | Distance < 5)")
         
-        print("[AFK] 🔍 Checking Y Position for 10s...")
-        
-        while AFKEnabled and (tick() - StartTime) < Y_CHECK_DURATION do
-            task.wait(Y_CHECK_INTERVAL)
+        while AFKEnabled do
+            task.wait(AUTO_CHECK_INTERVAL)
             if not AFKEnabled then break end
             
+            -- ✅ Check Distance
             local Hum, Root = GetHumanoid()
-            if not Root then break end
-            
-            local CurrentY = math.floor(Root.Position.Y)
-            TotalCount = TotalCount + 1
-            
-            -- ✅ Check Y
-            if CurrentY <= Y_DEAD_VALUE then
-                DeadCount = DeadCount + 1
-                print(string.format("[AFK] ⚠️ Y=%d (Dead Count: %d/%d)", CurrentY, DeadCount, TotalCount))
-            else
-                print(string.format("[AFK] ✅ Y=%d (AFK OK)", CurrentY))
+            if Root and MyTreadmillPos then
+                local Dist = math.floor((Root.Position - MyTreadmillPos).Magnitude)
+                
+                if Dist < AUTO_CHECK_DISTANCE then
+                    -- ✅ នៅជិត Treadmill < 5 distance → Check Y
+                    print(string.format("[AFK] 🔍 Near Treadmill (Dist: %d) → Y Check", Dist))
+                    CheckYOnce()
+                else
+                    print(string.format("[AFK] ⏭️ Far from Treadmill (Dist: %d) → Skip", Dist))
+                end
             end
         end
         
-        -- ✅ Result
-        local DeadRatio = DeadCount / math.max(TotalCount, 1)
-        
-        if DeadRatio >= 0.5 then
-            -- ✅ ច្រើនជាង 50% → Dead
-            print(string.format("[AFK] 🔒 Character Dead (Y=70) | Ratio: %.0f%%", DeadRatio * 100))
-            
-            -- ✅ Teleport ទៅ Dead Position
-            TeleportToDeadPosition()
-            
-            if Callback then Callback(true) end
-        else
-            -- ✅ Y ≥ 71 → AFK ធម្មតា
-            print(string.format("[AFK] ✅ AFK OK (Y≥71) | Ratio: %.0f%%", DeadRatio * 100))
-            
-            if Callback then Callback(false) end
-        end
+        print("[AFK] 🔄 Auto Check Stopped")
     end)
 end
 
@@ -385,7 +384,7 @@ local function StartDistanceCheck()
 end
 
 -- ==================================================
--- ✅ ENABLE
+-- ENABLE
 -- ==================================================
 local function EnableAFK()
     if AFKEnabled then return end
@@ -418,20 +417,16 @@ local function EnableAFK()
                 task.wait(0.5)
             end
 
-            -- ✅ Check Y Position (រយៈពេល 10s)
-            CheckYPosition(function(IsDead)
-                if IsDead then
-                    -- ✅ Dead → រង់ចាំ Respawn
-                    print("[AFK] ⏳ Waiting for Respawn...")
-                else
-                    -- ✅ AFK ធម្មតា
-                    StartDistanceCheck()
-                end
-            end)
+            -- ✅ Check Y ម្តង
+            CheckYOnce()
+            
+            -- ✅ Start Auto Check Loop
+            StartAutoCheck()
+            StartDistanceCheck()
         end)
     end)
 
-    print("[AFK] AFK System: ON (Y Check Enabled)")
+    print("[AFK] AFK System: ON (Auto Check Every 10s)")
 end
 
 -- ==================================================
@@ -446,9 +441,9 @@ local function DisableAFK()
         DistCheckThread = nil
     end
     
-    if YCheckThread then
-        pcall(function() task.cancel(YCheckThread) end)
-        YCheckThread = nil
+    if AutoCheckThread then
+        pcall(function() task.cancel(AutoCheckThread) end)
+        AutoCheckThread = nil
     end
 
     CleanupMovers()
@@ -493,14 +488,12 @@ Player.CharacterAdded:Connect(function(Char)
             task.wait(0.5)
         end
 
-        -- ✅ Check Y Position ម្តងទៀត
-        CheckYPosition(function(IsDead)
-            if IsDead then
-                print("[AFK] ⏳ Waiting for Respawn...")
-            else
-                StartDistanceCheck()
-            end
-        end)
+        -- ✅ Check Y ម្តង
+        CheckYOnce()
+        
+        -- ✅ Start Auto Check Loop
+        StartAutoCheck()
+        StartDistanceCheck()
     end)
 
     print("[AFK] AFK System: Resumed after Respawn")
@@ -527,11 +520,15 @@ _G.YOKUDO_AFKSystem = {
     RestoreWalkSpeed = RestoreWalkSpeed,
     GetSavedWalkSpeed = function() return SavedWalkSpeed end,
     TeleportToDeadPosition = TeleportToDeadPosition,
-    CheckYPosition = CheckYPosition,
+    CheckYOnce = CheckYOnce,
+    StartAutoCheck = StartAutoCheck,
     SAFE_ZONE = SAFE_ZONE,
     DEAD_POSITION = DEAD_POSITION,
+    AUTO_CHECK_INTERVAL = AUTO_CHECK_INTERVAL,
+    AUTO_CHECK_DISTANCE = AUTO_CHECK_DISTANCE,
 }
 
-print("✅ AFKSystem Loaded (v7 FINAL — Y Check)")
+print("✅ AFKSystem Loaded (v8 FINAL — Auto Check Every 10s)")
 print(string.format("📍 Dead Position: %s", tostring(DEAD_POSITION)))
 print(string.format("📍 Y_DEAD: %d | Y_AFK: %d", Y_DEAD_VALUE, Y_AFK_VALUE))
+print(string.format("⏱️ Auto Check: Every %ds | Distance < %d", AUTO_CHECK_INTERVAL, AUTO_CHECK_DISTANCE))
