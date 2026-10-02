@@ -199,8 +199,6 @@ loadstring(GetScript("Tabs/Init.lua"))()
 Loading.Update(28)
 loadstring(GetScript("Features/AntiAFK.lua"))()
 
-Loading.Update(30)
-loadstring(GetScript("Features/WalkSpeed.lua"))()
 
 Loading.Update(33)
 loadstring(GetScript("Features/AntiTrap.lua"))()
