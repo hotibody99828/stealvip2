@@ -1,8 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Speed Lock System
+-- YOKUDO HUB | FEATURE | Speed Lock System (v2)
+-- ✅ Fix Syntax Error
 -- ✅ Check តែម្តងពេល Execute
 -- ✅ Speed >= 1B → Unlock
 -- ✅ Speed < 1B → Lock + រូបសោ (🔒)
+-- ✅ Safe Call (pcall)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -21,7 +23,22 @@ local CONFIG = {
 -- ==================================================
 local IsUnlocked = false
 local SpeedValue = nil
-local LockedButtons = {}  -- ✅ Store Locked Buttons
+local LockedButtons = {}
+
+-- ==================================================
+-- ✅ SAFE CALL FUNCTION
+-- ==================================================
+local function SafeCall(func, ...)
+    if not func then return false end
+    local args = {...}
+    local Success, Err = pcall(function()
+        func(table.unpack(args))
+    end)
+    if not Success then
+        warn("[SpeedLock] Error:", Err)
+    end
+    return Success
+end
 
 -- ==================================================
 -- ✅ GET SPEED VALUE
@@ -66,7 +83,7 @@ local function FormatNumber(num)
 end
 
 -- ==================================================
--- ✅ CHECK SPEED (តែម្តង)
+-- ✅ CHECK SPEED
 -- ==================================================
 local function CheckSpeed()
     SpeedValue = GetSpeedValue()
@@ -86,10 +103,9 @@ local function CheckSpeed()
 end
 
 -- ==================================================
--- ✅ CREATE LOCK ICON (🔒)
+-- ✅ CREATE LOCK ICON
 -- ==================================================
 local function CreateLockIcon(Parent, Size)
-    -- ✅ សម្អាតចាស់
     local OldLock = Parent:FindFirstChild("SpeedLockIcon")
     if OldLock then OldLock:Destroy() end
     
@@ -98,13 +114,12 @@ local function CreateLockIcon(Parent, Size)
     LockIcon.Size = Size or UDim2.new(1, 0, 1, 0)
     LockIcon.Position = UDim2.new(0, 0, 0, 0)
     LockIcon.BackgroundTransparency = 1
-    LockIcon.Image = "rbxassetid://6031090990"  -- ✅ Lock Icon
+    LockIcon.Image = "rbxassetid://6031090990"
     LockIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
     LockIcon.ImageTransparency = 0.2
     LockIcon.ZIndex = 100
     LockIcon.Parent = Parent
     
-    -- ✅ Overlay ខ្មៅ
     local Overlay = Instance.new("Frame")
     Overlay.Name = "LockOverlay"
     Overlay.Size = UDim2.new(1, 0, 1, 0)
@@ -119,7 +134,6 @@ local function CreateLockIcon(Parent, Size)
     OverlayCorner.CornerRadius = UDim.new(0, 6)
     OverlayCorner.Parent = Overlay
     
-    -- ✅ បង្ហាញ Lock
     if LockIcon.Parent then
         LockIcon.Visible = true
         Overlay.Visible = true
@@ -154,20 +168,16 @@ local function RegisterLockableButton(Button, Name)
 end
 
 -- ==================================================
--- ✅ APPLY LOCK TO ALL BUTTONS
+-- ✅ APPLY LOCK
 -- ==================================================
 local function ApplyLockToAll()
     for _, data in ipairs(LockedButtons) do
         local Button = data.Button
         if Button and Button.Parent then
-            -- ✅ បង្កើត Lock Icon
             CreateLockIcon(Button, UDim2.new(0, 26, 0, 26))
-            
-            -- ✅ Disable Button
             Button.Active = false
             Button.Selectable = false
             
-            -- ✅ Override Click
             Button.MouseButton1Click:Connect(function()
                 warn("[SpeedLock] 🔒 Feature Locked! Required Speed: 1B+")
             end)
@@ -178,7 +188,7 @@ local function ApplyLockToAll()
 end
 
 -- ==================================================
--- ✅ REMOVE LOCK FROM ALL BUTTONS
+-- ✅ REMOVE LOCK
 -- ==================================================
 local function RemoveLockFromAll()
     for _, data in ipairs(LockedButtons) do
@@ -194,7 +204,7 @@ local function RemoveLockFromAll()
 end
 
 -- ==================================================
--- ✅ MAIN CHECK (តែម្តង)
+-- ✅ MAIN CHECK
 -- ==================================================
 local function RunCheck()
     print("[SpeedLock] ================================")
@@ -205,31 +215,27 @@ local function RunCheck()
     
     if IsUnlocked then
         print("[SpeedLock] 🎉 UNLOCKED! Speed >= 1B")
-        print("[SpeedLock] ✅ All Features Available")
         
-        -- ✅ Remove Lock
         RemoveLockFromAll()
         
-        -- ✅ Enable Features
+        -- ✅ Safe Call — Enable Features
         if _G.YOKUDO_FarmingManager then
-            _G.YOKUDO_FarmingManager.Enable()
+            SafeCall(_G.YOKUDO_FarmingManager.Enable)
         end
         if _G.YOKUDO_AutoFarm then
-            _G.YOKUDO_AutoFarm.Enable()
+            SafeCall(_G.YOKUDO_AutoFarm.Enable)
         end
     else
         print("[SpeedLock] 🔒 LOCKED! Speed < 1B")
-        print("[SpeedLock] ❌ Features Locked")
         
-        -- ✅ Apply Lock
         ApplyLockToAll()
         
-        -- ✅ Disable Features
+        -- ✅ Safe Call — Disable Features
         if _G.YOKUDO_FarmingManager then
-            _G.YOKUDO_FarmingManager.Disable()
+            SafeCall(_G.YOKUDO_FarmingManager.Disable)
         end
         if _G.YOKUDO_AutoFarm then
-            _G.YOKUDO_AutoFarm.Disable()
+            SafeCall(_G.YOKUDO_AutoFarm.Disable)
         end
     end
     
@@ -241,29 +247,30 @@ end
 -- ==================================================
 local SpeedLock = {}
 
-function SpeedLock.IsUnlocked()
+SpeedLock.IsUnlocked = function()
     return IsUnlocked
 end
 
-function SpeedLock.GetSpeed()
+SpeedLock.GetSpeed = function()
     if not SpeedValue then
         SpeedValue = GetSpeedValue()
     end
     return SpeedValue and math.floor(tonumber(SpeedValue.Value) or 0) or 0
 end
 
-function SpeedLock.GetRequiredSpeed()
+SpeedLock.GetRequiredSpeed = function()
     return CONFIG.RequiredSpeed
 end
 
-function SpeedLock.FormatNumber(num)
+SpeedLock.FormatNumber = function(num)
     return FormatNumber(num)
 end
 
-function SpeedLock.RegisterLockable = RegisterLockableButton
-function SpeedLock.RunCheck = RunCheck
-function SpeedLock.ApplyLock = ApplyLockToAll
-function SpeedLock.RemoveLock = RemoveLockFromAll
+-- ✅ កែត្រង់នេះ — Syntax Error Fix
+SpeedLock.RegisterLockable = RegisterLockableButton
+SpeedLock.RunCheck = RunCheck
+SpeedLock.ApplyLock = ApplyLockToAll
+SpeedLock.RemoveLock = RemoveLockFromAll
 
 -- ==================================================
 -- ✅ EXPORT
