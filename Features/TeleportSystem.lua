@@ -1,6 +1,7 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v31)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v32)
 -- ✅ ដក WalkSpeed + FlySpeed — ប្រើ Player Speed
+-- ✅ ដក WalkTimeout — No Limit
 -- ✅ Short TP → 1200m → Stop → Drop → Walk TP → Target
 -- ✅ Collect Target Timeout 25s
 -- ✅ Character Respawn → Restart
@@ -16,7 +17,7 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG
+-- CONFIG (ដក WalkTimeout)
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
@@ -24,8 +25,8 @@ local Config = {
     FlyTPDistance = 20,
     FlyOffset = 3,
     StopShotDistance = 1200,
-    ShotTPTime = 1.40,
-    ShotTPTime2 = 1.40,
+    ShotTPTime = 1.35,
+    ShotTPTime2 = 1.30,
     PushUpOffset = 50,
     PlayerCheckDistance = 30,
     LockWait = 0.1,
@@ -35,12 +36,13 @@ local Config = {
     -- ✅ Collect Target Timeout
     CollectTargetTimeout = 25,
 
+    -- ❌ ដក WalkTimeout = 30
+
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
     Position2_Top1 = Vector3.new(602, 70, -410),
     Position2_Top2 = Vector3.new(541, 70, -414),
 
-    WalkTimeout = 30,
     CollectInterval = 0.02,
     MaxCollectAttempts = 10000,
     EggGoneCheckInterval = 0.5,
@@ -556,6 +558,9 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
+-- ==================================================
+-- ✅ WALK TP (No Limit — ដក Timeout)
+-- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -569,7 +574,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     
     print(string.format("[TeleportSystem] 🚶 WalkTP | Speed: %.1f", PlayerSpeed))
 
-    local StartTime = tick()
     local LastCheck = 0
     local FlyDone = false
     local DropDone = false
@@ -611,11 +615,7 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
                 if Callback then Callback() end
                 return
             end
-            if tick() - StartTime > Config.WalkTimeout then
-                CleanupMovers()
-                if Callback then Callback() end
-                return
-            end
+            -- ✅ ដក Timeout Check ចេញ — No Limit
         end
     end)
 end
@@ -686,9 +686,6 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 3B (Timeout 25s)
--- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -725,14 +722,12 @@ Step3b_AfterDropFirst = function()
                     State.TargetCollected = false
                     State.CurrentEggUid = State.TargetUid
                     
-                    -- ✅ Start Timeout
                     local CollectStartTime = tick()
                     
                     while State.Running and State.Step == "6_collect_target" do
                         task.wait(Config.CollectInterval)
                         RemoteCollectTarget()
                         
-                        -- ✅ Check Timeout 25s
                         if tick() - CollectStartTime >= Config.CollectTargetTimeout then
                             warn(string.format("[TeleportSystem] ⏱️ Collect Target Timeout (%ds) → Skip", Config.CollectTargetTimeout))
                             
@@ -748,9 +743,6 @@ Step3b_AfterDropFirst = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 4 (Timeout 25s)
--- ==================================================
 Step4_WalkToTargetAndFlyLock = function()
     if not State.Running then return end
     State.Step = "4_walk_target"
@@ -774,14 +766,12 @@ Step4_WalkToTargetAndFlyLock = function()
             State.TargetCollected = false
             State.CurrentEggUid = State.TargetUid
             
-            -- ✅ Start Timeout
             local CollectStartTime = tick()
             
             while State.Running and State.Step == "6_collect_target" do
                 task.wait(Config.CollectInterval)
                 RemoteCollectTarget()
                 
-                -- ✅ Check Timeout 25s
                 if tick() - CollectStartTime >= Config.CollectTargetTimeout then
                     warn(string.format("[TeleportSystem] ⏱️ Collect Target Timeout (%ds) → Skip", Config.CollectTargetTimeout))
                     
@@ -859,9 +849,6 @@ Step8c_CheckDistanceAndRecover = function()
     end
 end
 
--- ==================================================
--- ✅ STEP 8B (Timeout 25s)
--- ==================================================
 Step8b_WalkToCollectAgain = function()
     if not State.Running then return end
     State.Step = "8b_to_collect_again"
@@ -880,14 +867,12 @@ Step8b_WalkToCollectAgain = function()
         State.CurrentEggUid = State.TargetUid
         
         task.spawn(function()
-            -- ✅ Start Timeout
             local CollectStartTime = tick()
             
             while State.Running and State.Step == "8b_collect_again" do
                 task.wait(Config.CollectInterval)
                 RemoteCollectTarget()
                 
-                -- ✅ Check Timeout 25s
                 if tick() - CollectStartTime >= Config.CollectTargetTimeout then
                     warn(string.format("[TeleportSystem] ⏱️ Collect Again Timeout (%ds) → Skip", Config.CollectTargetTimeout))
                     
@@ -1179,4 +1164,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v31 — Player Speed + Timeout 25s + Respawn)")
+print("✅ TeleportSystem Loaded (v32 — No WalkTimeout + Timeout 25s + Respawn)")
