@@ -1,7 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v28)
--- ✅ ប្រើ WalkSpeed ផ្ទាល់ពី Player (ដក 200)
--- ✅ DropHeldEgg = True → Short TP → 1200m → Drop → Walk TP
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v29)
+-- ✅ ដក WalkSpeed ថេរ (200) — ប្រើ WalkSpeed ផ្ទាល់ពី Player
+-- ✅ ដក FlySpeed ថេរ (200) — ប្រើ Player Speed ផ្ទាល់
+-- ✅ Short TP → 1200m → Stop → Drop → Walk TP → Target
 -- ✅ Callback ទៅ FarmingManager
 -- ✅ MapSettings Integration
 -- ==================================================
@@ -14,14 +15,14 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG
+-- CONFIG (ដក FlySpeed)
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
     LockDistance = 1,
     FlyTPDistance = 20,
     FlyOffset = 3,
-    FlySpeed = 200,
+    -- ❌ ដក FlySpeed = 200
     StopShotDistance = 1200,
     ShotTPTime = 1.30,
     ShotTPTime2 = 1.30,
@@ -121,6 +122,7 @@ local CleanupMovers
 local IsEggGone
 local GetNearestMapWait
 local GetSafePosition
+local GetPlayerSpeed  -- ✅ ថ្មី
 local PushUp
 local CFrameInstant
 local RemoteCollectFirst
@@ -168,6 +170,24 @@ GetPosition = function(Object)
         return Object.Position
     end
     return nil
+end
+
+-- ==================================================
+-- ✅ GET PLAYER SPEED (ថ្មី)
+-- ==================================================
+GetPlayerSpeed = function()
+    -- ✅ Return Saved WalkSpeed
+    if State.SavedWalkSpeed and State.SavedWalkSpeed > 0 then
+        return State.SavedWalkSpeed
+    end
+    
+    -- ✅ Fallback — Get ពី Player
+    local Hum = GetHumanoid()
+    if Hum then
+        return Hum.WalkSpeed
+    end
+    
+    return 16
 end
 
 SavePlayerStats = function()
@@ -385,6 +405,9 @@ StopLock = function()
     end
 end
 
+-- ==================================================
+-- ✅ FLY TP AND LOCK (ប្រើ Player Speed)
+-- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -392,6 +415,10 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
         if Callback then Callback() end
         return
     end
+
+    -- ✅ Get Player Speed
+    local PlayerSpeed = GetPlayerSpeed()
+    print(string.format("[TeleportSystem] ✈️ FlyTP | Speed: %.1f", PlayerSpeed))
 
     State.FlySequence = State.FlySequence + 1
     local Seq = State.FlySequence
@@ -420,7 +447,8 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
             if Callback then Callback() end
             return
         end
-        local MoveStep = Dir.Unit * Config.FlySpeed * (1/60)
+        -- ✅ ប្រើ PlayerSpeed
+        local MoveStep = Dir.Unit * PlayerSpeed * (1/60)
         Root2.CFrame = CFrame.new(CurrentPos + MoveStep)
         Root2.AssemblyLinearVelocity = Vector3.zero
         Root2.AssemblyAngularVelocity = Vector3.zero
@@ -434,6 +462,9 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
+-- ==================================================
+-- ✅ SHOT TP (ប្រើ Player Speed)
+-- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -441,6 +472,11 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
         if Callback then Callback() end
         return
     end
+
+    -- ✅ Get Player Speed
+    local PlayerSpeed = GetPlayerSpeed()
+    print(string.format("[TeleportSystem] ✈️ ShotTP | Speed: %.1f", PlayerSpeed))
+
     local TargetCFrame = CFrame.new(Destination)
     local StartPos = Root.Position
     local StartTime = tick()
@@ -480,7 +516,7 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
 end
 
 -- ==================================================
--- ✅ SHOT TP WITH STOP (Stop ពេល 1200m)
+-- ✅ SHOT TP WITH STOP (ប្រើ Player Speed)
 -- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
@@ -489,6 +525,10 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
         if Callback then Callback() end
         return
     end
+
+    -- ✅ Get Player Speed
+    local PlayerSpeed = GetPlayerSpeed()
+    print(string.format("[TeleportSystem] ✈️ ShotTPWithStop | Speed: %.1f", PlayerSpeed))
 
     local StartPos = Root.Position
     local StartTime = tick()
@@ -518,7 +558,7 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
             Root2.AssemblyLinearVelocity = Vector3.zero
             Root2.AssemblyAngularVelocity = Vector3.zero
 
-            print(string.format("[TeleportSystem] ✅ Short TP Stopped | Dist: %.1f", Dist))
+            print(string.format("[TeleportSystem] ✅ Shot TP Stopped | Dist: %.1f", Dist))
             
             if Callback then Callback() end
             return
@@ -532,7 +572,7 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
 end
 
 -- ==================================================
--- ✅ WALK TP (ប្រើ WalkSpeed ផ្ទាល់)
+-- ✅ WALK TP (ប្រើ Player Speed)
 -- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
@@ -542,15 +582,11 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
         return
     end
 
-    if not State.SavedWalkSpeed then
-        State.SavedWalkSpeed = Hum.WalkSpeed
-        print(string.format("[TeleportSystem] 💾 Saved WalkSpeed: %.1f", State.SavedWalkSpeed))
-    end
-
-    local PlayerWalkSpeed = State.SavedWalkSpeed
-    Hum.WalkSpeed = PlayerWalkSpeed
+    -- ✅ Get Player Speed
+    local PlayerSpeed = GetPlayerSpeed()
+    Hum.WalkSpeed = PlayerSpeed
     
-    print(string.format("[TeleportSystem] 🚶 WalkTP | Speed: %.1f", PlayerWalkSpeed))
+    print(string.format("[TeleportSystem] 🚶 WalkTP | Speed: %.1f", PlayerSpeed))
 
     local StartTime = tick()
     local LastCheck = 0
@@ -562,7 +598,7 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 or Hum2.Health <= 0 then CleanupMovers() return end
         
-        Hum2.WalkSpeed = PlayerWalkSpeed
+        Hum2.WalkSpeed = PlayerSpeed
         
         local Dist = (Root2.Position - Destination).Magnitude
 
@@ -693,7 +729,6 @@ Step3b_AfterDropFirst = function()
 
         -- ✅ Step 1: Short TP ទៅ Target
         ShotTPWithStop(TargetPos, Config.ShotTPTime, Config.StopShotDistance, function()
-            -- ✅ Step 2: ជិត 1200m → Stop
             print("[TeleportSystem] ✅ Short TP Stopped (1200m)")
 
             -- ✅ Step 3: Drop First Egg
@@ -896,9 +931,6 @@ StartEggGoneCheck = function()
     end)
 end
 
--- ==================================================
--- ✅ SETUP DROP HELD EGG (ដក Auto Drop)
--- ==================================================
 SetupDropHeldEgg = function()
     local PG = Player:FindFirstChild("PlayerGui") or Player:WaitForChild("PlayerGui", 5)
     if not PG then return end
@@ -909,7 +941,6 @@ SetupDropHeldEgg = function()
     State.DropHeldEggConnection = State.DropHeldEgg:GetPropertyChangedSignal("Enabled"):Connect(function()
         local IsEnabled = State.DropHeldEgg.Enabled == true
 
-        -- ✅ Step 2: First Egg Collect → Short TP ទៅ Target
         if IsEnabled and State.Running and State.Step == "2_collect_first" then
             State.FirstCollected = true
             State.CurrentEggUid = State.FirstEggUid
@@ -924,7 +955,6 @@ SetupDropHeldEgg = function()
             end)
         end
 
-        -- ✅ Step 6: Target Collect → Step 7
         if IsEnabled and State.Running and State.Step == "6_collect_target" then
             State.TargetCollected = true
             State.CurrentEggUid = State.TargetUid
@@ -935,7 +965,6 @@ SetupDropHeldEgg = function()
             end)
         end
 
-        -- ✅ Step 8b: Collect Again → Step 9
         if IsEnabled and State.Running and State.Step == "8b_collect_again" then
             State.CollectedAgain = true
             State.CurrentEggUid = State.TargetUid
@@ -949,7 +978,7 @@ SetupDropHeldEgg = function()
 end
 
 -- ==================================================
--- ✅ START PROCESS (Check Target)
+-- ✅ START PROCESS
 -- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
@@ -1102,16 +1131,7 @@ end
 function TeleportSystem.GetSavedWalkSpeed() return State.SavedWalkSpeed end
 
 function TeleportSystem.GetWalkSpeed()
-    if State.SavedWalkSpeed then
-        return State.SavedWalkSpeed
-    end
-    
-    local Hum = GetHumanoid()
-    if Hum then
-        return Hum.WalkSpeed
-    end
-    
-    return 16
+    return GetPlayerSpeed()
 end
 
 function TeleportSystem.IsEnabled() return State.Running end
@@ -1120,4 +1140,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v28 — Short TP → 1200m → Drop → Walk TP)")
+print("✅ TeleportSystem Loaded (v29 — Player Speed for Fly + Walk)")
