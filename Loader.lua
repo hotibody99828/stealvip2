@@ -1,12 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v8)
--- ✅ TeleportSystem (Tab Auto Farming + Tab Farming)
--- ✅ SafeSpeedMode Feature
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v9)
+-- ✅ SpeedLock Check លូតមុនគេ
+-- ✅ TeleportSystem + FarmingManager + AFKSystem
 -- ✅ AutoEventNew + ManagerDrone
 -- ✅ CollectEggNew + ESP Tabs
--- ✅ FarmingManager (TeleportSystem) + AFKSystem (Walk TP)
 -- ✅ AntiGuard.lua + DropEgg.lua
--- ✅ SpeedLock.lua (ក្រោយគេ — Check តែម្តង)
 -- ❌ គ្មាន VIPTP
 -- ❌ គ្មាន AntiRagdoll
 -- ❌ គ្មាន Sound/Audio
@@ -165,14 +163,41 @@ Loading.Update(5)
 -- ==================================================
 -- LOAD CORE FILES
 -- ==================================================
-Loading.Update(10)
+Loading.Update(8)
 loadstring(GetScript("Config.lua"))()
 
-Loading.Update(15)
+Loading.Update(10)
 loadstring(GetScript("UI.lua"))()
 
-Loading.Update(20)
+Loading.Update(12)
 loadstring(GetScript("Components.lua"))()
+
+-- ==================================================
+-- ✅ LOAD SPEED LOCK (លូតមុនគេ — មុន Features + Tabs)
+-- ==================================================
+Loading.Update(15)
+loadstring(GetScript("Features/SpeedLock.lua"))()
+
+-- ==================================================
+-- ✅ RUN SPEED CHECK (ភ្លាមៗ — តែម្តង)
+-- ==================================================
+Loading.Update(18)
+print("🔍 Running Speed Check (First)...")
+task.wait(1.5)  -- រង់ចាំ leaderstats Load
+
+if _G.YOKUDO_SpeedLock then
+    -- ✅ Run Check ភ្លាម
+    _G.YOKUDO_SpeedLock.RunCheck()
+    
+    -- ✅ Store Result
+    _G.YOKUDO_IsSpeedUnlocked = _G.YOKUDO_SpeedLock.IsUnlocked()
+    
+    if _G.YOKUDO_IsSpeedUnlocked then
+        print("🎉 Speed Unlocked → Features Available")
+    else
+        print("🔒 Speed Locked → Features Disabled")
+    end
+end
 
 -- ==================================================
 -- LOAD TABS MANAGER
@@ -259,41 +284,13 @@ Loading.Update(90)
 loadstring(GetScript("Tabs/ESP.lua"))()
 
 -- ==================================================
--- SELECT DEFAULT TAB
+-- ✅ REGISTER LOCKABLE BUTTONS (ក្រោយ Tabs Load)
 -- ==================================================
-Loading.Update(92)
-if _G.YOKUDO_TabsManager then
-    _G.YOKUDO_TabsManager:SelectTabByName("Info")
-end
-
-Loading.Update(95)
-
--- ==================================================
--- LOAD ANTI CHEAT
--- ==================================================
-Loading.Update(96)
-loadstring(GetScript("Features/BypassAntiCheat.lua"))()
-
--- ==================================================
--- ✅ LOAD SPEED LOCK (ក្រោយគេ — Check តែម្តង)
--- ==================================================
-Loading.Update(97)
-loadstring(GetScript("Features/SpeedLock.lua"))()
-
--- ==================================================
--- ✅ WAIT & RUN SPEED CHECK (តែម្តង)
--- ==================================================
-Loading.Update(98)
-print("⏳ Waiting 2s before checking Speed...")
-task.wait(2)
-
-if _G.YOKUDO_SpeedLock then
-    print("🔍 Running Speed Check...")
+Loading.Update(91)
+task.spawn(function()
+    task.wait(0.5)
     
-    -- ✅ Register Lockable Buttons
-    task.spawn(function()
-        task.wait(0.5)
-        
+    if _G.YOKUDO_SpeedLock then
         -- ✅ Register Farm Button
         if _G.YOKUDO_FarmButton then
             _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_FarmButton, "Farm")
@@ -310,15 +307,34 @@ if _G.YOKUDO_SpeedLock then
             warn("⚠️ _G.YOKUDO_GetEggCheckButton not found!")
         end
         
-        -- ✅ Run Check (តែម្តង)
-        task.wait(0.3)
-        _G.YOKUDO_SpeedLock.RunCheck()
-    end)
+        -- ✅ Re-apply Lock (បើ Lock)
+        if not _G.YOKUDO_SpeedLock.IsUnlocked() then
+            _G.YOKUDO_SpeedLock.ApplyLock()
+            print("🔒 Re-applied Lock to Registered Buttons")
+        end
+    end
+end)
+
+-- ==================================================
+-- SELECT DEFAULT TAB
+-- ==================================================
+Loading.Update(92)
+if _G.YOKUDO_TabsManager then
+    _G.YOKUDO_TabsManager:SelectTabByName("Info")
 end
+
+Loading.Update(95)
+
+-- ==================================================
+-- LOAD ANTI CHEAT
+-- ==================================================
+Loading.Update(96)
+loadstring(GetScript("Features/BypassAntiCheat.lua"))()
 
 -- ==================================================
 -- ✅ APPLY CONFIG (បើមាន)
 -- ==================================================
+Loading.Update(98)
 if _G.YOKUDO_ConfigSystem then
     print("🔧 Applying Config...")
     _G.YOKUDO_ConfigSystem.Load()
@@ -330,3 +346,4 @@ task.wait(0.3)
 Loading.Destroy()
 print("✅ Loading Screen Closed!")
 print("🚀 YOKUDO HUB | Ready!")
+print("🎯 Speed Unlock:", _G.YOKUDO_IsSpeedUnlocked and "✅ UNLOCKED" or "🔒 LOCKED")
