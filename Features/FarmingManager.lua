@@ -1,8 +1,14 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (v2 — Skip First Egg)
--- ✅ Skip First Egg (មិនយកជា Target)
+-- YOKUDO HUB | FEATURE | Farming Manager (FULL AUTO LOOP)
 -- ✅ Spawn Path First → Workspace Backup
--- ✅ Walk TP + TeleportSystem + AFKSystem
+-- ✅ Walk TP (Speed ដើម) → Safe Zone
+-- ✅ Start → Check Egg → TeleportSystem
+-- ✅ TeleportSystem Done → Call Manager → Check New ID
+-- ✅ No Egg → AFKSystem
+-- ✅ Loop រហូត (មិនឈប់)
+-- ✅ ដក Titan | Top1 Divine, Top2 Eternal, Top3 Secret/Mythic, Top4 Legendary, Top5+
+-- ✅ Default: Top1-Top5 Only | User Select Others
+-- ✅ តម្រៀប: Top1 → Top2 → Top3 → Top4 → Top5
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -42,30 +48,39 @@ local Cache = {
 }
 
 -- ==================================================
--- RARITY PRIORITY
+-- RARITY PRIORITY (Top1-Top5)
+-- Top1 = Divine
+-- Top2 = Eternal
+-- Top3 = Secret, Mythic
+-- Top4 = Legendary
+-- Top5 = Epic, Rare, Uncommon, Common
 -- ==================================================
 local RARITY_PRIORITY = {
-    Divine = 1,
-    Eternal = 2,
-    Secret = 3,
-    Mythic = 3,
-    Legendary = 4,
-    Epic = 5,
-    Rare = 5,
-    Uncommon = 5,
-    Common = 5
+    Divine = 1,      -- Top1
+    Eternal = 2,     -- Top2
+    Secret = 3,      -- Top3
+    Mythic = 3,      -- Top3
+    Legendary = 4,   -- Top4
+    Epic = 5,        -- Top5
+    Rare = 5,        -- Top5
+    Uncommon = 5,    -- Top5
+    Common = 5       -- Top5
 }
 
+-- ==================================================
+-- SELECTED RARITIES (Default: Top1-Top5 Only)
+-- Top1-Top5 = true | Others = false (User Select)
+-- ==================================================
 local SelectedRarities = {
-    Divine = true,
-    Eternal = true,
-    Secret = true,
-    Mythic = true,
-    Legendary = true,
-    Epic = false,
-    Rare = false,
-    Uncommon = false,
-    Common = false
+    Divine = true,       -- Top1
+    Eternal = true,      -- Top2
+    Secret = true,       -- Top3
+    Mythic = true,       -- Top3
+    Legendary = true,    -- Top4
+    Epic = false,        -- Top5 (User Select)
+    Rare = false,        -- Top5 (User Select)
+    Uncommon = false,    -- Top5 (User Select)
+    Common = false       -- Top5 (User Select)
 }
 
 -- ==================================================
@@ -173,7 +188,7 @@ local function FindAssetCategory(EggModel)
 end
 
 -- ==================================================
--- SORT EGGS
+-- SORT EGGS (Top1 → Top2 → Top3 → Top4 → Top5)
 -- ==================================================
 local function SortEggs(EggList)
     table.sort(EggList, function(a, b)
@@ -185,15 +200,7 @@ local function SortEggs(EggList)
 end
 
 -- ==================================================
--- ✅ IS FIRST EGG
--- ==================================================
-local function IsFirstEgg(Name)
-    if not Name then return false end
-    return string.find(Name, "FirstAreaEgg") ~= nil
-end
-
--- ==================================================
--- ✅ FIND BEST EGG (Skip First Egg)
+-- FIND BEST EGG (Spawn Path First → Workspace Backup)
 -- ==================================================
 local function FindBestEgg()
     local EggList = {}
@@ -202,11 +209,6 @@ local function FindBestEgg()
     if Container then
         for _, Slot in ipairs(Container:GetChildren()) do
             if Slot:IsA("Model") then
-                -- ✅ Skip First Egg
-                if IsFirstEgg(Slot.Name) then
-                    continue
-                end
-                
                 local Category = FindAssetCategory(Slot)
                 if Category then
                     local Data = GetPetData(Category)
@@ -230,14 +232,8 @@ local function FindBestEgg()
         return EggList[1]
     end
 
-    -- ✅ Workspace Backup (Skip First Egg)
     for _, Obj in ipairs(workspace:GetChildren()) do
-        if Obj:IsA("Model") then
-            -- ✅ Skip First Egg
-            if IsFirstEgg(Obj.Name) then
-                continue
-            end
-            
+        if Obj:IsA("Model") and string.find(Obj.Name, "FirstAreaEgg") then
             local Category = FindAssetCategory(Obj)
             if Category then
                 local Data = GetPetData(Category)
@@ -518,6 +514,7 @@ local function OnTeleportComplete()
     AFKStarted = false
     print("[FarmingManager] ✅ TeleportSystem Completed → Check New Egg")
 
+    -- Check New Egg
     local BestEgg = FindBestEgg()
 
     if BestEgg then
@@ -542,7 +539,7 @@ local function OnTeleportComplete()
 end
 
 -- ==================================================
--- MAIN LOOP (Skip First Egg)
+-- MAIN LOOP (FULL AUTO)
 -- ==================================================
 local function MainLoop()
     print("[FarmingManager] MainLoop Started (Full Auto)")
@@ -551,39 +548,39 @@ local function MainLoop()
         local Phase = GetPhase()
         CurrentPhase = Phase
 
+        -- Check Egg
         local BestEgg = FindBestEgg()
 
         if BestEgg then
-            -- ✅ Double Check: Skip First Egg
-            if IsFirstEgg(BestEgg.Uid) then
-                print("[FarmingManager] ⚠️ Skip First Egg (Target)")
-                EnableAFK()
-            else
-                print("[FarmingManager] ✅ Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| $/s:", BestEgg.EarningRate, "| Location:", BestEgg.Location)
-                PendingEggUid = BestEgg.Uid
+            print("[FarmingManager] ✅ Egg Found:", BestEgg.DisplayName, "| Rarity:", BestEgg.Rarity, "| $/s:", BestEgg.EarningRate, "| Location:", BestEgg.Location)
+            PendingEggUid = BestEgg.Uid
 
-                StopAll()
-                task.wait(0.3)
+            -- Stop AFK / Teleport ចាស់
+            StopAll()
+            task.wait(0.3)
 
-                local ReachedSafe = FlyToSafeZoneAndWait()
-                if ReachedSafe and PendingEggUid then
-                    task.wait(SAFE_WAIT_AFTER_REACH)
-                    StartTeleportSystem(PendingEggUid)
-                    PendingEggUid = nil
+            -- ទៅ Safe Zone មុន
+            local ReachedSafe = FlyToSafeZoneAndWait()
+            if ReachedSafe and PendingEggUid then
+                task.wait(SAFE_WAIT_AFTER_REACH)
+                -- Start Teleport System
+                StartTeleportSystem(PendingEggUid)
+                PendingEggUid = nil
 
-                    while WaitingForTeleport and FarmingEnabled do
-                        task.wait(0.2)
-                    end
-                else
-                    print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
-                    EnableAFK()
+                -- រង់ចាំ TeleportSystem បញ្ចប់
+                while WaitingForTeleport and FarmingEnabled do
+                    task.wait(0.2)
                 end
+            else
+                print("[FarmingManager] ⚠️ Cannot reach Safe Zone → AFK")
+                EnableAFK()
             end
         else
             print("[FarmingManager] ❌ No Egg → Enable AFK")
             EnableAFK()
         end
 
+        -- រង់ចាំមុនពេល Loop បន្ត
         task.wait(LOOP_WAIT_AFTER_AFK)
     end
 
@@ -591,7 +588,7 @@ local function MainLoop()
 end
 
 -- ==================================================
--- ENABLE / DISABLE / TOGGLE
+-- ENABLE / DISABLE
 -- ==================================================
 local function Enable()
     if FarmingEnabled then return end
@@ -607,7 +604,7 @@ local function Enable()
     end
     FarmingThread = task.spawn(function() MainLoop() end)
 
-    print("[YOKUDO] FarmingManager: ON (Skip First Egg)")
+    print("[YOKUDO] FarmingManager: ON (Full Auto Loop)")
 end
 
 local function Disable()
@@ -645,7 +642,6 @@ _G.YOKUDO_FarmingManager = {
     GetState = function() return CurrentState end,
     GetPhase = function() return CurrentPhase end,
     FindBestEgg = FindBestEgg,
-    IsFirstEgg = IsFirstEgg,
 
     GetEggData = function(Uid)
         if not Uid then return nil end
@@ -694,4 +690,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (v2 — Skip First Egg)")
+print("✅ FarmingManager Loaded (Full Auto Loop — Top1-Top5 Default)")
