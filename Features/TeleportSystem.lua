@@ -1,11 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v32)
--- ✅ Nearest First Egg — Walk TP ទៅ First Egg ជិតបំផុត
--- ✅ Safe Check Destination — Fix Line 685
--- ✅ Safe Check Hum + Root — Fix Line 213
--- ✅ Collect Timeout 15s
--- ✅ Dead → Respawn → FullReset + Restart
--- ✅ Short TP → 1200m → Drop → Walk TP → Target
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v33)
+-- ✅ Fix ALL Errors (Line 741 + Line 685 + Line 213)
+-- ✅ Nearest First Egg — ជិតបំផុត
+-- ✅ Collect Timeout 20s
+-- ✅ After Complete → Call Manager → Check New First Egg
+-- ✅ Simple Logic
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -32,7 +31,7 @@ local Config = {
     RecoverDistanceThreshold = 500,
     MaxRepeatCount = 10,
 
-    CollectTimeout = 15,
+    CollectTimeout = 20,           -- ✅ 20s
     CollectCheckInterval = 0.5,
 
     Position1_Top1 = Vector3.new(612, 70, -333),
@@ -204,10 +203,7 @@ end
 
 SavePlayerStats = function()
     local Hum, Root = GetHumanoid()
-    if not Hum then 
-        print("[TeleportSystem] ⚠️ SavePlayerStats: Humanoid not found")
-        return 
-    end
+    if not Hum then return end
 
     State.SavedWalkSpeed = Hum.WalkSpeed
     State.SavedJumpPower = Hum.JumpPower
@@ -226,16 +222,6 @@ RestoreStats = function()
     if State.SavedWalkSpeed ~= nil then
         pcall(function() Hum.WalkSpeed = State.SavedWalkSpeed end)
         print(string.format("[TeleportSystem] ✅ Restored WalkSpeed: %.1f", State.SavedWalkSpeed))
-    end
-
-    if State.SavedJumpPower ~= nil then
-        pcall(function() Hum.JumpPower = State.SavedJumpPower end)
-    end
-    if State.SavedJumpHeight ~= nil then
-        pcall(function() Hum.JumpHeight = State.SavedJumpHeight end)
-    end
-    if State.SavedUseJumpPower ~= nil then
-        pcall(function() Hum.UseJumpPower = State.SavedUseJumpPower end)
     end
 end
 
@@ -426,19 +412,14 @@ StopLock = function()
 end
 
 -- ==================================================
--- ✅ FLY TP AND LOCK (Safe Check Destination)
+-- ✅ FLY TP AND LOCK (Safe Check ALL)
 -- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        print("[TeleportSystem] ⚠️ FlyTPAndLock: Humanoid not found → Retry")
-        task.wait(0.5)
-        Hum, Root = GetHumanoid()
-        if not Hum or not Root then
-            if Callback then Callback() end
-            return
-        end
+        if Callback then Callback() end
+        return
     end
     
     if not Destination then
@@ -501,7 +482,7 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
 end
 
 -- ==================================================
--- ✅ SHOT TP (Safe Check Destination)
+-- ✅ SHOT TP (Safe Check ALL)
 -- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
@@ -568,19 +549,14 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
 end
 
 -- ==================================================
--- ✅ SHOT TP WITH STOP (Safe Check — Fix Line 685)
+-- ✅ SHOT TP WITH STOP (Safe Check ALL)
 -- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        print("[TeleportSystem] ⚠️ ShotTPWithStop: Humanoid not found → Retry")
-        task.wait(0.5)
-        Hum, Root = GetHumanoid()
-        if not Hum or not Root then
-            if Callback then Callback() end
-            return
-        end
+        if Callback then Callback() end
+        return
     end
     
     if not Destination then
@@ -645,19 +621,14 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
 end
 
 -- ==================================================
--- ✅ WALK TP (Safe Check Destination)
+-- ✅ WALK TP (Safe Check ALL)
 -- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        print("[TeleportSystem] ⚠️ WalkTP: Humanoid not found → Retry")
-        task.wait(0.5)
-        Hum, Root = GetHumanoid()
-        if not Hum or not Root then
-            if Callback then Callback() end
-            return
-        end
+        if Callback then Callback() end
+        return
     end
     
     if not Destination then
@@ -729,6 +700,9 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     end)
 end
 
+-- ==================================================
+-- ✅ COLLECT TIMEOUT (20s)
+-- ==================================================
 StartCollectTimeout = function(EggUid, Callback)
     State.CollectStartTime = tick()
     
@@ -802,6 +776,9 @@ AutoStop = function()
     NotifyComplete()
 end
 
+-- ==================================================
+-- ✅ STEP 1 (Walk TP → First Egg ជិតបំផុត)
+-- ==================================================
 Step1_WalkToFirstEgg = function()
     State.Step = "1_to_first"
     
@@ -813,16 +790,44 @@ Step1_WalkToFirstEgg = function()
         if not Hum or not Root then AutoStop() return end
     end
     
-    local FirstEgg = Container:FindFirstChild(State.FirstEggUid)
-    if not FirstEgg then 
-        warn("[TeleportSystem] ⚠️ Step1: First Egg not found")
-        AutoStop() 
-        return 
+    -- ✅ រក First Egg ជិតបំផុត
+    local PlayerPos = Root.Position
+    local NearestUid = nil
+    local NearestSlotKey = nil
+    local NearestPos = nil
+    local NearestDist = math.huge
+    
+    for _, child in ipairs(Container:GetChildren()) do
+        if string.find(child.Name, "FirstAreaEgg") then
+            local EggPos = GetPosition(child)
+            if EggPos then
+                local Dist = (EggPos - PlayerPos).Magnitude
+                if Dist < NearestDist then
+                    NearestDist = Dist
+                    NearestUid = child.Name
+                    NearestPos = EggPos
+                    
+                    local SlotNum = string.match(child.Name, "Slot_(%d+)")
+                    if SlotNum then
+                        NearestSlotKey = "Forest:Slot_" .. SlotNum
+                    end
+                end
+            end
+        end
     end
-    local FirstPos = GetPosition(FirstEgg)
-    if not FirstPos then AutoStop() return end
+    
+    if not NearestUid or not NearestSlotKey then
+        warn("[TeleportSystem] ⚠️ Step1: First Egg not found")
+        AutoStop()
+        return
+    end
+    
+    State.FirstEggUid = NearestUid
+    State.FirstEggSlotKey = NearestSlotKey
+    
+    print(string.format("[TeleportSystem] 🥚 Nearest First Egg: %s | Dist: %.1f", NearestUid, NearestDist))
 
-    WalkTP(FirstPos, false, Config.FlyTPDistance, false, function()
+    WalkTP(NearestPos, false, Config.FlyTPDistance, false, function()
         State.Step = "2_collect_first"
         State.FirstCollected = false
         State.CurrentEggUid = State.FirstEggUid
@@ -840,6 +845,9 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 3B (Short TP → 1200m → Drop → Walk TP)
+-- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -858,12 +866,6 @@ Step3b_AfterDropFirst = function()
             AutoStop() 
             return 
         end
-        
-        if typeof(TargetPos) ~= "Vector3" then
-            warn("[TeleportSystem] ⚠️ Step3b: TargetPos is not Vector3 → AutoStop")
-            AutoStop()
-            return
-        end
 
         print("[TeleportSystem] ⚡ Short TP → Target")
 
@@ -876,6 +878,7 @@ Step3b_AfterDropFirst = function()
 
             task.wait(0.3)
 
+            -- ✅ Check TargetPos ម្តងទៀត
             local NewTargetPos
             if Container:FindFirstChild(State.TargetUid) then
                 NewTargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
@@ -908,38 +911,6 @@ Step3b_AfterDropFirst = function()
                     end
                 end)
             end)
-        end)
-    end)
-end
-
-Step4_WalkToTargetAndFlyLock = function()
-    if not State.Running then return end
-    State.Step = "4_walk_target"
-
-    local TargetPos
-    if Container:FindFirstChild(State.TargetUid) then
-        TargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
-    elseif workspace:FindFirstChild(State.TargetUid) then
-        TargetPos = GetPosition(workspace:FindFirstChild(State.TargetUid))
-    end
-    if not TargetPos then AutoStop() return end
-
-    local WaitTime = GetNearestMapWait(TargetPos)
-
-    WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
-        task.spawn(function()
-            task.wait(WaitTime)
-            if not State.Running then return end
-            State.Step = "6_collect_target"
-            State.TargetCollected = false
-            State.CurrentEggUid = State.TargetUid
-            
-            StartCollectTimeout(State.TargetUid)
-            
-            while State.Running and State.Step == "6_collect_target" do
-                task.wait(Config.CollectInterval)
-                RemoteCollectTarget()
-            end
         end)
     end)
 end
@@ -1142,7 +1113,7 @@ SetupDropHeldEgg = function()
 end
 
 -- ==================================================
--- ✅ START PROCESS (រក First Egg ជិតបំផុត)
+-- ✅ START PROCESS
 -- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
@@ -1275,6 +1246,9 @@ FullReset = function()
     print("[TeleportSystem] Full Reset")
 end
 
+-- ==================================================
+-- ✅ CHARACTER ADDED (Respawn → FullReset + Restart)
+-- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not State.Running then return end
     
@@ -1304,6 +1278,9 @@ Player.CharacterAdded:Connect(function(Char)
     StartProcess()
 end)
 
+-- ==================================================
+-- PUBLIC API
+-- ==================================================
 local TeleportSystem = {}
 
 function TeleportSystem.Enable()
@@ -1337,6 +1314,7 @@ function TeleportSystem.GetWalkSpeed() return GetPlayerSpeed() end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
+-- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v32 — Nearest First Egg)")
+print("✅ TeleportSystem Loaded (v33 — Fix ALL Errors)")
