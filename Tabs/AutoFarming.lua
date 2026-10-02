@@ -2,6 +2,8 @@
 -- YOKUDO HUB | TAB | Auto Farming (FAST)
 -- ✅ ភ្ជាប់ជាមួយ AutoFarm + TeleportSystem v21
 -- ✅ User ធិក Check Egg → Select Egg → ធិក Start
+-- ✅ Export Button សម្រាប់ SpeedLock
+-- ✅ គ្មាន Audio
 --==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -116,6 +118,7 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
+-- ✅ TOGGLE GET EGG (គ្មាន Audio)
 local function ToggleGetEgg()
     GetEggEnabled = not GetEggEnabled
     GetEggCheck.Visible = GetEggEnabled
@@ -328,7 +331,6 @@ local function RefreshEggList()
     CheckEggCount.Text = "Egg: " .. #Eggs
 end
 
--- ✅ Debounce Refresh
 local RefreshPending = false
 
 local function QueueRefresh()
@@ -412,4 +414,9 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21)")
+--==================================================
+-- ✅ EXPORT BUTTONS (សម្រាប់ SpeedLock)
+--==================================================
+_G.YOKUDO_GetEggCheckButton = GetEggCheckButton
+
+print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21 + Export Button)")
