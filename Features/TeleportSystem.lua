@@ -1,10 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v25)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v26)
 -- ✅ WalkSpeed ថេរ
 -- ✅ Save/Restore WalkSpeed Real ពី Player
 -- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
 -- ✅ ភ្ជាប់ជាមួយ Tabs/MapSettings (All In One)
 -- ✅ Check Target ≠ First Egg + Player
+-- ✅ Drop First Egg ពេលជិតដល់ Target 1200m
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -24,7 +25,7 @@ local Config = {
     FlyTPDistance = 20,
     FlyOffset = 3,
     FlySpeed = 200,
-    StopShotDistance = 1200,
+    StopShotDistance = 1200,      -- ✅ Drop First Egg at 1200m
     ShotTPTime = 1.30,
     ShotTPTime2 = 1.30,
     PushUpOffset = 50,
@@ -45,19 +46,19 @@ local Config = {
 }
 
 -- ==================================================
--- ✅ MAP POSITIONS (ដក Wait ចេញ — អានពី MapSettings)
+-- ✅ MAP POSITIONS (អាន Wait ពី MapSettings)
 -- ==================================================
 local MapPositions = {
-    {Pos = Vector3.new(5666, 70, -329), MapId = 1},   -- Angels & Demons
-    {Pos = Vector3.new(4798, 70, -333), MapId = 2},   -- Titan Temple
-    {Pos = Vector3.new(4031, 70, -396), MapId = 3},   -- Cherry Blossom
-    {Pos = Vector3.new(3397, 70, -328), MapId = 4},   -- Cosmic
-    {Pos = Vector3.new(2815, 70, -398), MapId = 5},   -- Prehistoric
-    {Pos = Vector3.new(2286, 70, -331), MapId = 6},   -- Abyss Ocean
-    {Pos = Vector3.new(1877, 70, -390), MapId = 7},   -- Volcano
-    {Pos = Vector3.new(1488, 70, -318), MapId = 8},   -- Snow
-    {Pos = Vector3.new(1187, 70, -406), MapId = 9},   -- Jungle
-    {Pos = Vector3.new(950, 70, -328), MapId = 10},   -- Desert
+    {Pos = Vector3.new(5666, 70, -329), MapId = 1},
+    {Pos = Vector3.new(4798, 70, -333), MapId = 2},
+    {Pos = Vector3.new(4031, 70, -396), MapId = 3},
+    {Pos = Vector3.new(3397, 70, -328), MapId = 4},
+    {Pos = Vector3.new(2815, 70, -398), MapId = 5},
+    {Pos = Vector3.new(2286, 70, -331), MapId = 6},
+    {Pos = Vector3.new(1877, 70, -390), MapId = 7},
+    {Pos = Vector3.new(1488, 70, -318), MapId = 8},
+    {Pos = Vector3.new(1187, 70, -406), MapId = 9},
+    {Pos = Vector3.new(950, 70, -328), MapId = 10},
 }
 
 -- ==================================================
@@ -481,6 +482,9 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
+-- ==================================================
+-- ✅ SHOT TP WITH STOP (Drop at 1200m)
+-- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -528,6 +532,9 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
+-- ==================================================
+-- ✅ WALK TP (DropAtDistance Support)
+-- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -561,8 +568,10 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
             return
         end
 
+        -- ✅ Drop At Distance (1200m)
         if DropAtDistance and not DropDone and Dist <= DropAtDistance then
             DropDone = true
+            print(string.format("[TeleportSystem] 🥚 Drop First Egg (Dist: %.1f)", Dist))
             RemoteDrop()
         end
 
@@ -656,6 +665,9 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 3B: SHOT TP WITH STOP (Drop First at 1200m)
+-- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -670,6 +682,7 @@ Step3b_AfterDropFirst = function()
         end
         if not TargetPos then AutoStop() return end
 
+        -- ✅ Shot TP → Drop First ពេលជិតដល់ 1200m
         ShotTPWithStop(TargetPos, Config.ShotTPTime, Config.StopShotDistance, function()
             task.wait(0.2)
             Step4_WalkToTargetAndFlyLock()
@@ -677,6 +690,9 @@ Step3b_AfterDropFirst = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 4: WALK TARGET (Drop First at 1200m)
+-- ==================================================
 Step4_WalkToTargetAndFlyLock = function()
     if not State.Running then return end
     State.Step = "4_walk_target"
@@ -691,7 +707,8 @@ Step4_WalkToTargetAndFlyLock = function()
 
     local WaitTime = GetNearestMapWait(TargetPos)
 
-    WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
+    -- ✅ Walk TP → Drop First Egg ពេលជិតដល់ 1200m
+    WalkTP(TargetPos, false, Config.FlyTPDistance, Config.StopShotDistance, function()
         task.spawn(function()
             task.wait(WaitTime)
             if not State.Running then return end
@@ -903,7 +920,6 @@ StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
 
-    -- ✅ រក First Egg
     local FirstEggUid = nil
     local FirstEggSlotKey = nil
     for _, child in ipairs(Container:GetChildren()) do
@@ -922,42 +938,22 @@ StartProcess = function()
         return
     end
 
-    -- ✅ Check: Target ≠ nil
     if not State.TargetUid then
         warn("[TeleportSystem] No Target ID")
         return
     end
     
-    -- ✅ Check: Target ≠ First Egg
     if string.find(State.TargetUid, "FirstAreaEgg") then
         warn("[TeleportSystem] ⚠️ Target ជា First Egg!")
         return
     end
     
-    -- ✅ Check: Target ≠ Player
     local Players = game:GetService("Players")
     for _, P in ipairs(Players:GetPlayers()) do
         if P.Name == State.TargetUid or P.DisplayName == State.TargetUid then
             warn("[TeleportSystem] ⚠️ Target ជា Player:", State.TargetUid)
             return
         end
-    end
-    
-    -- ✅ Check: Target ≠ Player Character
-    for _, P in ipairs(Players:GetPlayers()) do
-        if P.Character and P.Character.Name == State.TargetUid then
-            warn("[TeleportSystem] ⚠️ Target ជា Character:", State.TargetUid)
-            return
-        end
-    end
-    
-    -- ✅ Check: Target មានក្នុង Container ឬ Workspace
-    local TargetInContainer = Container:FindFirstChild(State.TargetUid)
-    local TargetInWorkspace = workspace:FindFirstChild(State.TargetUid)
-    
-    if not TargetInContainer and not TargetInWorkspace then
-        warn("[TeleportSystem] ⚠️ Target not found:", State.TargetUid)
-        return
     end
 
     print(string.format("[TeleportSystem] 🥚 First Egg: %s", FirstEggUid))
@@ -1061,4 +1057,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v25 — Check Target + Filter Character)")
+print("✅ TeleportSystem Loaded (v26 — Drop First at 1200m)")
