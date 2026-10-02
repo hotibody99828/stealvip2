@@ -1,11 +1,10 @@
 -- ==================================================
--- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v12)
+-- YOKUDO HUB | STEAL AN EGG | Loader (UPDATED v13)
 -- ✅ SpeedLock Check លូតមុនគេ
 -- ✅ MapSettings (Tab Only — All In One)
+-- ✅ Sound (Play Once at 50%)
 -- ✅ Load Features + Tabs
 -- ✅ Register + RunCheck
--- ✅ គ្មាន Sound/Audio
--- ✅ គ្មាន Features/MapSettings.lua
 -- ==================================================
 
 local BASE_URL = "https://raw.githubusercontent.com/hotibody99828/stealvip2/main/"
@@ -177,7 +176,7 @@ Loading.Update(15)
 loadstring(GetScript("Features/SpeedLock.lua"))()
 
 -- ==================================================
--- ✅ RUN SPEED CHECK (ភ្លាមៗ)
+-- ✅ RUN SPEED CHECK
 -- ==================================================
 Loading.Update(18)
 print("🔍 Running Speed Check...")
@@ -209,7 +208,7 @@ loadstring(GetScript("Features/AntiTrap.lua"))()
 Loading.Update(36)
 loadstring(GetScript("Features/GodMode.lua"))()
 
--- ✅ TeleportSystem (អានតម្លៃពី _G.YOKUDO_MapSettings)
+-- ✅ TeleportSystem
 Loading.Update(39)
 loadstring(GetScript("Features/TeleportSystem.lua"))()
 
@@ -222,6 +221,21 @@ loadstring(GetScript("Features/AutoAttack.lua"))()
 Loading.Update(48)
 loadstring(GetScript("Features/AFKSystem.lua"))()
 
+-- ==================================================
+-- ✅ LOAD SOUND (Loading 50% — Play Once)
+-- ==================================================
+Loading.Update(50)
+loadstring(GetScript("Features/Sound.lua"))()
+
+-- ✅ លេង Audio ភ្លាម (តែម្តង)
+if _G.YOKUDO_Sound then
+    _G.YOKUDO_Sound.Play()
+    print("🎵 Sound Played at Loading 50%")
+end
+
+-- ==================================================
+-- LOAD FEATURES (បន្ត)
+-- ==================================================
 Loading.Update(52)
 loadstring(GetScript("Features/FarmingManager.lua"))()
 
@@ -274,7 +288,7 @@ Loading.Update(90)
 loadstring(GetScript("Tabs/ESP.lua"))()
 
 -- ==================================================
--- ✅ LOAD MAP SETTINGS TAB (All In One — No Features File)
+-- ✅ LOAD MAP SETTINGS TAB
 -- ==================================================
 Loading.Update(91)
 loadstring(GetScript("Tabs/MapSettings.lua"))()
@@ -287,7 +301,6 @@ task.spawn(function()
     task.wait(0.5)
     
     if _G.YOKUDO_SpeedLock then
-        -- ✅ Register Farm Button
         if _G.YOKUDO_FarmButton then
             _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_FarmButton, "Farm")
             print("✅ Registered FarmButton")
@@ -295,7 +308,6 @@ task.spawn(function()
             warn("⚠️ _G.YOKUDO_FarmButton not found!")
         end
         
-        -- ✅ Register Get Egg Button
         if _G.YOKUDO_GetEggCheckButton then
             _G.YOKUDO_SpeedLock.RegisterLockable(_G.YOKUDO_GetEggCheckButton, "GetEgg")
             print("✅ Registered GetEggCheckButton")
@@ -303,7 +315,6 @@ task.spawn(function()
             warn("⚠️ _G.YOKUDO_GetEggCheckButton not found!")
         end
         
-        -- ✅ Re-apply Lock
         task.wait(0.3)
         if not _G.YOKUDO_SpeedLock.IsUnlocked() then
             _G.YOKUDO_SpeedLock.ApplyLock()
@@ -344,3 +355,4 @@ print("✅ Loading Screen Closed!")
 print("🚀 YOKUDO HUB | Ready!")
 print("🎯 Speed:", _G.YOKUDO_IsSpeedUnlocked and "✅ UNLOCKED" or "🔒 LOCKED")
 print("🗺️ MapSettings:", _G.YOKUDO_MapSettings and "✅ LOADED" or "❌ NOT LOADED")
+print("🔊 Sound:", _G.YOKUDO_Sound and "✅ LOADED" or "❌ NOT LOADED")
