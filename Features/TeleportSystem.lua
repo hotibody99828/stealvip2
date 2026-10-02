@@ -1,8 +1,8 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v29)
--- ✅ ដក WalkSpeed ថេរ (200) — ប្រើ WalkSpeed ផ្ទាល់ពី Player
--- ✅ ដក FlySpeed ថេរ (200) — ប្រើ Player Speed ផ្ទាល់
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v30)
+-- ✅ ដក WalkSpeed + FlySpeed ថេរ — ប្រើ Player Speed
 -- ✅ Short TP → 1200m → Stop → Drop → Walk TP → Target
+-- ✅ Character Respawn → Restart
 -- ✅ Callback ទៅ FarmingManager
 -- ✅ MapSettings Integration
 -- ==================================================
@@ -15,14 +15,13 @@ local Player = Players.LocalPlayer
 local Container = workspace:WaitForChild("AreaEggSlotsClient")
 
 -- ==================================================
--- CONFIG (ដក FlySpeed)
+-- CONFIG
 -- ==================================================
 local Config = {
     ArriveDistance = 2,
     LockDistance = 1,
     FlyTPDistance = 20,
     FlyOffset = 3,
-    -- ❌ ដក FlySpeed = 200
     StopShotDistance = 1200,
     ShotTPTime = 1.30,
     ShotTPTime2 = 1.30,
@@ -122,7 +121,7 @@ local CleanupMovers
 local IsEggGone
 local GetNearestMapWait
 local GetSafePosition
-local GetPlayerSpeed  -- ✅ ថ្មី
+local GetPlayerSpeed
 local PushUp
 local CFrameInstant
 local RemoteCollectFirst
@@ -173,15 +172,13 @@ GetPosition = function(Object)
 end
 
 -- ==================================================
--- ✅ GET PLAYER SPEED (ថ្មី)
+-- ✅ GET PLAYER SPEED
 -- ==================================================
 GetPlayerSpeed = function()
-    -- ✅ Return Saved WalkSpeed
     if State.SavedWalkSpeed and State.SavedWalkSpeed > 0 then
         return State.SavedWalkSpeed
     end
     
-    -- ✅ Fallback — Get ពី Player
     local Hum = GetHumanoid()
     if Hum then
         return Hum.WalkSpeed
@@ -405,9 +402,6 @@ StopLock = function()
     end
 end
 
--- ==================================================
--- ✅ FLY TP AND LOCK (ប្រើ Player Speed)
--- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -416,7 +410,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
         return
     end
 
-    -- ✅ Get Player Speed
     local PlayerSpeed = GetPlayerSpeed()
     print(string.format("[TeleportSystem] ✈️ FlyTP | Speed: %.1f", PlayerSpeed))
 
@@ -447,7 +440,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
             if Callback then Callback() end
             return
         end
-        -- ✅ ប្រើ PlayerSpeed
         local MoveStep = Dir.Unit * PlayerSpeed * (1/60)
         Root2.CFrame = CFrame.new(CurrentPos + MoveStep)
         Root2.AssemblyLinearVelocity = Vector3.zero
@@ -462,9 +454,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP (ប្រើ Player Speed)
--- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -473,7 +462,6 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
         return
     end
 
-    -- ✅ Get Player Speed
     local PlayerSpeed = GetPlayerSpeed()
     print(string.format("[TeleportSystem] ✈️ ShotTP | Speed: %.1f", PlayerSpeed))
 
@@ -515,9 +503,6 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP WITH STOP (ប្រើ Player Speed)
--- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -526,7 +511,6 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
         return
     end
 
-    -- ✅ Get Player Speed
     local PlayerSpeed = GetPlayerSpeed()
     print(string.format("[TeleportSystem] ✈️ ShotTPWithStop | Speed: %.1f", PlayerSpeed))
 
@@ -571,9 +555,6 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
--- ==================================================
--- ✅ WALK TP (ប្រើ Player Speed)
--- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
@@ -582,7 +563,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
         return
     end
 
-    -- ✅ Get Player Speed
     local PlayerSpeed = GetPlayerSpeed()
     Hum.WalkSpeed = PlayerSpeed
     
@@ -639,9 +619,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     end)
 end
 
--- ==================================================
--- NOTIFY COMPLETE
--- ==================================================
 NotifyComplete = function()
     print("[TeleportSystem] ✅ NotifyComplete → Call FarmingManager")
 
@@ -708,9 +685,6 @@ Step1_WalkToFirstEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 3B (Short TP → 1200m → Drop → Walk TP → Target)
--- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
     State.Step = "3b_after_drop"
@@ -727,18 +701,15 @@ Step3b_AfterDropFirst = function()
 
         print("[TeleportSystem] ⚡ Short TP → Target")
 
-        -- ✅ Step 1: Short TP ទៅ Target
         ShotTPWithStop(TargetPos, Config.ShotTPTime, Config.StopShotDistance, function()
-            print("[TeleportSystem] ✅ Short TP Stopped (1200m)")
+            print("[TeleportSystem] ✅ Shot TP Stopped (1200m)")
 
-            -- ✅ Step 3: Drop First Egg
             RemoteDrop()
             State.FirstDropDone = true
             print("[TeleportSystem] 🥚 First Egg Dropped")
 
             task.wait(0.3)
 
-            -- ✅ Step 4: Walk TP ទៅ Target
             print("[TeleportSystem] 🚶 Walk TP → Target")
             WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
                 task.spawn(function()
@@ -977,9 +948,6 @@ SetupDropHeldEgg = function()
     end)
 end
 
--- ==================================================
--- ✅ START PROCESS
--- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
@@ -1098,6 +1066,23 @@ FullReset = function()
 end
 
 -- ==================================================
+-- ✅ CHARACTER RESPAWN RESTART
+-- ==================================================
+Player.CharacterAdded:Connect(function(Char)
+    if not State.Running then return end
+    
+    print("[TeleportSystem] 🔄 Character Respawned → Resume")
+    
+    task.wait(3)
+    
+    if State.TargetUid then
+        FullReset()
+        task.wait(0.5)
+        StartProcess()
+    end
+end)
+
+-- ==================================================
 -- PUBLIC API
 -- ==================================================
 local TeleportSystem = {}
@@ -1140,4 +1125,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v29 — Player Speed for Fly + Walk)")
+print("✅ TeleportSystem Loaded (v30 — Player Speed + Respawn Restart)")
