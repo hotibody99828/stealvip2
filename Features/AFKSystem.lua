@@ -1,10 +1,13 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | AFK System (v5 FINAL)
+-- YOKUDO HUB | FEATURE | AFK System (v7 FINAL)
 -- ✅ Walk TP: Humanoid:MoveTo() + Speed ដើម
--- ✅ Save / Restore WalkSpeed (បញ្ហា Respawn)
+-- ✅ Save / Restore WalkSpeed
 -- ✅ Reset PlatformStand ពេល Arrived
 -- ✅ Check Grounded ពេល Arrived
 -- ✅ Character Respawn → Resume
+-- ✅ Check Y Position ពេលទៅដល់ Treadmill
+-- ✅ Y = 70 → Dead → Teleport ទៅ Dead Position
+-- ✅ Y ≥ 71 → AFK ធម្មតា
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -26,6 +29,16 @@ local SAFE_ZONE = Vector3.new(533, 70, -366)
 local GROUND_CHECK_DISTANCE = 10
 
 -- ==================================================
+-- ✅ Y CHECK SETTINGS
+-- ==================================================
+local Y_CHECK_DISTANCE = 4          -- ✅ ជិត 4 distance
+local Y_CHECK_DURATION = 10         -- ✅ រយៈពេល 10s
+local Y_CHECK_INTERVAL = 0.5        -- ✅ Check រាល់ 0.5s
+local Y_DEAD_VALUE = 70             -- ✅ Y = 70 → Dead
+local Y_AFK_VALUE = 71              -- ✅ Y ≥ 71 → AFK ធម្មតា
+local DEAD_POSITION = Vector3.new(554, 140, -479)  -- ✅ Dead Position
+
+-- ==================================================
 -- STATE
 -- ==================================================
 local AFKEnabled = false
@@ -34,7 +47,8 @@ local MyTreadmill = nil
 local MyTreadmillPos = nil
 local WalkConnection = nil
 local DistCheckThread = nil
-local SavedWalkSpeed = nil   -- ✅ Save WalkSpeed ដើម
+local YCheckThread = nil
+local SavedWalkSpeed = nil
 
 -- ==================================================
 -- GET HUMANOID
@@ -48,7 +62,7 @@ local function GetHumanoid()
 end
 
 -- ==================================================
--- ✅ SAVE / RESTORE WALK SPEED
+-- SAVE / RESTORE WALK SPEED
 -- ==================================================
 local function SaveWalkSpeed()
     local Hum = GetHumanoid()
@@ -129,6 +143,83 @@ local function CleanupMovers()
 end
 
 -- ==================================================
+-- ✅ TELEPORT TO DEAD POSITION
+-- ==================================================
+local function TeleportToDeadPosition()
+    local Hum, Root = GetHumanoid()
+    if not Hum or not Root then
+        warn("[AFK] ❌ Humanoid or Root not found!")
+        return false
+    end
+    
+    pcall(function()
+        Hum:MoveTo(Root.Position)
+        Hum.WalkSpeed = 0
+        Root.CFrame = CFrame.new(DEAD_POSITION)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end)
+    
+    print(string.format("[AFK] ⚡ Teleported to Dead Position: %s", tostring(DEAD_POSITION)))
+    return true
+end
+
+-- ==================================================
+-- ✅ CHECK Y POSITION (រយៈពេល 10s)
+-- ==================================================
+local function CheckYPosition(Callback)
+    if YCheckThread then
+        pcall(function() task.cancel(YCheckThread) end)
+        YCheckThread = nil
+    end
+    
+    YCheckThread = task.spawn(function()
+        local StartTime = tick()
+        local DeadCount = 0
+        local TotalCount = 0
+        
+        print("[AFK] 🔍 Checking Y Position for 10s...")
+        
+        while AFKEnabled and (tick() - StartTime) < Y_CHECK_DURATION do
+            task.wait(Y_CHECK_INTERVAL)
+            if not AFKEnabled then break end
+            
+            local Hum, Root = GetHumanoid()
+            if not Root then break end
+            
+            local CurrentY = math.floor(Root.Position.Y)
+            TotalCount = TotalCount + 1
+            
+            -- ✅ Check Y
+            if CurrentY <= Y_DEAD_VALUE then
+                DeadCount = DeadCount + 1
+                print(string.format("[AFK] ⚠️ Y=%d (Dead Count: %d/%d)", CurrentY, DeadCount, TotalCount))
+            else
+                print(string.format("[AFK] ✅ Y=%d (AFK OK)", CurrentY))
+            end
+        end
+        
+        -- ✅ Result
+        local DeadRatio = DeadCount / math.max(TotalCount, 1)
+        
+        if DeadRatio >= 0.5 then
+            -- ✅ ច្រើនជាង 50% → Dead
+            print(string.format("[AFK] 🔒 Character Dead (Y=70) | Ratio: %.0f%%", DeadRatio * 100))
+            
+            -- ✅ Teleport ទៅ Dead Position
+            TeleportToDeadPosition()
+            
+            if Callback then Callback(true) end
+        else
+            -- ✅ Y ≥ 71 → AFK ធម្មតា
+            print(string.format("[AFK] ✅ AFK OK (Y≥71) | Ratio: %.0f%%", DeadRatio * 100))
+            
+            if Callback then Callback(false) end
+        end
+    end)
+end
+
+-- ==================================================
 -- WALK TP
 -- ==================================================
 local function WalkTP(Destination, Callback)
@@ -140,12 +231,8 @@ local function WalkTP(Destination, Callback)
         return
     end
 
-    -- ✅ Save WalkSpeed បើមិនទាន់
     SaveWalkSpeed()
-
-    -- ✅ Restore WalkSpeed
     RestoreWalkSpeed()
-
     ResetPlatformStand()
 
     local StartTime = tick()
@@ -163,7 +250,6 @@ local function WalkTP(Destination, Callback)
             return
         end
 
-        -- ✅ Ensure WalkSpeed ជាប់
         if SavedWalkSpeed and Hum2.WalkSpeed ~= SavedWalkSpeed then
             Hum2.WalkSpeed = SavedWalkSpeed
         end
@@ -194,6 +280,7 @@ local function WalkTP(Destination, Callback)
             if tick() - StartTime > ARRIVE_TIMEOUT then
                 CleanupMovers()
                 ResetPlatformStand()
+                print("[AFK] ⚠️ Walk TP Timeout")
                 if Callback then Callback() end
                 return
             end
@@ -284,26 +371,26 @@ local function StartDistanceCheck()
             if not AFKEnabled then break end
 
             local Hum, Root = GetHumanoid()
-            if not Root or not MyTreadmillPos then continue end
+            
+            if Root and MyTreadmillPos then
+                local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
 
-            local DistToTreadmill = math.floor((Root.Position - MyTreadmillPos).Magnitude)
-
-            if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
-                ResetPlatformStand()
-                WalkTP(MyTreadmillPos)
+                if DistToTreadmill > DIST_TREADMILL_THRESHOLD then
+                    ResetPlatformStand()
+                    WalkTP(MyTreadmillPos)
+                end
             end
         end
     end)
 end
 
 -- ==================================================
--- ENABLE
+-- ✅ ENABLE
 -- ==================================================
 local function EnableAFK()
     if AFKEnabled then return end
     AFKEnabled = true
 
-    -- ✅ Save WalkSpeed ដើម
     SaveWalkSpeed()
 
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
@@ -331,11 +418,20 @@ local function EnableAFK()
                 task.wait(0.5)
             end
 
-            StartDistanceCheck()
+            -- ✅ Check Y Position (រយៈពេល 10s)
+            CheckYPosition(function(IsDead)
+                if IsDead then
+                    -- ✅ Dead → រង់ចាំ Respawn
+                    print("[AFK] ⏳ Waiting for Respawn...")
+                else
+                    -- ✅ AFK ធម្មតា
+                    StartDistanceCheck()
+                end
+            end)
         end)
     end)
 
-    print("[AFK] AFK System: ON (Walk TP + Save WalkSpeed)")
+    print("[AFK] AFK System: ON (Y Check Enabled)")
 end
 
 -- ==================================================
@@ -349,30 +445,31 @@ local function DisableAFK()
         pcall(function() task.cancel(DistCheckThread) end)
         DistCheckThread = nil
     end
+    
+    if YCheckThread then
+        pcall(function() task.cancel(YCheckThread) end)
+        YCheckThread = nil
+    end
 
     CleanupMovers()
     ResetPlatformStand()
     MyPlot = nil
     MyTreadmill = nil
     MyTreadmillPos = nil
-    -- ✅ មិន Reset SavedWalkSpeed ព្រោះត្រូវការ Resume
 
     print("[AFK] AFK System: OFF")
 end
 
 -- ==================================================
--- ✅ CHARACTER ADDED (Resume ពេល Respawn)
+-- CHARACTER ADDED (Resume ពេល Respawn)
 -- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not AFKEnabled then return end
 
-    task.wait(3)  -- ✅ រង់ចាំ BypassAntiCheat បញ្ចប់ជាមុន
+    task.wait(3)
 
     CleanupMovers()
-
-    -- ✅ Restore WalkSpeed បន្ទាប់ពី Bypass
     RestoreWalkSpeed()
-
     ResetPlatformStand()
 
     MyPlot, MyTreadmill = FindMyPlotAndTreadmill()
@@ -396,7 +493,14 @@ Player.CharacterAdded:Connect(function(Char)
             task.wait(0.5)
         end
 
-        StartDistanceCheck()
+        -- ✅ Check Y Position ម្តងទៀត
+        CheckYPosition(function(IsDead)
+            if IsDead then
+                print("[AFK] ⏳ Waiting for Respawn...")
+            else
+                StartDistanceCheck()
+            end
+        end)
     end)
 
     print("[AFK] AFK System: Resumed after Respawn")
@@ -419,10 +523,15 @@ _G.YOKUDO_AFKSystem = {
     IsFlying = function() return WalkConnection ~= nil end,
     ResetPlatformStand = ResetPlatformStand,
     IsGrounded = IsGrounded,
-    SaveWalkSpeed = SaveWalkSpeed,        -- ✅ Export
-    RestoreWalkSpeed = RestoreWalkSpeed,  -- ✅ Export
+    SaveWalkSpeed = SaveWalkSpeed,
+    RestoreWalkSpeed = RestoreWalkSpeed,
     GetSavedWalkSpeed = function() return SavedWalkSpeed end,
+    TeleportToDeadPosition = TeleportToDeadPosition,
+    CheckYPosition = CheckYPosition,
     SAFE_ZONE = SAFE_ZONE,
+    DEAD_POSITION = DEAD_POSITION,
 }
 
-print("✅ AFKSystem Loaded (v5 FINAL — Save/Restore WalkSpeed)")
+print("✅ AFKSystem Loaded (v7 FINAL — Y Check)")
+print(string.format("📍 Dead Position: %s", tostring(DEAD_POSITION)))
+print(string.format("📍 Y_DEAD: %d | Y_AFK: %d", Y_DEAD_VALUE, Y_AFK_VALUE))
