@@ -1,10 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | FEATURE | Farming Manager (v3 FULL)
+-- YOKUDO HUB | FEATURE | Farming Manager (v4 FULL)
 -- ✅ Divine Priority (Force Divine មុន)
 -- ✅ Filter Character + Player + First Egg
 -- ✅ Prevent Loop Reset (LastTargetUid)
 -- ✅ Spawn Path First → Workspace Backup
 -- ✅ Full Auto Loop
+-- ✅ Character Respawn → Restart
+-- ✅ WalkSpeed ផ្ទាល់ពី Player
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -385,7 +387,7 @@ local function CleanupWalk()
 end
 
 -- ==================================================
--- WALK TP
+-- WALK TP (WalkSpeed ផ្ទាល់)
 -- ==================================================
 local function WalkTP(Destination, Callback)
     CleanupWalk()
@@ -401,7 +403,6 @@ local function WalkTP(Destination, Callback)
         return
     end
 
-    -- ✅ ប្រើ WalkSpeed ផ្ទាល់
     local PlayerSpeed = Hum.WalkSpeed
     print(string.format("[FarmingManager] 🚶 Walk TP → %s | Speed: %.1f", tostring(Destination), PlayerSpeed))
 
@@ -678,6 +679,66 @@ local function Toggle()
 end
 
 -- ==================================================
+-- ✅ CHARACTER RESPAWN RESTART
+-- ==================================================
+local function SetupDeathListener(Char)
+    if not Char then return end
+    
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    if not Hum then return end
+    
+    Hum.Died:Connect(function()
+        print("[FarmingManager] ☠️ Player Died")
+        
+        if FarmingEnabled then
+            print("[FarmingManager] ⏸️ Farming Paused (Dead)")
+            
+            if _G.YOKUDO_TeleportSystem and _G.YOKUDO_TeleportSystem.IsEnabled() then
+                _G.YOKUDO_TeleportSystem.Disable()
+            end
+            
+            if _G.YOKUDO_AFKSystem and _G.YOKUDO_AFKSystem.IsEnabled() then
+                _G.YOKUDO_AFKSystem.Disable()
+            end
+            
+            CleanupWalk()
+            WaitingForTeleport = false
+        end
+    end)
+    
+    print("[FarmingManager] ✅ Death Listener Setup")
+end
+
+Player.CharacterAdded:Connect(function(Char)
+    if not FarmingEnabled then return end
+    
+    print("[FarmingManager] 🔄 Character Respawned → Restart")
+    
+    task.wait(3)
+    
+    if FarmingThread then
+        pcall(function() task.cancel(FarmingThread) end)
+        FarmingThread = nil
+    end
+    
+    WaitingForTeleport = false
+    AFKStarted = false
+    PendingEggUid = nil
+    LastTargetUid = nil
+    
+    task.wait(2)
+    FarmingThread = task.spawn(function() MainLoop() end)
+    
+    print("[FarmingManager] ✅ Farming Restarted")
+    
+    SetupDeathListener(Char)
+end)
+
+if Player.Character then
+    SetupDeathListener(Player.Character)
+end
+
+-- ==================================================
 -- EXPORT
 -- ==================================================
 _G.YOKUDO_FarmingManager = {
@@ -734,4 +795,4 @@ task.spawn(function()
     end
 end)
 
-print("✅ FarmingManager Loaded (v3 — Divine Priority + Filter)")
+print("✅ FarmingManager Loaded (v4 — Divine Priority + Filter + Respawn)")
