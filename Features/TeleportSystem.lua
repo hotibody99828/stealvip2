@@ -4,7 +4,7 @@
 -- ✅ Save/Restore WalkSpeed Real ពី Player
 -- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
 -- ✅ ភ្ជាប់ជាមួយ Tabs/MapSettings (All In One)
--- ✅ Check Target ≠ First Egg
+-- ✅ Check Target ≠ First Egg + Player
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -45,19 +45,19 @@ local Config = {
 }
 
 -- ==================================================
--- ✅ MAP POSITIONS
+-- ✅ MAP POSITIONS (ដក Wait ចេញ — អានពី MapSettings)
 -- ==================================================
 local MapPositions = {
-    {Pos = Vector3.new(5666, 70, -329), MapId = 1},
-    {Pos = Vector3.new(4798, 70, -333), MapId = 2},
-    {Pos = Vector3.new(4031, 70, -396), MapId = 3},
-    {Pos = Vector3.new(3397, 70, -328), MapId = 4},
-    {Pos = Vector3.new(2815, 70, -398), MapId = 5},
-    {Pos = Vector3.new(2286, 70, -331), MapId = 6},
-    {Pos = Vector3.new(1877, 70, -390), MapId = 7},
-    {Pos = Vector3.new(1488, 70, -318), MapId = 8},
-    {Pos = Vector3.new(1187, 70, -406), MapId = 9},
-    {Pos = Vector3.new(950, 70, -328), MapId = 10},
+    {Pos = Vector3.new(5666, 70, -329), MapId = 1},   -- Angels & Demons
+    {Pos = Vector3.new(4798, 70, -333), MapId = 2},   -- Titan Temple
+    {Pos = Vector3.new(4031, 70, -396), MapId = 3},   -- Cherry Blossom
+    {Pos = Vector3.new(3397, 70, -328), MapId = 4},   -- Cosmic
+    {Pos = Vector3.new(2815, 70, -398), MapId = 5},   -- Prehistoric
+    {Pos = Vector3.new(2286, 70, -331), MapId = 6},   -- Abyss Ocean
+    {Pos = Vector3.new(1877, 70, -390), MapId = 7},   -- Volcano
+    {Pos = Vector3.new(1488, 70, -318), MapId = 8},   -- Snow
+    {Pos = Vector3.new(1187, 70, -406), MapId = 9},   -- Jungle
+    {Pos = Vector3.new(950, 70, -328), MapId = 10},   -- Desert
 }
 
 -- ==================================================
@@ -255,7 +255,6 @@ GetNearestMapWait = function(EggPos)
     
     if _G.YOKUDO_MapSettings then
         Wait = _G.YOKUDO_MapSettings.GetMapWait(NearestMapId)
-        
         local MapInfo = _G.YOKUDO_MapSettings.GetMapData(NearestMapId)
         if MapInfo then
             NearestMapName = MapInfo.Name
@@ -898,12 +897,13 @@ SetupDropHeldEgg = function()
 end
 
 -- ==================================================
--- ✅ START PROCESS (កែ — Check Target ≠ First Egg)
+-- ✅ START PROCESS (Check Target ≠ First Egg + Player)
 -- ==================================================
 StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
 
+    -- ✅ រក First Egg
     local FirstEggUid = nil
     local FirstEggSlotKey = nil
     for _, child in ipairs(Container:GetChildren()) do
@@ -922,14 +922,41 @@ StartProcess = function()
         return
     end
 
-    -- ✅ Check: Target ≠ First Egg
+    -- ✅ Check: Target ≠ nil
     if not State.TargetUid then
         warn("[TeleportSystem] No Target ID")
         return
     end
     
+    -- ✅ Check: Target ≠ First Egg
     if string.find(State.TargetUid, "FirstAreaEgg") then
-        warn("[TeleportSystem] ⚠️ Target ជា First Egg! សូមជ្រើសរើស Egg ផ្សេង")
+        warn("[TeleportSystem] ⚠️ Target ជា First Egg!")
+        return
+    end
+    
+    -- ✅ Check: Target ≠ Player
+    local Players = game:GetService("Players")
+    for _, P in ipairs(Players:GetPlayers()) do
+        if P.Name == State.TargetUid or P.DisplayName == State.TargetUid then
+            warn("[TeleportSystem] ⚠️ Target ជា Player:", State.TargetUid)
+            return
+        end
+    end
+    
+    -- ✅ Check: Target ≠ Player Character
+    for _, P in ipairs(Players:GetPlayers()) do
+        if P.Character and P.Character.Name == State.TargetUid then
+            warn("[TeleportSystem] ⚠️ Target ជា Character:", State.TargetUid)
+            return
+        end
+    end
+    
+    -- ✅ Check: Target មានក្នុង Container ឬ Workspace
+    local TargetInContainer = Container:FindFirstChild(State.TargetUid)
+    local TargetInWorkspace = workspace:FindFirstChild(State.TargetUid)
+    
+    if not TargetInContainer and not TargetInWorkspace then
+        warn("[TeleportSystem] ⚠️ Target not found:", State.TargetUid)
         return
     end
 
@@ -1034,4 +1061,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v25 — Check Target ≠ First Egg)")
+print("✅ TeleportSystem Loaded (v25 — Check Target + Filter Character)")
