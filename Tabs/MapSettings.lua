@@ -1,10 +1,11 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Map Settings (v3 FINAL)
--- ✅ Data Only — No Feature
+-- YOKUDO HUB | TAB | Map Settings (v4 FINAL)
+-- ✅ Data + UI + Functions (All In One)
 -- ✅ Map Name + TextBox
 -- ✅ User Input Value
 -- ✅ Reset Button
--- ✅ Save/Load Custom Values
+-- ✅ Export _G.YOKUDO_MapSettings
+-- ✅ គ្មាន Features/MapSettings.lua
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -12,22 +13,87 @@ local TweenService = game:GetService("TweenService")
 
 local MapSettingsTab, MapSettingsPage = TabsManager:RegisterTab("Map Settings", 10, "MAP_SETTINGS")
 
-CreateSectionTitle(MapSettingsPage, "Map Settings", 1)
+-- ==================================================
+-- ✅ MAP DATA (All In One)
+-- ==================================================
+local MapData = {
+    [1] = {MapId = 1, Name = "Angels & Demons", DefaultWait = 8, Pos = Vector3.new(5666, 70, -329)},
+    [2] = {MapId = 2, Name = "Titan Temple", DefaultWait = 6, Pos = Vector3.new(4798, 70, -333)},
+    [3] = {MapId = 3, Name = "Cherry Blossom", DefaultWait = 6, Pos = Vector3.new(4031, 70, -396)},
+    [4] = {MapId = 4, Name = "Cosmic", DefaultWait = 5, Pos = Vector3.new(3397, 70, -328)},
+    [5] = {MapId = 5, Name = "Prehistoric", DefaultWait = 4, Pos = Vector3.new(2815, 70, -398)},
+    [6] = {MapId = 6, Name = "Abyss Ocean", DefaultWait = 4, Pos = Vector3.new(2286, 70, -331)},
+    [7] = {MapId = 7, Name = "Volcano", DefaultWait = 1, Pos = Vector3.new(1877, 70, -390)},
+    [8] = {MapId = 8, Name = "Snow", DefaultWait = 1, Pos = Vector3.new(1488, 70, -318)},
+    [9] = {MapId = 9, Name = "Jungle", DefaultWait = 1, Pos = Vector3.new(1187, 70, -406)},
+    [10] = {MapId = 10, Name = "Desert", DefaultWait = 1, Pos = Vector3.new(950, 70, -328)},
+}
 
 -- ==================================================
--- CHECK MAPSETTINGS LOADED
+-- ✅ CUSTOM VALUES (User Input)
 -- ==================================================
-if not _G.YOKUDO_MapSettings then
-    warn("[MapSettings] Feature not loaded!")
-    return
+local CustomValues = {}
+
+-- ==================================================
+-- ✅ FUNCTIONS
+-- ==================================================
+local function GetMapWait(MapId)
+    if CustomValues[MapId] then
+        return CustomValues[MapId]
+    end
+    if MapData[MapId] then
+        return MapData[MapId].DefaultWait
+    end
+    return 1
 end
 
-local MapData = _G.YOKUDO_MapSettings.Data
-local CreatedEntries = {}
+local function SetMapWait(MapId, Value)
+    if type(Value) ~= "number" or Value < 0 then
+        return false
+    end
+    CustomValues[MapId] = Value
+    print(string.format("[MapSettings] ✅ Map %d Wait = %d", MapId, Value))
+    return true
+end
+
+local function ResetMapWait(MapId)
+    CustomValues[MapId] = nil
+    print(string.format("[MapSettings] 🔄 Map %d Reset", MapId))
+end
+
+local function GetMapData(MapId)
+    return MapData[MapId]
+end
+
+local function GetAllMaps()
+    return MapData
+end
+
+-- ==================================================
+-- ✅ EXPORT (មុន UI — ដើម្បី TeleportSystem អានបាន)
+-- ==================================================
+_G.YOKUDO_MapSettings = {
+    Data = MapData,
+    CustomValues = CustomValues,
+    GetMapWait = GetMapWait,
+    SetMapWait = SetMapWait,
+    ResetMapWait = ResetMapWait,
+    GetMapData = GetMapData,
+    GetAllMaps = GetAllMaps,
+}
+
+print("✅ MapSettings Data + Functions Loaded")
+
+-- ==================================================
+-- ✅ UI
+-- ==================================================
+CreateSectionTitle(MapSettingsPage, "Map Settings", 1)
 
 -- ==================================================
 -- CREATE MAP ENTRY
 -- ==================================================
+local CreatedEntries = {}
+
 local function CreateMapEntry(MapId, MapInfo)
     local Entry = Instance.new("Frame")
     Entry.Name = "Map_" .. MapId
@@ -80,7 +146,7 @@ local function CreateMapEntry(MapId, MapInfo)
     NameLabel.Font = Enum.Font.GothamBold
     NameLabel.Parent = Entry
 
-    -- Default Value Sub
+    -- Default Sub
     local DefaultSub = Instance.new("TextLabel")
     DefaultSub.Size = UDim2.new(1, -170, 0, 14)
     DefaultSub.Position = UDim2.new(0, 48, 0, 28)
@@ -99,7 +165,7 @@ local function CreateMapEntry(MapId, MapInfo)
     TextBox.Position = UDim2.new(1, -90, 0.5, -16)
     TextBox.BackgroundColor3 = Color3.fromRGB(30, 31, 45)
     TextBox.BorderSizePixel = 0
-    TextBox.Text = tostring(_G.YOKUDO_MapSettings.GetMapWait(MapId))
+    TextBox.Text = tostring(GetMapWait(MapId))
     TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.TextSize = 13
     TextBox.TextXAlignment = Enum.TextXAlignment.Center
@@ -136,7 +202,7 @@ local function CreateMapEntry(MapId, MapInfo)
         local NewValue = tonumber(TextBox.Text)
 
         if NewValue and NewValue >= 0 then
-            _G.YOKUDO_MapSettings.SetMapWait(MapId, NewValue)
+            SetMapWait(MapId, NewValue)
             TextBox.Text = tostring(NewValue)
 
             -- Green Flash
@@ -148,7 +214,7 @@ local function CreateMapEntry(MapId, MapInfo)
                 Color = Color3.fromRGB(105, 90, 190)
             }):Play()
         else
-            TextBox.Text = tostring(_G.YOKUDO_MapSettings.GetMapWait(MapId))
+            TextBox.Text = tostring(GetMapWait(MapId))
 
             -- Red Flash
             TweenService:Create(TextBoxStroke, TweenInfo.new(0.2), {
@@ -219,7 +285,7 @@ end)
 
 ResetBtn.MouseButton1Click:Connect(function()
     for _, data in ipairs(CreatedEntries) do
-        _G.YOKUDO_MapSettings.ResetMapWait(data.MapId)
+        ResetMapWait(data.MapId)
 
         if data.TextBox and MapData[data.MapId] then
             data.TextBox.Text = tostring(MapData[data.MapId].DefaultWait)
@@ -238,15 +304,15 @@ ResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================================================
--- REFRESH FUNCTION
+-- ✅ REFRESH FUNCTION
 -- ==================================================
 _G.YOKUDO_RefreshMapSettingsUI = function()
     for _, data in ipairs(CreatedEntries) do
         if data.TextBox then
-            data.TextBox.Text = tostring(_G.YOKUDO_MapSettings.GetMapWait(data.MapId))
+            data.TextBox.Text = tostring(GetMapWait(data.MapId))
         end
     end
     print("[MapSettings] 🔄 UI Refreshed")
 end
 
-print("✅ Map Settings Tab Loaded (v3 FINAL)")
+print("✅ Map Settings Tab Loaded (v4 FINAL — All In One)")
