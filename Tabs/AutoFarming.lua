@@ -1,8 +1,9 @@
 --==================================================
--- YOKUDO HUB | TAB | Auto Farming (FAST)
--- ✅ ភ្ជាប់ជាមួយ AutoFarm + TeleportSystem v21
--- ✅ User ធិក Check Egg → Select Egg → ធិក Start
--- ✅ Export Button សម្រាប់ SpeedLock
+-- YOKUDO HUB | TAB | Auto Farming (v2 — Lock Support)
+-- ✅ Check SpeedLock Inside ToggleGetEgg
+-- ✅ Lock Icon
+-- ✅ Show Message
+-- ✅ Export Button
 -- ✅ គ្មាន Audio
 --==================================================
 
@@ -11,9 +12,6 @@ local TweenService = game:GetService("TweenService")
 
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
---==================================================
--- CONTENT
---==================================================
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
 
 --==================================================
@@ -118,8 +116,17 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ TOGGLE GET EGG (គ្មាន Audio)
+-- ✅ TOGGLE GET EGG (កែ — Check SpeedLock Inside)
 local function ToggleGetEgg()
+    -- ✅ Check SpeedLock ខាងក្នុង
+    if _G.YOKUDO_SpeedLock and not _G.YOKUDO_SpeedLock.IsUnlocked() then
+        _G.YOKUDO_SpeedLock.ShowMessage(
+            "🔒 To Get Speed 1B UP\nWhen 1B Done, Please Exit Game and Join Again",
+            5
+        )
+        return
+    end
+    
     GetEggEnabled = not GetEggEnabled
     GetEggCheck.Visible = GetEggEnabled
     if GetEggEnabled then
@@ -415,8 +422,8 @@ task.spawn(function()
 end)
 
 --==================================================
--- ✅ EXPORT BUTTONS (សម្រាប់ SpeedLock)
+-- ✅ EXPORT BUTTON
 --==================================================
 _G.YOKUDO_GetEggCheckButton = GetEggCheckButton
 
-print("✅ Auto Farming Tab Loaded (FAST + TeleportSystem v21 + Export Button)")
+print("✅ Auto Farming Tab Loaded (v2 — Lock Support)")
