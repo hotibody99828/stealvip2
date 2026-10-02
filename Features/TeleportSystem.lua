@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v34)
--- ✅ FIX ALL ERRORS — Line 715, 685, 213
--- ✅ Nearest First Egg
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v36)
+-- ✅ រក First Egg ជិត Player បំផុត
+-- ✅ Walk TP → First Egg → Collect
+-- ✅ Short TP → Target → Drop → Walk TP
 -- ✅ Collect Timeout 20s
--- ✅ After Complete → Manager → Check New First Egg
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -139,7 +139,6 @@ local WalkTP
 local AutoStop
 local Step1_WalkToFirstEgg
 local Step3b_AfterDropFirst
-local Step4_WalkToTargetAndFlyLock
 local Step7_ShotToSafePosition
 local Step8b_WalkToCollectAgain
 local Step8c_CheckDistanceAndRecover
@@ -344,11 +343,6 @@ CFrameInstant = function(Destination, Callback)
         if Callback then Callback() end
         return
     end
-    
-    if not Destination then
-        if Callback then Callback() end
-        return
-    end
 
     pcall(function()
         Hum:MoveTo(Root.Position)
@@ -387,7 +381,6 @@ RemoteDrop = function()
 end
 
 StartLock = function(TargetPos)
-    if not TargetPos then return end
     if State.LockConnection then State.LockConnection:Disconnect() State.LockConnection = nil end
     local LockedCFrame = CFrame.new(TargetPos + Vector3.new(0, Config.LockDistance, 0))
     State.LockConnection = RunService.Heartbeat:Connect(function()
@@ -410,26 +403,10 @@ StopLock = function()
     end
 end
 
--- ==================================================
--- ✅ FLY TP AND LOCK (Safe Check ALL)
--- ==================================================
 FlyTPAndLock = function(Destination, YOffset, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    
-    -- ✅ Check Destination
-    if not Destination then
-        warn("[TeleportSystem] ⚠️ FlyTPAndLock: Destination is nil!")
-        if Callback then Callback() end
-        return
-    end
-    
-    if typeof(Destination) ~= "Vector3" then
-        warn("[TeleportSystem] ⚠️ FlyTPAndLock: Destination is not Vector3!")
         if Callback then Callback() end
         return
     end
@@ -451,10 +428,6 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
         end
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 then CleanupMovers() return end
-        
-        -- ✅ Check Destination រាល់ Frame
-        if not Destination then CleanupMovers() return end
-        
         local CurrentPos = Root2.Position
         local Dir = LockPos - CurrentPos
         local Dist = Dir.Magnitude
@@ -482,26 +455,10 @@ FlyTPAndLock = function(Destination, YOffset, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP (Safe Check Destination — FIX LINE 715)
--- ==================================================
 ShotTP = function(Destination, Time, CheckDrop, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    
-    -- ✅ Check Destination
-    if not Destination then
-        warn("[TeleportSystem] ⚠️ ShotTP: Destination is nil!")
-        if Callback then Callback() end
-        return
-    end
-    
-    if typeof(Destination) ~= "Vector3" then
-        warn("[TeleportSystem] ⚠️ ShotTP: Destination is not Vector3!")
         if Callback then Callback() end
         return
     end
@@ -519,10 +476,6 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
         if not State.Running then CleanupMovers() return end
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 then CleanupMovers() return end
-        
-        -- ✅ Check Destination រាល់ Frame
-        if not Destination then CleanupMovers() return end
-        
         local Elapsed = tick() - StartTime
         local Alpha = math.clamp(Elapsed / Time, 0, 1)
         local NewPos = StartPos:Lerp(Destination, Alpha)
@@ -551,25 +504,10 @@ ShotTP = function(Destination, Time, CheckDrop, Callback)
     end)
 end
 
--- ==================================================
--- ✅ SHOT TP WITH STOP (Safe Check)
--- ==================================================
 ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    
-    if not Destination then
-        warn("[TeleportSystem] ⚠️ ShotTPWithStop: Destination is nil!")
-        if Callback then Callback() end
-        return
-    end
-    
-    if typeof(Destination) ~= "Vector3" then
-        warn("[TeleportSystem] ⚠️ ShotTPWithStop: Destination is not Vector3!")
         if Callback then Callback() end
         return
     end
@@ -586,11 +524,6 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
         local Hum2, Root2 = GetHumanoid()
         if not Hum2 or not Root2 then CleanupMovers() return end
 
-        if not Destination then 
-            CleanupMovers() 
-            return 
-        end
-        
         local Elapsed = tick() - StartTime
         local Alpha = math.clamp(Elapsed / Time, 0, 1)
         local NewPos = StartPos:Lerp(Destination, Alpha)
@@ -623,25 +556,10 @@ ShotTPWithStop = function(Destination, Time, StopDistance, Callback)
     end)
 end
 
--- ==================================================
--- ✅ WALK TP (Safe Check)
--- ==================================================
 WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, Callback)
     CleanupMovers()
     local Hum, Root = GetHumanoid()
     if not Hum or not Root then
-        if Callback then Callback() end
-        return
-    end
-    
-    if not Destination then
-        warn("[TeleportSystem] ⚠️ WalkTP: Destination is nil!")
-        if Callback then Callback() end
-        return
-    end
-    
-    if typeof(Destination) ~= "Vector3" then
-        warn("[TeleportSystem] ⚠️ WalkTP: Destination is not Vector3!")
         if Callback then Callback() end
         return
     end
@@ -703,9 +621,6 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
     end)
 end
 
--- ==================================================
--- ✅ COLLECT TIMEOUT (20s)
--- ==================================================
 StartCollectTimeout = function(EggUid, Callback)
     State.CollectStartTime = tick()
     
@@ -780,7 +695,7 @@ AutoStop = function()
 end
 
 -- ==================================================
--- ✅ STEP 1 (Walk TP → First Egg ជិតបំផុត)
+-- ✅ STEP 1 — រក First Egg ជិត Player បំផុត
 -- ==================================================
 Step1_WalkToFirstEgg = function()
     State.Step = "1_to_first"
@@ -793,7 +708,7 @@ Step1_WalkToFirstEgg = function()
         if not Hum or not Root then AutoStop() return end
     end
     
-    -- ✅ រក First Egg ជិតបំផុត
+    -- ✅ រក First Egg ជិត Player បំផុត
     local PlayerPos = Root.Position
     local NearestUid = nil
     local NearestSlotKey = nil
@@ -849,7 +764,7 @@ Step1_WalkToFirstEgg = function()
 end
 
 -- ==================================================
--- ✅ STEP 3B (Short TP → 1200m → Drop → Walk TP)
+-- ✅ STEP 3B — Short TP → Target → Drop → Walk TP
 -- ==================================================
 Step3b_AfterDropFirst = function()
     if not State.Running then return end
@@ -881,7 +796,6 @@ Step3b_AfterDropFirst = function()
 
             task.wait(0.3)
 
-            -- ✅ Check TargetPos ម្តងទៀត
             local NewTargetPos
             if Container:FindFirstChild(State.TargetUid) then
                 NewTargetPos = GetPosition(Container:FindFirstChild(State.TargetUid))
@@ -918,9 +832,6 @@ Step3b_AfterDropFirst = function()
     end)
 end
 
--- ==================================================
--- ✅ STEP 7 (Safe Check SafePos)
--- ==================================================
 Step7_ShotToSafePosition = function()
     if not State.Running then return end
     State.Step = "7_push_up"
@@ -931,29 +842,8 @@ Step7_ShotToSafePosition = function()
         State.SafeName = SafeName
         State.SafePosition = SafePos
 
-        -- ✅ Check SafePos
-        if not SafePos then 
-            warn("[TeleportSystem] ⚠️ Step7: SafePos is nil → AutoStop")
-            AutoStop() 
-            return 
-        end
-        
-        if typeof(SafePos) ~= "Vector3" then
-            warn("[TeleportSystem] ⚠️ Step7: SafePos is not Vector3 → AutoStop")
-            AutoStop()
-            return
-        end
-
         local ShotTarget = SafePos + Vector3.new(0, Config.PushUpOffset, 0)
-        
-        -- ✅ Check ShotTarget
-        if not ShotTarget then
-            warn("[TeleportSystem] ⚠️ Step7: ShotTarget is nil → AutoStop")
-            AutoStop()
-            return
-        end
 
-        print("[TeleportSystem] ⚡ Shot TP → Safe Position")
         ShotTP(ShotTarget, Config.ShotTPTime2, false, function()
             CFrameInstant(SafePos, function()
                 CleanupMovers()
@@ -1185,27 +1075,6 @@ StartProcess = function()
         warn("[TeleportSystem] No Target ID")
         return
     end
-    
-    if string.find(State.TargetUid, "FirstAreaEgg") then
-        warn("[TeleportSystem] ⚠️ Target ជា First Egg!")
-        return
-    end
-    
-    local Players = game:GetService("Players")
-    for _, P in ipairs(Players:GetPlayers()) do
-        if P.Name == State.TargetUid or P.DisplayName == State.TargetUid then
-            warn("[TeleportSystem] ⚠️ Target ជា Player:", State.TargetUid)
-            return
-        end
-    end
-    
-    local TargetInContainer = Container:FindFirstChild(State.TargetUid)
-    local TargetInWorkspace = workspace:FindFirstChild(State.TargetUid)
-    
-    if not TargetInContainer and not TargetInWorkspace then
-        warn("[TeleportSystem] ⚠️ Target not found:", State.TargetUid)
-        return
-    end
 
     print(string.format("[TeleportSystem] 🥚 First Egg: %s", FirstEggUid))
     print(string.format("[TeleportSystem] 🎯 Target Egg: %s", State.TargetUid))
@@ -1288,21 +1157,10 @@ Player.CharacterAdded:Connect(function(Char)
     
     task.wait(0.5)
     
-    local TargetInContainer = Container:FindFirstChild(State.TargetUid)
-    local TargetInWorkspace = workspace:FindFirstChild(State.TargetUid)
-    
-    if not TargetInContainer and not TargetInWorkspace then
-        print("[TeleportSystem] ⚠️ Target not found → Stop")
-        return
-    end
-    
     print("[TeleportSystem] ✅ Restarting Teleport System...")
     StartProcess()
 end)
 
--- ==================================================
--- PUBLIC API
--- ==================================================
 local TeleportSystem = {}
 
 function TeleportSystem.Enable()
@@ -1336,7 +1194,6 @@ function TeleportSystem.GetWalkSpeed() return GetPlayerSpeed() end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
--- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v34 — FIX ALL Errors)")
+print("✅ TeleportSystem Loaded (v36 — Check First Egg ជិត Player)")
