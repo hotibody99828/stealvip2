@@ -37,7 +37,7 @@ local Config = {
     Position2_Top1 = Vector3.new(602, 70, -410),
     Position2_Top2 = Vector3.new(541, 70, -414),
 
-    WalkTimeout = 30,
+    WalkTimeout = 10000,
     CollectInterval = 0.02,
     MaxCollectAttempts = 10000,
     EggGoneCheckInterval = 0.5,
