@@ -1,9 +1,9 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v22)
--- ✅ WalkSpeed ថេរ (គ្មាន TextBox)
+-- YOKUDO HUB | TELEPORT SYSTEM (SMART SAFE v23)
+-- ✅ WalkSpeed ថេរ
 -- ✅ Save/Restore WalkSpeed Real ពី Player
 -- ✅ Callback ទៅ FarmingManager ពេលបញ្ចប់
--- ✅ Logic v21 ពេញលេញ + Callback
+-- ✅ ភ្ជាប់ជាមួយ MapSettings (អានតម្លៃថ្មី)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -44,19 +44,19 @@ local Config = {
 }
 
 -- ==================================================
--- MAP POSITIONS
+-- ✅ MAP POSITIONS (ដក Wait ចេញ — អានពី MapSettings)
 -- ==================================================
 local MapPositions = {
-    {Pos = Vector3.new(5666, 70, -329), Wait = 8},
-    {Pos = Vector3.new(4798, 70, -333), Wait = 6},
-    {Pos = Vector3.new(4031, 70, -396), Wait = 6},
-    {Pos = Vector3.new(3397, 70, -328), Wait = 5},
-    {Pos = Vector3.new(2815, 70, -398), Wait = 4},
-    {Pos = Vector3.new(2286, 70, -331), Wait = 4},
-    {Pos = Vector3.new(1877, 70, -390), Wait = 1},
-    {Pos = Vector3.new(1488, 70, -318), Wait = 1},
-    {Pos = Vector3.new(1187, 70, -406), Wait = 1},
-    {Pos = Vector3.new(950, 70, -328), Wait = 1},
+    {Pos = Vector3.new(5666, 70, -329), MapId = 1},   -- Angels & Demons
+    {Pos = Vector3.new(4798, 70, -333), MapId = 2},   -- Titan Temple
+    {Pos = Vector3.new(4031, 70, -396), MapId = 3},   -- Cherry Blossom
+    {Pos = Vector3.new(3397, 70, -328), MapId = 4},   -- Cosmic
+    {Pos = Vector3.new(2815, 70, -398), MapId = 5},   -- Prehistoric
+    {Pos = Vector3.new(2286, 70, -331), MapId = 6},   -- Abyss Ocean
+    {Pos = Vector3.new(1877, 70, -390), MapId = 7},   -- Volcano
+    {Pos = Vector3.new(1488, 70, -318), MapId = 8},   -- Snow
+    {Pos = Vector3.new(1187, 70, -406), MapId = 9},   -- Jungle
+    {Pos = Vector3.new(950, 70, -328), MapId = 10},   -- Desert
 }
 
 -- ==================================================
@@ -108,7 +108,6 @@ local State = {
     CurrentEggUid = nil,
     EggGoneCheckThread = nil,
 
-    -- ✅ Callback ទៅ FarmingManager
     OnComplete = nil,
 }
 
@@ -233,18 +232,44 @@ IsEggGone = function(Uid)
     return false
 end
 
+-- ==================================================
+-- ✅ GET NEAREST MAP WAIT (អានតម្លៃថ្មីពី MapSettings)
+-- ==================================================
 GetNearestMapWait = function(EggPos)
     if not EggPos then return 8 end
+    
+    -- ✅ Find Nearest Map
     local NearestDist = math.huge
-    local NearestWait = 8
-    for i, MapData in ipairs(MapPositions) do
+    local NearestMapId = 1
+    local NearestMapName = "Unknown"
+    
+    for _, MapData in ipairs(MapPositions) do
         local Dist = (EggPos - MapData.Pos).Magnitude
         if Dist < NearestDist then
             NearestDist = Dist
-            NearestWait = MapData.Wait
+            NearestMapId = MapData.MapId
         end
     end
-    return NearestWait
+    
+    -- ✅ អានតម្លៃថ្មីពី MapSettings
+    local Wait = 8  -- Fallback
+    
+    if _G.YOKUDO_MapSettings then
+        -- ✅ Custom ឬ Default
+        Wait = _G.YOKUDO_MapSettings.GetMapWait(NearestMapId)
+        
+        -- ✅ Get Map Info
+        local MapInfo = _G.YOKUDO_MapSettings.GetMapData(NearestMapId)
+        if MapInfo then
+            NearestMapName = MapInfo.Name
+        end
+    end
+    
+    -- ✅ Print Info
+    print(string.format("[TeleportSystem] 🗺️ %s (Map %d) | Wait: %d | Dist: %.1f",
+        NearestMapName, NearestMapId, Wait, NearestDist))
+    
+    return Wait
 end
 
 GetSafePosition = function()
@@ -568,7 +593,7 @@ WalkTP = function(Destination, LockAfterArrive, FlyAtDistance, DropAtDistance, C
 end
 
 -- ==================================================
--- NOTIFY COMPLETE (Call ទៅ FarmingManager)
+-- NOTIFY COMPLETE
 -- ==================================================
 NotifyComplete = function()
     print("[TeleportSystem] ✅ NotifyComplete → Call FarmingManager")
@@ -611,7 +636,6 @@ AutoStop = function()
 
     print("[TeleportSystem] ✅ Auto Stop + Restored WalkSpeed")
 
-    -- ✅ Call FarmingManager
     NotifyComplete()
 end
 
@@ -670,6 +694,7 @@ Step4_WalkToTargetAndFlyLock = function()
     end
     if not TargetPos then AutoStop() return end
 
+    -- ✅ អាន Wait ពី MapSettings
     local WaitTime = GetNearestMapWait(TargetPos)
 
     WalkTP(TargetPos, false, Config.FlyTPDistance, false, function()
@@ -985,7 +1010,6 @@ function TeleportSystem.SetTargetId(Id)
     print("[TeleportSystem] Target ID: " .. tostring(Id))
 end
 
--- ✅ Set Callback
 function TeleportSystem.SetOnComplete(Callback)
     State.OnComplete = Callback
 end
@@ -998,4 +1022,4 @@ function TeleportSystem.GetTargetId() return State.TargetUid end
 -- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (Smart Safe v22 - With Callback)")
+print("✅ TeleportSystem Loaded (Smart Safe v23 - MapSettings Integration)")
