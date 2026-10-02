@@ -1,8 +1,8 @@
 --==================================================
--- YOKUDO HUB | TAB | Auto Farming (v3 — Skip First Egg)
+-- YOKUDO HUB | TAB | Auto Farming (v2 — Lock Support)
 -- ✅ Check SpeedLock Inside ToggleGetEgg
--- ✅ Lock Icon + Show Message
--- ✅ Skip First Egg (មិនបង្ហាញក្នុង List)
+-- ✅ Lock Icon
+-- ✅ Show Message
 -- ✅ Export Button
 -- ✅ គ្មាន Audio
 --==================================================
@@ -13,14 +13,6 @@ local TweenService = game:GetService("TweenService")
 local AutoFarmingTab, AutoFarmingPage = TabsManager:RegisterTab("Auto Farming", 4, "AUTO_FARMING")
 
 CreateSectionTitle(AutoFarmingPage, "Auto Farming", 1)
-
---==================================================
--- ✅ IS FIRST EGG
---==================================================
-local function IsFirstEgg(Name)
-    if not Name then return false end
-    return string.find(Name, "FirstAreaEgg") ~= nil
-end
 
 --==================================================
 -- FEATURE 1: Click Get Egg
@@ -124,8 +116,9 @@ local function UpdateGetEggBox(Icon, Name, Rate, EggId)
     TweenService:Create(GetEggRate, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
 end
 
--- ✅ TOGGLE GET EGG (Check SpeedLock Inside)
+-- ✅ TOGGLE GET EGG (កែ — Check SpeedLock Inside)
 local function ToggleGetEgg()
+    -- ✅ Check SpeedLock ខាងក្នុង
     if _G.YOKUDO_SpeedLock and not _G.YOKUDO_SpeedLock.IsUnlocked() then
         _G.YOKUDO_SpeedLock.ShowMessage(
             "🔒 To Get Speed 1B UP\nWhen 1B Done, Please Exit Game and Join Again",
@@ -324,7 +317,6 @@ local function CreateEggEntry(EggData)
     return Entry
 end
 
--- ✅ REFRESH EGG LIST (Skip First Egg)
 local function RefreshEggList()
     if not CheckEggEnabled then return end
     if not _G.YOKUDO_AutoFarm then return end
@@ -338,22 +330,12 @@ local function RefreshEggList()
     EggEntries = {}
 
     local Eggs = _G.YOKUDO_AutoFarm.ScanEggs()
-    local DisplayCount = 0
-    
     for _, EggData in ipairs(Eggs) do
-        -- ✅ Skip First Egg
-        if IsFirstEgg(EggData.Id) then
-            continue
-        end
-        
         local Entry = CreateEggEntry(EggData)
-        if Entry then
-            table.insert(EggEntries, Entry)
-            DisplayCount = DisplayCount + 1
-        end
+        table.insert(EggEntries, Entry)
     end
-    EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, DisplayCount * 48)
-    CheckEggCount.Text = "Egg: " .. DisplayCount
+    EggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #Eggs * 48)
+    CheckEggCount.Text = "Egg: " .. #Eggs
 end
 
 local RefreshPending = false
@@ -444,4 +426,4 @@ end)
 --==================================================
 _G.YOKUDO_GetEggCheckButton = GetEggCheckButton
 
-print("✅ Auto Farming Tab Loaded (v3 — Skip First Egg)")
+print("✅ Auto Farming Tab Loaded (v2 — Lock Support)")
