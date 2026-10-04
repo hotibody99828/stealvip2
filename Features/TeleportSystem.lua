@@ -36,7 +36,7 @@ local Config = {
     RecoverDistanceThreshold = 500,
     MaxRepeatCount = 10,
     CollectTargetTimeout = 25,
-    RecoverWaitTime = 1.5,  -- ✅ Wait 1.5s មុន Recover
+    RecoverWaitTime = 2,  -- ✅ Wait 1.5s មុន Recover
 
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
