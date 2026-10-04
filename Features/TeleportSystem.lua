@@ -59,6 +59,7 @@ local MapPositions = {
     {Pos = Vector3.new(1488, 70, -318), MapId = 8},
     {Pos = Vector3.new(1187, 70, -406), MapId = 9},
     {Pos = Vector3.new(950, 70, -328), MapId = 10},
+    {Pos = Vector3.new(6703, 70, -349), MapId = 11},
 }
 
 -- ==================================================
