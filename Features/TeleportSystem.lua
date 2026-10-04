@@ -1,5 +1,5 @@
 -- ==================================================
--- YOKUDO HUB | TELEPORT SYSTEM (v33 FINAL)
+-- YOKUDO HUB | TELEPORT SYSTEM (v34 FINAL)
 -- ✅ Player Speed (No 200)
 -- ✅ No WalkTimeout
 -- ✅ Short TP → 1200m → Drop → Walk TP
@@ -8,6 +8,8 @@
 -- ✅ Reset First Egg ពេល Complete
 -- ✅ Receive UID ពី Manager
 -- ✅ Character Respawn Restart
+-- ✅ Wait 1.5s មុន Recover
+-- ✅ Map 11 (Enchanted Forest)
 -- ==================================================
 
 local Players = game:GetService("Players")
@@ -34,6 +36,7 @@ local Config = {
     RecoverDistanceThreshold = 500,
     MaxRepeatCount = 10,
     CollectTargetTimeout = 25,
+    RecoverWaitTime = 1.5,  -- ✅ Wait 1.5s មុន Recover
 
     Position1_Top1 = Vector3.new(612, 70, -333),
     Position1_Top2 = Vector3.new(546, 70, -309),
@@ -779,6 +782,9 @@ Step4_WalkToTargetAndFlyLock = function()
     end)
 end
 
+-- ==================================================
+-- ✅ STEP 7 (Wait 1.5s មុន Recover)
+-- ==================================================
 Step7_ShotToSafePosition = function()
     if not State.Running then return end
     State.Step = "7_push_up"
@@ -803,7 +809,10 @@ Step7_ShotToSafePosition = function()
                     State.CurrentEggUid = nil
                     task.wait(0.2)
                     StopLock()
-                    task.wait(0.3)
+                    
+                    -- ✅ Wait 1.5s មុន Recover
+                    task.wait(Config.RecoverWaitTime)
+                    
                     Step8c_CheckDistanceAndRecover()
                 end)
             end)
@@ -983,7 +992,6 @@ StartProcess = function()
     if State.Running then AutoStop() end
     task.wait(0.2)
 
-    -- ✅ Check UID
     if not State.TargetUid then
         warn("[TeleportSystem] ⚠️ No Target UID → Call Manager")
         NotifyComplete()
@@ -1014,7 +1022,6 @@ StartProcess = function()
         return
     end
 
-    -- ✅ Find Nearest First Egg
     local FirstEggUid, FirstEggSlotKey = FindNearestFirstEgg()
     
     if not FirstEggUid or not FirstEggSlotKey then
@@ -1087,9 +1094,6 @@ FullReset = function()
     print("[TeleportSystem] Full Reset + Reset First Egg")
 end
 
--- ==================================================
--- CHARACTER RESPAWN RESTART
--- ==================================================
 Player.CharacterAdded:Connect(function(Char)
     if not State.Running then return end
     
@@ -1103,9 +1107,6 @@ Player.CharacterAdded:Connect(function(Char)
     end
 end)
 
--- ==================================================
--- PUBLIC API
--- ==================================================
 local TeleportSystem = {}
 
 function TeleportSystem.Enable()
@@ -1146,7 +1147,6 @@ function TeleportSystem.GetWalkSpeed() return GetPlayerSpeed() end
 function TeleportSystem.IsEnabled() return State.Running end
 function TeleportSystem.GetTargetId() return State.TargetUid end
 
--- Export
 _G.YOKUDO_TeleportSystem = TeleportSystem
 
-print("✅ TeleportSystem Loaded (v33 FINAL)")
+print("✅ TeleportSystem Loaded (v34 FINAL — Wait 1.5s Recover + Map 11)")
