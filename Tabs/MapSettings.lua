@@ -1,11 +1,12 @@
 -- ==================================================
--- YOKUDO HUB | TAB | Map Settings (v4 FINAL)
+-- YOKUDO HUB | TAB | Map Settings (v5 FINAL)
 -- ✅ Data + UI + Functions (All In One)
 -- ✅ Map Name + TextBox
 -- ✅ User Input Value
 -- ✅ Reset Button
 -- ✅ Export _G.YOKUDO_MapSettings
--- ✅ គ្មាន Features/MapSettings.lua
+-- ✅ Map 11 (Enchanted Forest) បង្ហាញ
+-- ✅ Sort Map ID ត្រឹមត្រូវ
 -- ==================================================
 
 local TabsManager = _G.YOKUDO_TabsManager
@@ -238,9 +239,15 @@ local function CreateMapEntry(MapId, MapInfo)
 end
 
 -- ==================================================
--- CREATE ALL MAP ENTRIES
+-- ✅ CREATE ALL MAP ENTRIES (Sort Map ID)
 -- ==================================================
-for MapId = 1, 10 do
+local MapIds = {}
+for MapId, _ in pairs(MapData) do
+    table.insert(MapIds, MapId)
+end
+table.sort(MapIds, function(a, b) return a < b end)
+
+for _, MapId in ipairs(MapIds) do
     local MapInfo = MapData[MapId]
     if MapInfo then
         CreateMapEntry(MapId, MapInfo)
@@ -316,4 +323,4 @@ _G.YOKUDO_RefreshMapSettingsUI = function()
     print("[MapSettings] 🔄 UI Refreshed")
 end
 
-print("✅ Map Settings Tab Loaded (v4 FINAL — All In One)")
+print("✅ Map Settings Tab Loaded (v5 FINAL — Map 11 Enabled)")
