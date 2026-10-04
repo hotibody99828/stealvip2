@@ -38,8 +38,8 @@ local Config = {
     CollectTargetTimeout = 25,
 
     -- ✅ Step 8b: Wait + Top2
-    Top2ShortTPWait = 0.05,     -- ✅ Wait 1s មុន Short TP
-    Top2ShotTPTime = 0.05,      -- ✅ Short TP Time (1s)
+    Top2ShortTPWait = 0.01,     -- ✅ Wait 1s មុន Short TP
+    Top2ShotTPTime = 0.01,      -- ✅ Short TP Time (1s)
     Top2StopDistance = 4,    -- ✅ Stop Distance
 
     Position1_Top1 = Vector3.new(612, 70, -333),
