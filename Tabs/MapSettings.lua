@@ -19,9 +19,9 @@ local MapSettingsTab, MapSettingsPage = TabsManager:RegisterTab("Map Settings", 
 -- ==================================================
 local MapData = {
     [1] = {MapId = 1, Name = "Angels & Demons", DefaultWait = 8, Pos = Vector3.new(5666, 70, -329)},
-    [2] = {MapId = 2, Name = "Titan Temple", DefaultWait = 6, Pos = Vector3.new(4798, 70, -333)},
-    [3] = {MapId = 3, Name = "Cherry Blossom", DefaultWait = 6, Pos = Vector3.new(4031, 70, -396)},
-    [4] = {MapId = 4, Name = "Cosmic", DefaultWait = 5, Pos = Vector3.new(3397, 70, -328)},
+    [2] = {MapId = 2, Name = "Titan Temple", DefaultWait = 8, Pos = Vector3.new(4798, 70, -333)},
+    [3] = {MapId = 3, Name = "Cherry Blossom", DefaultWait = 7, Pos = Vector3.new(4031, 70, -396)},
+    [4] = {MapId = 4, Name = "Cosmic", DefaultWait = 6, Pos = Vector3.new(3397, 70, -328)},
     [5] = {MapId = 5, Name = "Prehistoric", DefaultWait = 4, Pos = Vector3.new(2815, 70, -398)},
     [6] = {MapId = 6, Name = "Abyss Ocean", DefaultWait = 4, Pos = Vector3.new(2286, 70, -331)},
     [7] = {MapId = 7, Name = "Volcano", DefaultWait = 1, Pos = Vector3.new(1877, 70, -390)},
