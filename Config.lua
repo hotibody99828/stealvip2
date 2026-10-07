@@ -5,7 +5,7 @@
 _G.YOKUDO = {
     -- Hub Info
     Name = "YOKUDO HUB | Steal An Egg",
-    Version = "by : Lyy S4 ",
+    Version = "by : S4 ",
     Author = "Yokudo",
 
     -- Asset
